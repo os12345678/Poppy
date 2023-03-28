@@ -1,6 +1,3 @@
-(* bin/main.ml *)
-
-(* Import the required modules *)
 open Core
 open Poppy
 
