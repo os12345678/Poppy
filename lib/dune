@@ -1,0 +1,11 @@
+(library
+ (name poppy)
+ (libraries core menhirLib)
+ (preprocess (pps ppx_jane))
+ (modules ast lexer parser)
+ (public_name poppy))
+
+(ocamllex lexer)
+(menhir
+ (modules parser)
+ (flags --explain))
