@@ -45,11 +45,13 @@ rule read_tok =
   | "&&" { AND }
   | "||" { OR }
   | "!" { NOT }
+  | "^" { XOR }
   (* Keywords *)
   | "if" { IF }
   | "else" { ELSE }
   | "while" { WHILE }
   | "fn" { FN }
+  | "return" { RETURN }
   (* Symbols *)
   | "=" { ASSIGN }
   | ":" { COLON}

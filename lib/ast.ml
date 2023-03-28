@@ -13,6 +13,7 @@ type bin_op =
   | Neq
   | And
   | Or
+  | Xor
 [@@deriving sexp_of]
 
 type expr =
@@ -23,10 +24,14 @@ type expr =
   | Not of expr
 [@@deriving sexp_of]
 
+type func_param = string * string
+[@@deriving sexp_of]
+
 type statement =
   | Assign of string * expr
   | If of expr * statement * statement
   | While of expr * statement
-  | FuncDecl of string * string list * statement
   | Block of statement list
+  | FuncDecl of string * func_param list * statement list
+  | Return of expr option
 [@@deriving sexp_of]

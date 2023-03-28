@@ -8,14 +8,22 @@
 %token LPAREN RPAREN LBRACE RBRACE
 %token PLUS MINUS TIMES DIV
 %token LT LEQ GT GEQ EQ NEQ
-%token AND OR NOT
+%token AND OR NOT XOR
 %token IF ELSE
 %token WHILE
 %token ASSIGN
 %token COLON
 %token FN 
+%token RETURN
 %token COMMA
 %token EOF
+
+%nonassoc EQ NEQ
+%left LT LEQ GT GEQ
+%left PLUS MINUS
+%left TIMES DIV
+%left AND
+%left OR XOR
 
 %start main
 %type <Ast.statement> main
@@ -30,12 +38,14 @@ statement:
   | IF LPAREN expr RPAREN COLON statement ELSE COLON statement { If($3, $6, $9) }
   | WHILE LPAREN expr RPAREN COLON statement { While($3, $6) }
   | LBRACE statements RBRACE { Block($2) }
-  | FN ID LPAREN params RPAREN COLON statement { FuncDecl($2, $4, $7) }
+  | FN ID LPAREN params RPAREN LBRACE statements RBRACE { FuncDecl($2, $4, $7) }
+  | RETURN expr { Return(Some($2)) }
+  | RETURN { Return(None) }
 
 params:
   | { [] }
-  | ID { [$1] }
-  | ID COMMA params { $1 :: $3 }
+  | ID COLON ID { [($1, $3)] }
+  | ID COLON ID COMMA params { ($1, $3) :: $5 }
 
 statements:
   | statement { [$1] }
@@ -59,4 +69,5 @@ expr:
   | expr NEQ expr { BinOp(Neq, $1, $3) }
   | expr AND expr { BinOp(And, $1, $3) }
   | expr OR expr { BinOp(Or, $1, $3) }
+  | expr XOR expr { BinOp(Xor, $1, $3) }
   | NOT expr { Not($2) }
