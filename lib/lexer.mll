@@ -47,10 +47,13 @@ rule read_tok =
   | "!" { NOT }
   (* Keywords *)
   | "if" { IF }
-  | "then" { THEN }
   | "else" { ELSE }
+  | "while" { WHILE }
+  | "fn" { FN }
   (* Symbols *)
   | "=" { ASSIGN }
+  | ":" { COLON}
+  | "," { COMMA}
   (* Identifiers and constants *)
   | "True" { TRUE }
   | "False" { FALSE }

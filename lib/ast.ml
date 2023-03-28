@@ -26,5 +26,7 @@ type expr =
 type statement =
   | Assign of string * expr
   | If of expr * statement * statement
+  | While of expr * statement
+  | FuncDecl of string * string list * statement
   | Block of statement list
 [@@deriving sexp_of]
