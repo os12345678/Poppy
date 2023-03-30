@@ -4,13 +4,14 @@
 
 %token <int> INT
 %token <string> ID
+%token <string> STRING
 %token TRUE FALSE
 %token LPAREN RPAREN LBRACE RBRACE
 %token PLUS MINUS TIMES DIV
 %token LT LEQ GT GEQ EQ NEQ
 %token AND OR NOT XOR
 %token IF ELSE
-%token WHILE
+%token WHILE FOR
 %token ASSIGN
 %token COLON
 %token FN 
@@ -37,6 +38,7 @@ statement:
   | ID ASSIGN expr { Assign($1, $3) }
   | IF LPAREN expr RPAREN COLON statement ELSE COLON statement { If($3, $6, $9) }
   | WHILE LPAREN expr RPAREN COLON statement { While($3, $6) }
+  | FOR LPAREN ID ASSIGN INT COMMA expr COMMA increment RPAREN LBRACE statement RBRACE { For($3, $5, $7, $9, $12) }
   | LBRACE statements RBRACE { Block($2) }
   | FN ID LPAREN params RPAREN LBRACE statements RBRACE { FuncDecl($2, $4, $7) }
   | RETURN expr { Return(Some($2)) }
@@ -46,6 +48,11 @@ params:
   | { [] }
   | ID COLON ID { [($1, $3)] }
   | ID COLON ID COMMA params { ($1, $3) :: $5 }
+
+increment:
+  | ID { Id($1) }
+  | ID PLUS PLUS { Incr($1) }
+  | ID MINUS MINUS { Decr($1) }
 
 statements:
   | statement { [$1] }

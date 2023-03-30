@@ -22,6 +22,8 @@ type expr =
   | Id of string
   | BinOp of bin_op * expr * expr
   | Not of expr
+  | Incr of string
+  | Decr of string
 [@@deriving sexp_of]
 
 type func_param = string * string
@@ -31,6 +33,7 @@ type statement =
   | Assign of string * expr
   | If of expr * statement * statement
   | While of expr * statement
+  | For of string * int * expr * expr * statement
   | Block of statement list
   | FuncDecl of string * func_param list * statement list
   | Return of expr option
