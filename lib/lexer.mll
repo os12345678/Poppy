@@ -60,6 +60,7 @@ rule read_tok =
   | ":" { COLON }
   | "," { COMMA }
   (* Identifiers and constants *)
+  | "let" { LET }
   | "True" { TRUE }
   | "False" { FALSE }
   | id { ID (Lexing.lexeme lexbuf) }
@@ -69,7 +70,7 @@ rule read_tok =
   | whitespace { read_tok lexbuf }
   | newline { advance_line lexbuf; read_tok lexbuf }
   | "//" { read_single_line_comment lexbuf }
-  | "/*" { read_multi_line_comment lexbuf } 
+  | "/*" { read_multi_line_comment 1 lexbuf }
   | eof { EOF }
   | _ {raise (SyntaxError ("Lexer - Illegal character: " ^ Lexing.lexeme lexbuf)) }
 
@@ -78,11 +79,12 @@ and read_single_line_comment = parse
   | eof { EOF }
   | _ { read_single_line_comment lexbuf } 
   
-and read_multi_line_comment = parse
-  | "*/" { read_tok lexbuf } 
-  | newline { advance_line lexbuf; read_multi_line_comment lexbuf } 
+and read_multi_line_comment depth = parse
+  | "*/" { if depth = 1 then read_tok lexbuf else read_multi_line_comment (depth - 1) lexbuf }
+  | "/*" { read_multi_line_comment (depth + 1) lexbuf }
+  | newline { advance_line lexbuf; read_multi_line_comment depth lexbuf }
   | eof { raise (SyntaxError ("Lexer - Unexpected EOF - please terminate your comment.")) }
-  | _ { read_multi_line_comment lexbuf } 
+  | _ { read_multi_line_comment depth lexbuf }
 
 and read_string buf = parse
   | '"'       { STRING (Buffer.contents buf) }
