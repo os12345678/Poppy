@@ -9,7 +9,16 @@ let read_file filename =
 let parse_input input filename =
   let lexbuf = Lexing.from_string input in
   lexbuf.lex_curr_p <- { lexbuf.lex_curr_p with pos_fname = filename };
-  Poppy.Parser.main Poppy.Lexer.read_tok lexbuf
+  try
+    Poppy.Parser.main Poppy.Lexer.read_tok lexbuf
+  with
+  | Poppy.Parser.Error ->
+      let curr = lexbuf.lex_curr_p in
+      let line = curr.pos_lnum in
+      let cnum = curr.pos_cnum - curr.pos_bol + 1 in
+      Printf.printf "Syntax error at line %d, column %d\n" line cnum;
+      raise Poppy.Parser.Error
+
 
 (* Entry point *)
 let main () =
