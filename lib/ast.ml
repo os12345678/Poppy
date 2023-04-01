@@ -30,6 +30,7 @@ type func_param = string * string
 [@@deriving sexp_of]
 
 type statement =
+  | Let of string * expr
   | Assign of string * expr
   | If of expr * statement * statement
   | While of expr * statement

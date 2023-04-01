@@ -5,6 +5,7 @@
 %token <int> INT
 %token <string> ID
 %token <string> STRING
+%token LET
 %token TRUE FALSE
 %token LPAREN RPAREN LBRACE RBRACE
 %token PLUS MINUS TIMES DIV
@@ -35,8 +36,9 @@ main:
   | statement EOF { $1 }
 
 statement:
+  | LET ID ASSIGN expr { Let($2, $4) }
   | ID ASSIGN expr { Assign($1, $3) }
-  | IF LPAREN expr RPAREN COLON statement ELSE COLON statement { If($3, $6, $9) }
+  | IF LPAREN expr RPAREN LBRACE statement RBRACE ELSE LBRACE statement RBRACE { If($3, $6, $10) }
   | WHILE LPAREN expr RPAREN COLON statement { While($3, $6) }
   | FOR LPAREN ID ASSIGN INT COMMA expr COMMA increment RPAREN LBRACE statement RBRACE { For($3, $5, $7, $9, $12) }
   | LBRACE statements RBRACE { Block($2) }
