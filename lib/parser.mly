@@ -15,19 +15,31 @@
 %token IF ELSE
 %token WHILE FOR
 %token ASSIGN
-%token COLON
+%token COLON SEMICOLON
 %token FN 
 %token RETURN
 %token PRINT
 %token COMMA
 %token EOF
 
+%type <Ast.expr> expr
+%type <Ast.statement> statement
+%type <Ast.statement list> statements
+%type <Ast.expr list> args
+%type <Ast.expr list> elements
+%type <Ast.expr> increment
+%type <Ast.func_param list> params
+%type <Ast.expr option> return_expr
+
+
 %nonassoc EQ NEQ
-%left LT LEQ GT GEQ
+%nonassoc LT LEQ GT GEQ
 %left PLUS MINUS
 %left TIMES DIV
 %left AND
 %left OR XOR
+%right NOT
+
 
 %start main
 %type <Ast.statement> main
@@ -45,8 +57,11 @@ statement:
   | FOR LPAREN ID ASSIGN INT COMMA expr COMMA increment RPAREN LBRACE statement RBRACE { For($3, $5, $7, $9, $12) }
   | LBRACE statements RBRACE { Block($2) }
   | FN ID LPAREN params RPAREN LBRACE statements RBRACE { FuncDecl($2, $4, $7) }
-  | RETURN expr { Return(Some($2)) }
-  | RETURN { Return(None) }
+  | RETURN return_expr { Return($2) }
+
+return_expr:
+  | { None }
+  | expr { Some($1)}
 
 params:
   | { [] }
@@ -60,7 +75,7 @@ increment:
 
 statements:
   | statement { [$1] }
-  | statement statements { $1 :: $2 }
+  | statement SEMICOLON statements { $1 :: $3 }
 
 expr:
   | INT { Int($1) }

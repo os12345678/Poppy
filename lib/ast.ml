@@ -27,6 +27,7 @@ type expr =
   | Print of string
   | List of expr list
   | Builtin of string * expr list (*function name and argument*)
+  | Unit  
 [@@deriving sexp_of]
 
 type func_param = string * string

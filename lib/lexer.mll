@@ -60,6 +60,7 @@ rule read_tok =
   (* Symbols *)
   | "=" { ASSIGN }
   | ":" { COLON }
+  | ";" { SEMICOLON }
   | "," { COMMA }
   (* Identifiers and constants *)
   | "let" { LET }
