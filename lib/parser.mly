@@ -8,6 +8,7 @@
 %token LET
 %token TRUE FALSE
 %token LPAREN RPAREN LBRACE RBRACE
+%token LBRACKET RBRACKET
 %token PLUS MINUS TIMES DIV
 %token LT LEQ GT GEQ EQ NEQ
 %token AND OR NOT XOR
@@ -17,6 +18,7 @@
 %token COLON
 %token FN 
 %token RETURN
+%token PRINT
 %token COMMA
 %token EOF
 
@@ -80,3 +82,15 @@ expr:
   | expr OR expr { BinOp(Or, $1, $3) }
   | expr XOR expr { BinOp(Xor, $1, $3) }
   | NOT expr { Not($2) }
+  | PRINT LPAREN format_str=STRING RPAREN { Print(format_str) }
+  | LBRACKET elements RBRACKET { List($2) }
+  | ID LPAREN args RPAREN { Builtin($1, $3) }
+
+elements:
+  | expr { [$1] }
+  | expr COMMA elements { $1 :: $3 }
+
+args:
+  | { [] }
+  | expr { [$1] }
+  | expr COMMA args { $1 :: $3 }

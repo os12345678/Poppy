@@ -24,6 +24,9 @@ type expr =
   | Not of expr
   | Incr of string
   | Decr of string
+  | Print of string
+  | List of expr list
+  | Builtin of string * expr list (*function name and argument*)
 [@@deriving sexp_of]
 
 type func_param = string * string

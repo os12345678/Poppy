@@ -31,6 +31,8 @@ rule read_tok =
   | ")" { RPAREN }
   | "{" { LBRACE }
   | "}" { RBRACE }
+  | "[" { LBRACKET }
+  | "]" { RBRACKET }
   (* Arithmetic operators *)
   | "+" { PLUS }
   | "-" { MINUS }
@@ -67,6 +69,7 @@ rule read_tok =
     | '"'      { read_string (Buffer.create 17) lexbuf }  
   | int { INT (int_of_string (Lexing.lexeme lexbuf)) }
   (* Other *)
+  | "print" { PRINT }
   | whitespace { read_tok lexbuf }
   | newline { advance_line lexbuf; read_tok lexbuf }
   | "//" { read_single_line_comment lexbuf }
