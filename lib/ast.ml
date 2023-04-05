@@ -42,7 +42,7 @@ type func_param = Param of id_decl * type_decl
 [@@deriving sexp_of]
 
 type statement =
-  | Let of string * expr
+  | Let of (id_decl * type_decl) * expr
   | Assign of string * expr
   | If of expr * statement * statement
   | While of expr * statement

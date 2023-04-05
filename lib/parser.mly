@@ -47,7 +47,7 @@ main:
   | statements EOF { $1 }
 
 statement:
-  | LET ID ASSIGN expr SEMICOLON { Let($2, $4) }
+  | LET ID COLON TYPE ASSIGN expr SEMICOLON { Let((Id $2, Type $4), $6) }
   | ID ASSIGN expr SEMICOLON { Assign($1, $3) }
   | IF LPAREN expr RPAREN LBRACE statements RBRACE ELSE LBRACE statements RBRACE { If($3, Block($6), Block($10)) }
   | WHILE LPAREN expr RPAREN LBRACE statements RBRACE { While($3, Block($6)) }
