@@ -67,7 +67,7 @@ rule read_tok =
   | "True" { TRUE }
   | "False" { FALSE }
   | id { ID (Lexing.lexeme lexbuf) }
-  | '"'      { read_string (Buffer.create 17) lexbuf }  
+  | '"' { read_string (Buffer.create 17) lexbuf }  
   | int { INT (int_of_string (Lexing.lexeme lexbuf)) }
   (* Other *)
   | "print" { PRINT }

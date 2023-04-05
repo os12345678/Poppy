@@ -29,7 +29,6 @@
 %type <Ast.expr list> elements
 %type <Ast.expr> increment
 %type <Ast.func_param list> params
-%type <Ast.expr option> return_expr
 
 
 %nonassoc EQ NEQ
@@ -57,11 +56,7 @@ statement:
   | FOR LPAREN ID ASSIGN INT COMMA expr COMMA increment RPAREN LBRACE statements RBRACE { For($3, $5, $7, $9, Block($12)) }
   | LBRACE statements RBRACE { Block($2) }
   | FN ID LPAREN params RPAREN LBRACE statements RBRACE { FuncDecl($2, $4, $7) }
-  | RETURN return_expr { Return($2) }
-
-return_expr:
-  | { None }
-  | expr SEMICOLON { Some($1)}
+  | RETURN expr SEMICOLON { Return(Some($2)) }
 
 expr_statement:
   | expr SEMICOLON { Expr($1) }
