@@ -9,7 +9,6 @@
 %token LET
 %token TRUE FALSE
 %token LPAREN RPAREN LBRACE RBRACE
-%token LBRACKET RBRACKET
 %token PLUS MINUS TIMES DIV
 %token LT LEQ GT GEQ EQ NEQ
 %token AND OR NOT XOR
@@ -65,7 +64,7 @@ params: (* func_param type*)
   | ID COLON TYPE COMMA params { Param(Id $1, Type $3) :: $5 }
 
 increment:
-  | ID { Id(Id($1)) }
+  | ID { Id($1) }
   | ID PLUS PLUS { Incr($1) }
   | ID MINUS MINUS { Decr($1) }
 
@@ -78,7 +77,7 @@ expr:
   | INT { Int($1) }
   | TRUE { Bool(true) }
   | FALSE { Bool(false) }
-  | ID { Id(Id($1)) }
+  | ID { Id($1) }
   | TYPE { Type(Type($1)) }
   | STRING { StringLiteral($1) }
   | LPAREN expr RPAREN { $2 }
@@ -97,7 +96,6 @@ expr:
   | expr XOR expr { BinOp(Xor, $1, $3) }
   | NOT expr { Not($2) }
   | PRINT LPAREN format_str=STRING RPAREN { Print(format_str) }
-  | LBRACKET elements RBRACKET { List($2) }
   | ID LPAREN args RPAREN { Builtin($1, $3) }
 
 elements:

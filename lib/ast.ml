@@ -25,14 +25,13 @@ type type_decl = Type of string
 type expr =
   | Int of int
   | Bool of bool
-  | Id of id_decl
+  | Id of string
   | Type of type_decl
   | BinOp of bin_op * expr * expr
   | Not of expr
   | Incr of string
   | Decr of string
   | Print of string
-  | List of expr list
   | Builtin of string * expr list
   | Unit  
   | StringLiteral of string 

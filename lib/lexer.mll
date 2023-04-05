@@ -32,8 +32,6 @@ rule read_tok =
   | ")" { RPAREN }
   | "{" { LBRACE }
   | "}" { RBRACE }
-  | "[" { LBRACKET }
-  | "]" { RBRACKET }
   (* Arithmetic operators *)
   | "+" { PLUS }
   | "-" { MINUS }
