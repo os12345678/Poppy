@@ -4,6 +4,7 @@
 
 %token <int> INT
 %token <string> ID
+%token <string> TYPE
 %token <string> STRING
 %token LET
 %token TRUE FALSE
@@ -30,7 +31,6 @@
 %type <Ast.expr> increment
 %type <Ast.func_param list> params
 
-
 %nonassoc EQ NEQ
 %nonassoc LT LEQ GT GEQ
 %left PLUS MINUS
@@ -39,35 +39,33 @@
 %left OR XOR
 %right NOT
 
-
 %start main
 %type <Ast.statement list> main
-
 %%
 
 main:
   | statements EOF { $1 }
 
 statement:
-  | LET ID ASSIGN expr SEMICOLON { Let($2, $4) }
+  | LET ID COLON TYPE ASSIGN expr SEMICOLON { Let((Id $2, Type $4), $6) }
   | ID ASSIGN expr SEMICOLON { Assign($1, $3) }
   | IF LPAREN expr RPAREN LBRACE statements RBRACE ELSE LBRACE statements RBRACE { If($3, Block($6), Block($10)) }
   | WHILE LPAREN expr RPAREN LBRACE statements RBRACE { While($3, Block($6)) }
   | FOR LPAREN ID ASSIGN INT COMMA expr COMMA increment RPAREN LBRACE statements RBRACE { For($3, $5, $7, $9, Block($12)) }
   | LBRACE statements RBRACE { Block($2) }
-  | FN ID LPAREN params RPAREN LBRACE statements RBRACE { FuncDecl($2, $4, $7) }
-  | RETURN expr SEMICOLON { Return(Some($2)) }
+  | FN ID LPAREN params RPAREN LBRACE statements RBRACE { FuncDecl(Id $2, $4, $7) }
+  | RETURN expr SEMICOLON { Return($2) }
 
 expr_statement:
   | expr SEMICOLON { Expr($1) }
 
-params:
+params: (* func_param type*)
   | { [] }
-  | ID COLON ID { [($1, $3)] }
-  | ID COLON ID COMMA params { ($1, $3) :: $5 }
+  | ID COLON TYPE { [Param (Id $1, Type $3)] }
+  | ID COLON TYPE COMMA params { Param(Id $1, Type $3) :: $5 }
 
 increment:
-  | ID { Id($1) }
+  | ID { Id(Id($1)) }
   | ID PLUS PLUS { Incr($1) }
   | ID MINUS MINUS { Decr($1) }
 
@@ -80,7 +78,8 @@ expr:
   | INT { Int($1) }
   | TRUE { Bool(true) }
   | FALSE { Bool(false) }
-  | ID { Id($1) }
+  | ID { Id(Id($1)) }
+  | TYPE { Type(Type($1)) }
   | STRING { StringLiteral($1) }
   | LPAREN expr RPAREN { $2 }
   | expr PLUS expr { BinOp(Plus, $1, $3) }
