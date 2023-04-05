@@ -36,7 +36,7 @@ let main () =
     let ast = parse_input input filename in
 
     (* Print the parsed AST *)
-    print_endline (Sexp.to_string_hum (Ast.sexp_of_statement ast))
+    print_endline (Sexp.to_string_hum (Ast.sexp_of_statements ast))
   with
   | Sys_error msg -> print_endline ("Error: " ^ msg)
   | Failure msg -> print_endline ("Syntax Error: " ^ msg)

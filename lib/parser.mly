@@ -42,26 +42,29 @@
 
 
 %start main
-%type <Ast.statement> main
+%type <Ast.statement list> main
 
 %%
 
 main:
-  | statement EOF { $1 }
+  | statements EOF { $1 }
 
 statement:
-  | LET ID ASSIGN expr { Let($2, $4) }
-  | ID ASSIGN expr { Assign($1, $3) }
-  | IF LPAREN expr RPAREN LBRACE statement RBRACE ELSE LBRACE statement RBRACE { If($3, $6, $10) }
-  | WHILE LPAREN expr RPAREN COLON statement { While($3, $6) }
-  | FOR LPAREN ID ASSIGN INT COMMA expr COMMA increment RPAREN LBRACE statement RBRACE { For($3, $5, $7, $9, $12) }
+  | LET ID ASSIGN expr SEMICOLON { Let($2, $4) }
+  | ID ASSIGN expr SEMICOLON { Assign($1, $3) }
+  | IF LPAREN expr RPAREN LBRACE statements RBRACE ELSE LBRACE statements RBRACE { If($3, Block($6), Block($10)) }
+  | WHILE LPAREN expr RPAREN LBRACE statements RBRACE { While($3, Block($6)) }
+  | FOR LPAREN ID ASSIGN INT COMMA expr COMMA increment RPAREN LBRACE statements RBRACE { For($3, $5, $7, $9, Block($12)) }
   | LBRACE statements RBRACE { Block($2) }
   | FN ID LPAREN params RPAREN LBRACE statements RBRACE { FuncDecl($2, $4, $7) }
   | RETURN return_expr { Return($2) }
 
 return_expr:
   | { None }
-  | expr { Some($1)}
+  | expr SEMICOLON { Some($1)}
+
+expr_statement:
+  | expr SEMICOLON { Expr($1) }
 
 params:
   | { [] }
@@ -74,14 +77,16 @@ increment:
   | ID MINUS MINUS { Decr($1) }
 
 statements:
-  | statement { [$1] }
-  | statement SEMICOLON statements { $1 :: $3 }
+  | statement statements { $1 :: $2 }
+  | expr_statement statements { $1 :: $2 }
+  | { [] }
 
 expr:
   | INT { Int($1) }
   | TRUE { Bool(true) }
   | FALSE { Bool(false) }
   | ID { Id($1) }
+  | STRING { StringLiteral($1) }
   | LPAREN expr RPAREN { $2 }
   | expr PLUS expr { BinOp(Plus, $1, $3) }
   | expr MINUS expr { BinOp(Minus, $1, $3) }

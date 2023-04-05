@@ -28,6 +28,7 @@ type expr =
   | List of expr list
   | Builtin of string * expr list (*function name and argument*)
   | Unit  
+  | StringLiteral of string 
 [@@deriving sexp_of]
 
 type func_param = string * string
@@ -42,4 +43,8 @@ type statement =
   | Block of statement list
   | FuncDecl of string * func_param list * statement list
   | Return of expr option
+  | Expr of expr
 [@@deriving sexp_of]
+
+let sexp_of_statements statements =
+  Sexp.List (List.map statements ~f:sexp_of_statement)
