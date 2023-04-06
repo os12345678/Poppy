@@ -22,6 +22,7 @@
 %token RETURN
 %token PRINT
 %token COMMA
+%token LAMBDA ARROW
 %token EOF
 
 %type <Ast.expr> expr
@@ -54,7 +55,7 @@ main:
         ) $1
       in
       if main_found then $1
-      else raise (Parse_error "main function not found")
+      else raise (Parse_error "main function entrypoint not found!")
     }
 
 
@@ -110,6 +111,7 @@ expr:
   | NOT expr { Not($2) }
   | PRINT LPAREN format_str=STRING RPAREN { Print(format_str) }
   | ID LPAREN args RPAREN { Builtin($1, $3) }
+  | LAMBDA LPAREN params ARROW expr RPAREN LPAREN args RPAREN{ Lambda($3, $5, $8) }
 
 elements:
   | expr { [$1] }
