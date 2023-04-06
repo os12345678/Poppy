@@ -1,5 +1,7 @@
 %{
   open Ast
+
+  exception Parse_error of string
 %}
 
 %token <int> INT
@@ -43,7 +45,18 @@
 %%
 
 main:
-  | statements EOF { $1 }
+  | statements EOF
+    {
+      let main_found =
+        List.exists (function
+          | FuncDecl (Id "main", _, _) -> true
+          | _ -> false
+        ) $1
+      in
+      if main_found then $1
+      else raise (Parse_error "main function not found")
+    }
+
 
 statement:
   | LET ID COLON TYPE ASSIGN expr SEMICOLON { Let((Id $2, Type $4), $6) }
