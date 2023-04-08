@@ -56,6 +56,8 @@ rule read_tok =
   | "for" { FOR }
   | "fn" { FN }
   | "return" { RETURN }
+  | "lambda" { LAMBDA }
+  | "->" { ARROW }
   (* Symbols *)
   | "=" { ASSIGN }
   | ":" { COLON }

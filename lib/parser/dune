@@ -1,7 +1,8 @@
 (library
  (name poppy)
  (libraries core menhirLib)
- (preprocess (pps ppx_jane))
+ (preprocess
+  (pps ppx_jane))
  (modules ast lexer parser)
  (public_name poppy))
 

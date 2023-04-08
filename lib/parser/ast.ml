@@ -22,6 +22,9 @@ type id_decl = Id of string
 type type_decl = Type of string
 [@@deriving sexp_of]
 
+type func_param = Param of id_decl * type_decl
+[@@deriving sexp_of]
+
 type expr =
   | Int of int
   | Bool of bool
@@ -35,9 +38,7 @@ type expr =
   | Builtin of string * expr list
   | Unit  
   | StringLiteral of string 
-[@@deriving sexp_of]
-
-type func_param = Param of id_decl * type_decl
+  | Lambda of func_param list * expr
 [@@deriving sexp_of]
 
 type statement =
