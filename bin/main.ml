@@ -29,6 +29,9 @@ let main () =
     let argv = Sys.get_argv () in
     let filename = argv.(1) in
 
+    if not (Filename.check_suffix filename ".poppy") then
+      failwith "Invalid file type. Please provide a file with the .poppy extension.";
+
     (* Read the input file *)
     let input = read_file filename in
 

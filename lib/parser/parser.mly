@@ -29,7 +29,6 @@
 %type <Ast.statement> statement
 %type <Ast.statement list> statements
 %type <Ast.expr list> args
-%type <Ast.expr list> elements
 %type <Ast.expr> increment
 %type <Ast.func_param list> params
 
@@ -72,7 +71,7 @@ statement:
 expr_statement:
   | expr SEMICOLON { Expr($1) }
 
-params: (* func_param type*)
+params: 
   | { [] }
   | ID COLON TYPE { [Param (Id $1, Type $3)] }
   | ID COLON TYPE COMMA params { Param(Id $1, Type $3) :: $5 }
@@ -111,11 +110,7 @@ expr:
   | NOT expr { Not($2) }
   | PRINT LPAREN format_str=STRING RPAREN { Print(format_str) }
   | ID LPAREN args RPAREN { Builtin($1, $3) }
-  | LAMBDA LPAREN params ARROW expr RPAREN LPAREN args RPAREN{ Lambda($3, $5, $8) }
-
-elements:
-  | expr { [$1] }
-  | expr COMMA elements { $1 :: $3 }
+  | LAMBDA LPAREN params RPAREN ARROW expr { Lambda($3, $6) }
 
 args:
   | { [] }

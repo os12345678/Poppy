@@ -38,10 +38,8 @@ type expr =
   | Builtin of string * expr list
   | Unit  
   | StringLiteral of string 
-  | Lambda of func_param list * expr * expr list
+  | Lambda of func_param list * expr
 [@@deriving sexp_of]
-
-
 
 type statement =
   | Let of (id_decl * type_decl) * expr
