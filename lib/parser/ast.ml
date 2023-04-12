@@ -25,6 +25,9 @@ type type_decl = Type of string
 type func_param = Param of id_decl * type_decl
 [@@deriving sexp_of]
 
+type proto = Prototype of id_decl * func_param list
+[@@deriving sexp_of]
+
 type expr =
   | IntLiteral of int
   | BoolLiteral of bool
@@ -48,7 +51,7 @@ type statement =
   | While of expr * statement
   | For of string * int * expr * expr * statement
   | Block of statement list
-  | FuncDecl of id_decl * func_param list * statement list
+  | FuncDecl of proto * statement list
   | Return of expr
   | Expr of expr
 [@@deriving sexp_of]

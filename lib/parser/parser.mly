@@ -49,7 +49,7 @@ main:
     {
       let main_found =
         List.exists (function
-          | FuncDecl (Id "main", _, _) -> true
+          | FuncDecl (Prototype(Id "main", _), _) -> true
           | _ -> false
         ) $1
       in
@@ -65,7 +65,7 @@ statement:
   | WHILE LPAREN expr RPAREN LBRACE statements RBRACE { While($3, Block($6)) }
   | FOR LPAREN ID ASSIGN INT COMMA expr COMMA increment RPAREN LBRACE statements RBRACE { For($3, $5, $7, $9, Block($12)) }
   | LBRACE statements RBRACE { Block($2) }
-  | FN ID LPAREN params RPAREN LBRACE statements RBRACE { FuncDecl(Id $2, $4, $7) }
+  | FN ID LPAREN params RPAREN LBRACE statements RBRACE { FuncDecl (Prototype(Id $2, $4), $7) }
   | RETURN expr SEMICOLON { Return($2) }
 
 expr_statement:
