@@ -1,5 +1,8 @@
 open Core
 open Poppy_parser
+open Poppy_codegen
+open Llvm
+
 
 exception ParseError of string [@@ocaml.warning "-38"]
 
@@ -12,17 +15,16 @@ let parse_input input filename =
   let lexbuf = Lexing.from_string input in
   lexbuf.lex_curr_p <- { lexbuf.lex_curr_p with pos_fname = filename };
   try
-    Poppy_parser.Parser.main Poppy_parser.Lexer.read_tok lexbuf
+    Parser.main Lexer.read_tok lexbuf
   with
-  | Poppy_parser.Parser.Error ->
+  | Parser.Error ->
       let curr = lexbuf.lex_curr_p in
       let line = curr.pos_lnum in
       let cnum = curr.pos_cnum - curr.pos_bol + 1 in
       Printf.printf "Syntax error at line %d, column %d\n" line cnum;
-      raise Poppy_parser.Parser.Error
+      raise Parser.Error
 
 
-(* Entry point *)
 let main () =
   try
     (* Get the command-line arguments *)
@@ -39,11 +41,23 @@ let main () =
     let ast = parse_input input filename in
 
     (* Print the parsed AST *)
-    print_endline (Sexp.to_string_hum (Ast.sexp_of_statements ast))
+    print_endline (Sexp.to_string_hum (Ast.sexp_of_statements ast));
+
+    (* Codegen *)
+    let codegen_module = Codegen.the_module in
+    List.iter ~f:(fun statement ->
+      match statement with
+      | Ast.Expr expr ->
+        let _ = Codegen.codegen_expr expr in
+        ()
+      | _ -> ()
+    ) ast;
+
+    (* Print the LLVM IR *)
+    print_endline (string_of_llmodule codegen_module)
   with
   | Sys_error msg -> print_endline ("Error: " ^ msg)
   | Failure msg -> print_endline ("Syntax Error: " ^ msg)
-  | ParseError msg -> print_endline (msg)
+  | ParseError msg -> print_endline ("ParseError: " ^ msg)
 
-(* Execute the main function *)
 let () = main ()
