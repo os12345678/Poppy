@@ -87,9 +87,9 @@ statements:
   | { [] }
 
 expr:
-  | INT { Int($1) }
-  | TRUE { Bool(true) }
-  | FALSE { Bool(false) }
+  | INT { IntLiteral($1) }
+  | TRUE { BoolLiteral(true) }
+  | FALSE { BoolLiteral(false) }
   | ID { Id($1) }
   | TYPE { Type(Type($1)) }
   | STRING { StringLiteral($1) }
@@ -109,7 +109,7 @@ expr:
   | expr XOR expr { BinOp(Xor, $1, $3) }
   | NOT expr { Not($2) }
   | PRINT LPAREN format_str=STRING RPAREN { Print(format_str) }
-  | ID LPAREN args RPAREN { Builtin($1, $3) }
+  | ID LPAREN args RPAREN { Call($1, $3) }
   | LAMBDA LPAREN params RPAREN ARROW expr { Lambda($3, $6) }
 
 args:

@@ -1,5 +1,5 @@
 (library
- (name poppy)
+ (name poppy_parser)
  (libraries core menhirLib)
  (preprocess
   (pps ppx_jane))

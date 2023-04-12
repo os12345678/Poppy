@@ -26,8 +26,8 @@ type func_param = Param of id_decl * type_decl
 [@@deriving sexp_of]
 
 type expr =
-  | Int of int
-  | Bool of bool
+  | IntLiteral of int
+  | BoolLiteral of bool
   | Id of string
   | Type of type_decl
   | BinOp of bin_op * expr * expr
@@ -35,10 +35,10 @@ type expr =
   | Incr of string
   | Decr of string
   | Print of string
-  | Builtin of string * expr list
   | Unit  
   | StringLiteral of string 
   | Lambda of func_param list * expr
+  | Call of string * expr list
 [@@deriving sexp_of]
 
 type statement =
