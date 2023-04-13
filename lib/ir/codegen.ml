@@ -2,7 +2,7 @@ open Poppy_parser
 open Llvm
 open Sexplib
 
-(* Codegen Initialization *)
+(* Module and Context Setup *)
 let context = global_context ()
 let builder = builder context
 let the_module = create_module context "poppy_compiler"
@@ -123,7 +123,11 @@ and codegen_statement = function
     let ret_val = codegen_block body in
     let _ = build_ret ret_val builder in
     the_function
-    
+  | Ast.Assign (id, expr) ->
+    let value = codegen_expr expr in
+    let alloca = Hashtbl.find named_values id in
+    ignore (build_store value alloca builder);
+    value
   | Ast.Expr expr -> codegen_expr expr
 
   | Ast.Return expr -> build_ret (codegen_expr expr) builder
@@ -152,6 +156,21 @@ and codegen_statement = function
     position_at_end merge_bb builder;
     const_null (i32_type (global_context ()))
 
+  | Ast.While (expr, Ast.Block body_stmts) ->
+    let start_function = insertion_block builder |> block_parent in
+    let cond_bb = append_block context "cond" start_function in
+    let loop_bb = append_block context "loop" start_function in
+    let exit_bb = append_block context "exit" start_function in
+    ignore (build_br cond_bb builder);
+    position_at_end cond_bb builder;
+    let cond_value = codegen_expr expr in
+    ignore (build_cond_br cond_value loop_bb exit_bb builder);
+    position_at_end loop_bb builder;
+    ignore (codegen_block body_stmts);
+    ignore (build_br cond_bb builder);
+    position_at_end exit_bb builder;
+    const_null (i32_type (global_context ()))
+
   | Ast.For (id, start, end_expr, incr_op, Ast.Block body_stmts) ->
     let start_value = const_int (i32_type (global_context ())) start in
     let alloca = build_alloca (Llvm.type_of start_value) id builder in
@@ -161,7 +180,7 @@ and codegen_statement = function
     let start_bb = insertion_block builder in
     let loop_bb = append_block context "loop" (block_parent start_bb) in
     let exit_bb = append_block context "exit" (block_parent start_bb) in
-    ignore (build_br loop_bb builder);
+    ignore (build_br loop_bb   builder);
     position_at_end loop_bb builder;
     ignore (codegen_block body_stmts);
     let counter_value = build_load alloca id builder in
