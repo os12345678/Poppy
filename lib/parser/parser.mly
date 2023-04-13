@@ -29,7 +29,6 @@
 %type <Ast.statement> statement
 %type <Ast.statement list> statements
 %type <Ast.expr list> args
-%type <Ast.expr> increment
 %type <Ast.func_param list> params
 
 %nonassoc EQ NEQ
@@ -64,7 +63,6 @@ statement:
   | IF LPAREN expr RPAREN LBRACE statements RBRACE ELSE LBRACE statements RBRACE { If($3, Block($6), Block($10)) }
   | WHILE LPAREN expr RPAREN LBRACE statements RBRACE { While($3, Block($6)) }
   | FOR LPAREN ID ASSIGN INT COMMA expr COMMA increment RPAREN LBRACE statements RBRACE { For($3, $5, $7, $9, Block($12)) }
-  | LBRACE statements RBRACE { Block($2) }
   | FN ID LPAREN params RPAREN LBRACE statements RBRACE { FuncDecl (Prototype(Id $2, $4), $7) }
   | RETURN expr SEMICOLON { Return($2) }
 
@@ -77,7 +75,6 @@ params:
   | ID COLON TYPE COMMA params { Param(Id $1, Type $3) :: $5 }
 
 increment:
-  | ID { Id($1) }
   | ID PLUS PLUS { Incr($1) }
   | ID MINUS MINUS { Decr($1) }
 

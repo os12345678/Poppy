@@ -16,6 +16,11 @@ type bin_op =
   | Xor
 [@@deriving sexp_of]
 
+type incr_decr_op = 
+  | Incr of string
+  | Decr of string
+[@@deriving sexp_of]
+
 type id_decl = Id of string
 [@@deriving sexp_of]
 
@@ -35,8 +40,6 @@ type expr =
   | Type of type_decl
   | BinOp of bin_op * expr * expr
   | Not of expr
-  | Incr of string
-  | Decr of string
   | Print of string
   | Unit  
   | StringLiteral of string 
@@ -49,12 +52,14 @@ type statement =
   | Assign of string * expr
   | If of expr * statement * statement
   | While of expr * statement
-  | For of string * int * expr * expr * statement
+  | IncrDecr of string * incr_decr_op
+  | For of string * int * expr * incr_decr_op * statement
   | Block of statement list
   | FuncDecl of proto * statement list
   | Return of expr
   | Expr of expr
 [@@deriving sexp_of]
+
 
 let sexp_of_statements statements =
   Sexp.List (List.map statements ~f:sexp_of_statement)
