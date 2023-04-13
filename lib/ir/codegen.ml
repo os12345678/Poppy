@@ -3,8 +3,6 @@ open Llvm
 open Sexplib
 
 (* Codegen Initialization *)
-
-(* Codegen Initialization *)
 let context = global_context ()
 let builder = builder context
 let the_module = create_module context "poppy_compiler"
@@ -12,7 +10,6 @@ let named_values:(string, llvalue) Hashtbl.t = Hashtbl.create 10
 
 (* Helper Functions *)
 let counter = ref 0
-(* generage_unique_id for lambda name generation *)
 let generate_unique_id () =
   let time = Unix.gettimeofday () in
   let id = Printf.sprintf "%.0f_%d" time !counter in
@@ -23,17 +20,14 @@ let generate_unique_id () =
     let global_var = define_global global_name (const_null (type_of expr_value)) the_module in
     ignore (build_store expr_value global_var builder);
     global_var
-
 let string_of_llmodule m =
   let s = string_of_llmodule m in
   dispose_module m;
   s
-
 let print_module m =
   print_endline (string_of_llmodule m)
   
   
-
 (* Codegen Expressions *)
 let rec codegen_expr = function
   | Ast.IntLiteral i -> const_int (i64_type context) i
@@ -129,12 +123,60 @@ and codegen_statement = function
     let ret_val = codegen_block body in
     let _ = build_ret ret_val builder in
     the_function
+    
   | Ast.Expr expr -> codegen_expr expr
+
   | Ast.Return expr -> build_ret (codegen_expr expr) builder
+
+  | Ast.Let ((id_decl, _), expr) ->
+    let id = match id_decl with Ast.Id id_str -> id_str in
+    let value = codegen_expr expr in
+    let alloca = build_alloca (Llvm.type_of value) id builder in
+    ignore (build_store value alloca builder);
+    Hashtbl.add named_values id alloca;
+    alloca
+
+  | Ast.If (condition, Ast.Block then_block, Ast.Block else_block) ->
+    let cond_value = codegen_expr condition in
+    let start_function = insertion_block builder |> block_parent in
+    let then_bb = append_block context "then" start_function in
+    let else_bb = append_block context "else" start_function in
+    let merge_bb = append_block context "ifcont" start_function in
+    ignore (build_cond_br cond_value then_bb else_bb builder);
+    position_at_end then_bb builder;
+    ignore (codegen_block then_block);
+    ignore (build_br merge_bb builder);
+    position_at_end else_bb builder;
+    ignore (codegen_block else_block);
+    ignore (build_br merge_bb builder);
+    position_at_end merge_bb builder;
+    const_null (i32_type (global_context ()))
+
+  | Ast.For (id, start, end_expr, incr_op, Ast.Block body_stmts) ->
+    let start_value = const_int (i32_type (global_context ())) start in
+    let alloca = build_alloca (Llvm.type_of start_value) id builder in
+    ignore (build_store start_value alloca builder);
+    Hashtbl.add named_values id alloca;
+    let loop_cond = codegen_expr end_expr in
+    let start_bb = insertion_block builder in
+    let loop_bb = append_block context "loop" (block_parent start_bb) in
+    let exit_bb = append_block context "exit" (block_parent start_bb) in
+    ignore (build_br loop_bb builder);
+    position_at_end loop_bb builder;
+    ignore (codegen_block body_stmts);
+    let counter_value = build_load alloca id builder in
+    let incr_expr = match incr_op with
+      | Ast.Incr _ -> Ast.IntLiteral 1
+      | Ast.Decr _ -> Ast.IntLiteral (-1)
+    in
+    let next_value = build_add counter_value (codegen_expr incr_expr) "next_value" builder in
+    ignore (build_store next_value alloca builder);
+    let cond = build_icmp Icmp.Slt next_value loop_cond "loop_cond" builder in
+    ignore (build_cond_br cond loop_bb exit_bb builder);
+    position_at_end exit_bb builder;
+    const_null (i32_type (global_context ()))
+
   | unimplemented_statement -> 
     let sexp = Ast.sexp_of_statement unimplemented_statement in
     let stmt_str = Sexp.to_string_hum sexp in
     raise (Failure ("statement not implemented: " ^ stmt_str))
-
-
-
