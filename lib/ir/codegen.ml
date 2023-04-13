@@ -127,5 +127,7 @@ and codegen_statement = function
     let ret_val = codegen_block body in
     let _ = build_ret ret_val builder in
     the_function
-  | _ -> raise (Failure "fn not implemented")
+  | Ast.Expr expr -> codegen_expr expr
+  | _ -> raise (Failure "statement not implemented")
+
 

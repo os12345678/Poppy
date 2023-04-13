@@ -50,8 +50,12 @@ let main () =
       | Ast.Expr expr ->
         let _ = Codegen.codegen_expr expr in
         ()
+      | Ast.FuncDecl _ ->
+        let _ = Codegen.codegen_statement statement in
+        ()
       | _ -> ()
     ) ast;
+    
 
     (* Print the LLVM IR *)
     print_endline (string_of_llmodule codegen_module)
