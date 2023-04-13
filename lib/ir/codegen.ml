@@ -1,5 +1,8 @@
 open Poppy_parser
 open Llvm
+open Sexplib
+
+(* Codegen Initialization *)
 
 (* Codegen Initialization *)
 let context = global_context ()
@@ -90,11 +93,10 @@ let rec codegen_expr = function
         raise (Failure "incorrect # arguments passed");
       let args = Array.map codegen_expr args_array in
       build_call callee args "calltmp" builder
-      | Ast.Incr _ -> raise (Failure "not implemented")
-      | Ast.Decr _ -> raise (Failure "not implemented")
-      | Ast.Lambda (_, _) -> raise (Failure "not implemented")
-      | _ -> raise (Failure "not implemented")
-
+      | unimplement_expression ->
+        let sexp = Ast.sexp_of_expr unimplement_expression in
+        let expr_str = Sexp.to_string_hum sexp in
+        raise (Failure ("expression not implemented: " ^ expr_str))
     
 (* Codegen Prototype *)
 let codegen_proto = function 
@@ -128,6 +130,11 @@ and codegen_statement = function
     let _ = build_ret ret_val builder in
     the_function
   | Ast.Expr expr -> codegen_expr expr
-  | _ -> raise (Failure "statement not implemented")
+  | Ast.Return expr -> build_ret (codegen_expr expr) builder
+  | unimplemented_statement -> 
+    let sexp = Ast.sexp_of_statement unimplemented_statement in
+    let stmt_str = Sexp.to_string_hum sexp in
+    raise (Failure ("statement not implemented: " ^ stmt_str))
+
 
 
