@@ -1,0 +1,19 @@
+version: 2.1
+jobs:
+  build:
+    working_directory: ~/poppy
+    docker:
+      - image: ocaml/opam2:ubuntu-20.04-ocaml-4.12
+    steps:
+      - checkout
+      - run:
+          name: Install dependencies
+          command: |
+            opam switch create poppy ocaml-base-compiler.4.12.0
+            eval $(opam env)
+            opam install -y core poppy_parser llvm.9.0.1 ctypes-foreign ppx_deriving ppx_expect oUnit2
+      - run:
+          name: Build and run tests
+          command: |
+            dune build @test
+            dune runtest
