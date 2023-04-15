@@ -1,4 +1,0 @@
-(test
- (name test_poppy)
- (libraries core poppy)
- (preprocess (pps ppx_jane)))
