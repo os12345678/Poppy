@@ -48,7 +48,7 @@ main:
     {
       let main_found =
         List.exists (function
-          | FuncDecl (Prototype(Id "main", _), _) -> true
+          | FuncDecl (Id "main", _, _, _) -> true
           | _ -> false
         ) $1
       in
@@ -58,12 +58,12 @@ main:
 
 
 statement:
-  | LET ID COLON TYPE ASSIGN expr SEMICOLON { Let((Id $2, Type $4), $6) }
+  | LET ID COLON typ_decl ASSIGN expr SEMICOLON { Let((Id $2, $4), $6) }
   | ID ASSIGN expr SEMICOLON { Assign($1, $3) }
   | IF LPAREN expr RPAREN LBRACE statements RBRACE ELSE LBRACE statements RBRACE { If($3, Block($6), Block($10)) }
   | WHILE LPAREN expr RPAREN LBRACE statements RBRACE { While($3, Block($6)) }
   | FOR LPAREN ID ASSIGN INT COMMA expr COMMA increment RPAREN LBRACE statements RBRACE { For($3, $5, $7, $9, Block($12)) }
-  | FN ID LPAREN params RPAREN LBRACE statements RBRACE { FuncDecl (Prototype(Id $2, $4), $7) }
+  | FN ID LPAREN params RPAREN ARROW typ_decl LBRACE statements RBRACE { FuncDecl (Id $2, $4, $7, $9) }
   | RETURN expr SEMICOLON { Return($2) }
 
 expr_statement:
@@ -71,8 +71,8 @@ expr_statement:
 
 params: 
   | { [] }
-  | ID COLON TYPE { [Param (Id $1, Type $3)] }
-  | ID COLON TYPE COMMA params { Param(Id $1, Type $3) :: $5 }
+  | ID COLON typ_decl { [Param (Id $1, $3)] }
+  | ID COLON typ_decl COMMA params { Param(Id $1, $3) :: $5 }
 
 increment:
   | ID PLUS PLUS { Incr($1) }
@@ -83,12 +83,14 @@ statements:
   | expr_statement statements { $1 :: $2 }
   | { [] }
 
+typ_decl:
+  | TYPE { Type (string_to_typ $1) }
+
 expr:
   | INT { IntLiteral($1) }
   | TRUE { BoolLiteral(true) }
   | FALSE { BoolLiteral(false) }
   | ID { Id($1) }
-  | TYPE { Type(Type($1)) }
   | STRING { StringLiteral($1) }
   | LPAREN expr RPAREN { $2 }
   | expr PLUS expr { BinOp(Plus, $1, $3) }

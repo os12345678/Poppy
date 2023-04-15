@@ -1,5 +1,8 @@
 open! Core
 
+(* Heper Functions *)
+
+
 type bin_op =
   | Plus
   | Minus
@@ -24,20 +27,33 @@ type incr_decr_op =
 type id_decl = Id of string
 [@@deriving sexp_of]
 
-type type_decl = Type of string
+type typ = 
+| Int
+| Bool
+| Void
+| String
+[@@deriving sexp_of]
+
+
+let string_to_typ s = match s with
+  | "int" -> Int
+  | "bool" -> Bool
+  | "void" -> Void
+  | "string" -> String
+  | _ -> raise (Printf.sprintf "Unknown type: %s" s |> Failure)
+
+type type_decl = Type of typ
 [@@deriving sexp_of]
 
 type func_param = Param of id_decl * type_decl
 [@@deriving sexp_of]
 
-type proto = Prototype of id_decl * func_param list
-[@@deriving sexp_of]
 
 type expr =
   | IntLiteral of int
   | BoolLiteral of bool
+  | VoidType of string
   | Id of string
-  | Type of type_decl
   | BinOp of bin_op * expr * expr
   | Not of expr
   | Print of string
@@ -55,11 +71,10 @@ type statement =
   | IncrDecr of string * incr_decr_op
   | For of string * int * expr * incr_decr_op * statement
   | Block of statement list
-  | FuncDecl of proto * statement list
+  | FuncDecl of id_decl * func_param list * type_decl * statement list
   | Return of expr
   | Expr of expr
 [@@deriving sexp_of]
-
 
 let sexp_of_statements statements =
   Sexp.List (List.map statements ~f:sexp_of_statement)

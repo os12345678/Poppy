@@ -17,7 +17,7 @@ let digit = ['0'-'9']
 let alpha = ['a'-'z' 'A'-'Z']
 
 let int = '-'? digit+
-let type_kw = "int" | "bool" 
+let type_kw = "int" | "bool" | "string"
 let id = (alpha) (alpha|digit|'_')*
 
 let whitespace = [' ' '\t']+
