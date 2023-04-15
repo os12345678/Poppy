@@ -26,14 +26,22 @@ let string_of_llmodule m =
   s
 let print_module m =
   print_endline (string_of_llmodule m)
-  
-  
+let llvm_type_of_ast_type = function
+| Ast.Int-> i64_type context
+| Ast.Bool -> i1_type context
+| Ast.Void -> void_type context (* void type not working *)
+| Ast.String -> pointer_type (i8_type context) 
+
 (* Codegen Expressions *)
 let rec codegen_expr = function
   | Ast.IntLiteral i -> const_int (i64_type context) i
+
   | Ast.BoolLiteral b -> const_int (i1_type context) (if b then 1 else 0)
+
   | Ast.StringLiteral s -> const_stringz context s
+
   | Ast.Id s -> Hashtbl.find named_values s
+
   | Ast.BinOp (op, lhs, rhs) ->
     let lhs_val = codegen_expr lhs in
     let rhs_val = codegen_expr rhs in
@@ -71,10 +79,12 @@ let rec codegen_expr = function
         let i = build_xor lhs_val rhs_val "xortmp" builder in
         build_zext i (i1_type context) "booltmp" builder
     end
+
     | Ast.Not e ->
       let e_val = codegen_expr e in
       let i = build_not e_val "nottmp" builder in
       build_zext i (i1_type context) "booltmp" builder
+
     | Ast.Call (callee, args) ->
       let callee = 
         match lookup_function callee the_module with 
@@ -87,60 +97,88 @@ let rec codegen_expr = function
         raise (Failure "incorrect # arguments passed");
       let args = Array.map codegen_expr args_array in
       build_call callee args "calltmp" builder
+      
       | unimplement_expression ->
         let sexp = Ast.sexp_of_expr unimplement_expression in
         let expr_str = Sexp.to_string_hum sexp in
         raise (Failure ("expression not implemented: " ^ expr_str))
-    
-(* Codegen Prototype *)
-let codegen_proto = function 
-  | Ast.Prototype (Id name, args) -> 
-    let doubles = Array.make (List.length args) (double_type context) in
-    let ft = function_type (double_type context) doubles in
-    let f = declare_function name ft the_module in
-    let n = Array.length (params f) in
+
+(* Codegen Statement *)
+let rec codegen_block (block: Ast.statement list) : llvalue option =
+  match block with
+  | [] -> None (* return None for empty block *)
+  | [last] -> codegen_statement last
+  | stmt :: rest ->
+    match codegen_statement stmt with
+    | Some ret_value -> Some ret_value
+    | None -> codegen_block rest
+
+and codegen_statement = function
+  | Ast.FuncDecl (Ast.Id name, args, return_type, body) ->
+    Hashtbl.clear named_values;
+    let llvm_return_type = match return_type with Ast.Type typ -> 
+      llvm_type_of_ast_type typ in
+    let llvm_arg_types = List.map (fun (Ast.Param (_, arg_type)) -> match arg_type with Ast.Type typ -> llvm_type_of_ast_type typ) args in
+    let arg_types = Array.of_list llvm_arg_types in
+    let ft = function_type llvm_return_type arg_types in
+    let the_function = declare_function name ft the_module in
+    let n = Array.length (params the_function) in
     if n == List.length args then () else
       raise (Failure "incorrect # arguments passed");
     for i = 0 to n - 1 do
-      let Param (Id arg, _) = List.nth args i in
-      let param = param f i in
+      let Ast.Param (Ast.Id arg, _) = List.nth args i in
+      let param = param the_function i in
       set_value_name arg param;
       Hashtbl.add named_values arg param
     done;
-    f
-
-(* Codegen Statement *)
-let rec codegen_block = function
-  | [] -> const_null (i32_type (global_context ())) (* return a null value for empty block *)
-  | [last] -> codegen_statement last (* return the result of the last statement *)
-  | stmt :: rest -> ignore (codegen_statement stmt); codegen_block rest
-and codegen_statement = function
-  | Ast.FuncDecl (proto, body) ->
-    Hashtbl.clear named_values;
-    let the_function = codegen_proto proto in
     let bb = append_block context "entry" the_function in
     position_at_end bb builder;
-    let ret_val = codegen_block body in
-    let _ = build_ret ret_val builder in
-    the_function
+    begin
+      match codegen_block body with
+      | Some ret_value ->
+        if (match return_type with Ast.Type typ -> typ) = Ast.String then
+          let global_var = store_expr_in_global ret_value in
+          let loaded_value = build_load global_var "loaded_value" builder in
+          ignore (build_ret loaded_value builder)
+        else
+          ignore (build_ret ret_value builder)
+      | None -> ignore (build_ret (const_null llvm_return_type) builder)
+    end;
+    position_at_end bb builder;
+    Some the_function
+
   | Ast.Assign (id, expr) ->
     let value = codegen_expr expr in
     let alloca = Hashtbl.find named_values id in
     ignore (build_store value alloca builder);
-    value
-  | Ast.Expr expr -> codegen_expr expr
+    None
+    
+  | Ast.Expr expr -> 
+    ignore (codegen_expr expr);
+    None
 
-  | Ast.Return expr -> build_ret (codegen_expr expr) builder
-
+  | Ast.Return expr ->
+    let ret_value = codegen_expr expr in
+    let global_var = store_expr_in_global ret_value in
+    let loaded_value = build_load global_var "loaded_value" builder in
+    let current_block = insertion_block builder in
+    let parent_function = block_parent current_block in
+    let ret_block = append_block context "return" parent_function in
+    position_at_end ret_block builder;
+    ignore (build_ret loaded_value builder);
+    position_at_end current_block builder;
+    None
+    
+    
   | Ast.Let ((id_decl, _), expr) ->
     let id = match id_decl with Ast.Id id_str -> id_str in
     let value = codegen_expr expr in
     let alloca = build_alloca (Llvm.type_of value) id builder in
     ignore (build_store value alloca builder);
     Hashtbl.add named_values id alloca;
-    alloca
+    Some alloca
 
-  | Ast.If (condition, Ast.Block then_block, Ast.Block else_block) ->
+  (* | Ast.If (condition, Ast.Block then_block, Ast.Block else_block) ->
     let cond_value = codegen_expr condition in
     let start_function = insertion_block builder |> block_parent in
     let then_bb = append_block context "then" start_function in
@@ -154,7 +192,7 @@ and codegen_statement = function
     ignore (codegen_block else_block);
     ignore (build_br merge_bb builder);
     position_at_end merge_bb builder;
-    const_null (i32_type (global_context ()))
+    const_null (i64_type (global_context ()))
 
   | Ast.While (expr, Ast.Block body_stmts) ->
     let start_function = insertion_block builder |> block_parent in
@@ -169,10 +207,10 @@ and codegen_statement = function
     ignore (codegen_block body_stmts);
     ignore (build_br cond_bb builder);
     position_at_end exit_bb builder;
-    const_null (i32_type (global_context ()))
+    const_null (i64_type (global_context ()))
 
   | Ast.For (id, start, end_expr, incr_op, Ast.Block body_stmts) ->
-    let start_value = const_int (i32_type (global_context ())) start in
+    let start_value = const_int (i64_type (global_context ())) start in
     let alloca = build_alloca (Llvm.type_of start_value) id builder in
     ignore (build_store start_value alloca builder);
     Hashtbl.add named_values id alloca;
@@ -193,7 +231,7 @@ and codegen_statement = function
     let cond = build_icmp Icmp.Slt next_value loop_cond "loop_cond" builder in
     ignore (build_cond_br cond loop_bb exit_bb builder);
     position_at_end exit_bb builder;
-    const_null (i32_type (global_context ()))
+    const_null (i64_type (global_context ())) *)
 
   | unimplemented_statement -> 
     let sexp = Ast.sexp_of_statement unimplemented_statement in
