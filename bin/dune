@@ -1,5 +1,5 @@
 (executable
  (name main)
- (libraries core menhirLib poppy)
+ (libraries core menhirLib poppy llvm llvm.executionengine llvm.target poppy_codegen poppy_parser)
  (preprocess (pps ppx_jane))
  (modules main))

@@ -1,5 +1,8 @@
 open! Core
 
+(* Heper Functions *)
+
+
 type bin_op =
   | Plus
   | Minus
@@ -16,29 +19,48 @@ type bin_op =
   | Xor
 [@@deriving sexp_of]
 
+type incr_decr_op = 
+  | Incr of string
+  | Decr of string
+[@@deriving sexp_of]
+
 type id_decl = Id of string
 [@@deriving sexp_of]
 
-type type_decl = Type of string
+type typ = 
+| Int
+| Bool
+| Void
+| String
+[@@deriving sexp_of]
+
+
+let string_to_typ s = match s with
+  | "int" -> Int
+  | "bool" -> Bool
+  | "void" -> Void
+  | "string" -> String
+  | _ -> raise (Printf.sprintf "Unknown type: %s" s |> Failure)
+
+type type_decl = Type of typ
 [@@deriving sexp_of]
 
 type func_param = Param of id_decl * type_decl
 [@@deriving sexp_of]
 
+
 type expr =
-  | Int of int
-  | Bool of bool
+  | IntLiteral of int
+  | BoolLiteral of bool
+  | VoidType of string
   | Id of string
-  | Type of type_decl
   | BinOp of bin_op * expr * expr
   | Not of expr
-  | Incr of string
-  | Decr of string
   | Print of string
-  | Builtin of string * expr list
   | Unit  
   | StringLiteral of string 
   | Lambda of func_param list * expr
+  | Call of string * expr list
 [@@deriving sexp_of]
 
 type statement =
@@ -46,9 +68,10 @@ type statement =
   | Assign of string * expr
   | If of expr * statement * statement
   | While of expr * statement
-  | For of string * int * expr * expr * statement
+  | IncrDecr of string * incr_decr_op
+  | For of string * int * expr * incr_decr_op * statement
   | Block of statement list
-  | FuncDecl of id_decl * func_param list * statement list
+  | FuncDecl of id_decl * func_param list * type_decl * statement list
   | Return of expr
   | Expr of expr
 [@@deriving sexp_of]
