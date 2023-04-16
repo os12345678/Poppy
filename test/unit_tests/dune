@@ -8,6 +8,6 @@
 (library
  (name test_parser)
  (inline_tests)
- (libraries poppy_parser poppy_codegen)
+ (libraries poppy_parser poppy_codegen ppx_jane)
  (preprocess
   (pps ppx_jane)))
