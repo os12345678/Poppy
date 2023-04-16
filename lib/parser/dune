@@ -3,7 +3,7 @@
  (libraries core menhirLib)
  (preprocess
   (pps ppx_jane))
- (modules ast lexer parser)
+ (modules ast lexer parser parser_interface)
  (public_name poppy))
 
 (ocamllex lexer)
