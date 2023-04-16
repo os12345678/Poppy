@@ -1,5 +1,6 @@
 (executable
  (name main)
- (libraries core menhirLib poppy llvm llvm.executionengine llvm.target poppy_codegen poppy_parser)
+ (libraries core menhirLib poppy llvm llvm.executionengine 
+ llvm.target poppy_codegen poppy_parser ppx_expect ppx_inline_test)
  (preprocess (pps ppx_jane))
  (modules main))
