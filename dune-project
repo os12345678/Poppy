@@ -30,6 +30,6 @@
   ppx_inline_test
   menhir
   menhirLib
-  ounit2)
+  llvm)
  (tags
   (topics "to describe" your project)))
