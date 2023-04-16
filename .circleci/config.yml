@@ -6,13 +6,22 @@ jobs:
       - image: ocaml/opam2:ubuntu-20.04-ocaml-4.12
     steps:
       - checkout
+      - restore_cache:
+          keys:
+            - opam-cache-v1-{{ checksum "poppy.opam" }}
       - run:
           name: Install dependencies
           command: |
-            opam switch create poppy ocaml-base-compiler.4.12.0
             eval $(opam env)
-            opam install -y core poppy_parser llvm.9.0.1 ctypes-foreign ppx_deriving ppx_expect oUnit2
+            opam update
+            opam install . --deps-only --with-test --locked
+      - save_cache:
+          key: opam-cache-v1-{{ checksum "poppy.opam" }}
+          paths:
+            - ~/.opam
       - run:
           name: Build and run tests
           command: |
+            eval $(opam env)
+            dune build @install
             dune runtest
