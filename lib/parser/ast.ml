@@ -50,9 +50,11 @@ type func_param = Param of id_decl * type_decl
 
 
 type expr =
+  | Expr of expr
   | IntLiteral of int
   | BoolLiteral of bool
-  | VoidType of string
+  | VoidType 
+  | StringType of string
   | Id of string
   | BinOp of bin_op * expr * expr
   | Not of expr
