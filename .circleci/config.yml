@@ -3,7 +3,7 @@ jobs:
   build:
     working_directory: ~/poppy
     docker:
-      - image: ocaml/opam2:ubuntu-20.04-ocaml-4.12
+      - image: ocaml/opam:ubuntu-20.04-ocaml-4.12
     steps:
       - checkout
       - restore_cache:
