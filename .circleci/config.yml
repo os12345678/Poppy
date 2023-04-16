@@ -23,4 +23,5 @@ jobs:
           name: Build and run tests
           command: |
             eval $(opam env)
+            dune build @install
             dune runtest

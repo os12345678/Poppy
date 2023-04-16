@@ -12,6 +12,13 @@ bug-reports: "https://github.com/username/reponame/issues"
 depends: [
   "ocaml"
   "dune" {>= "3.5"}
+  "core"
+  "ppx_jane"
+  "ppx_expect"
+  "ppx_inline_test"
+  "menhir"
+  "menhirLib"
+  "ounit2"
   "odoc" {with-doc}
 ]
 build: [
