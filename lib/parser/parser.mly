@@ -20,7 +20,6 @@
 %token COLON SEMICOLON
 %token FN 
 %token RETURN
-%token PRINT
 %token COMMA
 %token LAMBDA ARROW
 %token EOF
@@ -30,14 +29,19 @@
 %type <Ast.statement list> statements
 %type <Ast.expr list> args
 %type <Ast.func_param list> params
+%type <Ast.expr> atom_expr
+%type <Ast.statement> expr_statement
+%type <Ast.incr_decr_op> increment
+%type <Ast.type_decl> typ_decl
+
 
 %nonassoc EQ NEQ
 %nonassoc LT LEQ GT GEQ
 %left PLUS MINUS
 %left TIMES DIV
-%left AND
-%left OR XOR
+%left AND OR XOR
 %right NOT
+
 
 %start main
 %type <Ast.statement list> main
@@ -87,29 +91,31 @@ typ_decl:
   | TYPE { Type (string_to_typ $1) }
 
 expr:
-  | INT { IntLiteral($1) }
-  | TRUE { BoolLiteral(true) }
-  | FALSE { BoolLiteral(false) }
-  | ID { Id($1) }
-  | STRING { StringLiteral($1) }
-  | LPAREN expr RPAREN { $2 }
-  | expr PLUS expr { BinOp(Plus, $1, $3) }
-  | expr MINUS expr { BinOp(Minus, $1, $3) }
-  | expr TIMES expr { BinOp(Times, $1, $3) }
-  | expr DIV expr { BinOp(Div, $1, $3) }
-  | expr LT expr { BinOp(Lt, $1, $3) }
-  | expr LEQ expr { BinOp(Leq, $1, $3) }
-  | expr GT expr { BinOp(Gt, $1, $3) }
-  | expr GEQ expr { BinOp(Geq, $1, $3) }
-  | expr EQ expr { BinOp(Eq, $1, $3) }
-  | expr NEQ expr { BinOp(Neq, $1, $3) }
-  | expr AND expr { BinOp(And, $1, $3) }
-  | expr OR expr { BinOp(Or, $1, $3) }
-  | expr XOR expr { BinOp(Xor, $1, $3) }
-  | NOT expr { Not($2) }
-  | PRINT LPAREN format_str=STRING RPAREN { Print(format_str) }
-  | ID LPAREN args RPAREN { Call($1, $3) }
-  | LAMBDA LPAREN params RPAREN ARROW expr { Lambda($3, $6) }
+  | atom_expr                 { $1 }
+  | expr PLUS expr            { BinOp (Plus, $1, $3) }
+  | expr MINUS expr           { BinOp (Minus, $1, $3) }
+  | expr TIMES expr           { BinOp (Times, $1, $3) }
+  | expr DIV expr             { BinOp (Div, $1, $3) }
+  | expr AND expr             { BinOp (And, $1, $3) }
+  | expr OR expr              { BinOp (Or, $1, $3) }
+  | expr XOR expr             { BinOp (Xor, $1, $3) }
+  | NOT expr                  { Not $2 }
+  | expr LT expr              { BinOp (Lt, $1, $3) }
+  | expr LEQ expr             { BinOp (Leq, $1, $3) }
+  | expr GT expr              { BinOp (Gt, $1, $3) }
+  | expr GEQ expr             { BinOp (Geq, $1, $3) }
+  | expr EQ expr              { BinOp (Eq, $1, $3) }
+  | expr NEQ expr             { BinOp (Neq, $1, $3) }
+  | LPAREN expr RPAREN        { $2 }
+  | ID LPAREN args RPAREN     { Call ($1, $3) }
+  | LAMBDA LPAREN params RPAREN ARROW LPAREN expr RPAREN { Lambda ($3, $7) }
+
+atom_expr:
+  | ID                          { Id $1 }
+  | INT                         { IntLiteral $1 }
+  | TRUE                        { BoolLiteral true }
+  | FALSE                       { BoolLiteral false }
+  | STRING                      { StringLiteral $1 }
 
 args:
   | { [] }

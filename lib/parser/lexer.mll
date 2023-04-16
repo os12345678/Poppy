@@ -17,7 +17,7 @@ let digit = ['0'-'9']
 let alpha = ['a'-'z' 'A'-'Z']
 
 let int = '-'? digit+
-let type_kw = "int" | "bool" | "string"
+let type_kw = "int" | "bool" | "string" | "void"
 let id = (alpha) (alpha|digit|'_')*
 
 let whitespace = [' ' '\t']+
@@ -72,7 +72,7 @@ rule read_tok =
   | id { ID (Lexing.lexeme lexbuf) }
   | '"' { read_string (Buffer.create 17) lexbuf }  
   (* Other *)
-  | "print" { PRINT }
+  (* | "print" { PRINT } *)
   | whitespace { read_tok lexbuf }
   | newline { advance_line lexbuf; read_tok lexbuf }
   | "//" { read_single_line_comment lexbuf }

@@ -1,10 +1,5 @@
-open! Core
-
-(* Heper Functions *)
-
-
 type bin_op =
-  | Plus
+    Plus
   | Minus
   | Times
   | Div
@@ -17,56 +12,35 @@ type bin_op =
   | And
   | Or
   | Xor
-[@@deriving sexp_of]
-
-type incr_decr_op = 
-  | Incr of string
-  | Decr of string
-[@@deriving sexp_of]
-
+val sexp_of_bin_op : bin_op -> Sexplib0.Sexp.t
+type incr_decr_op = Incr of string | Decr of string
+val sexp_of_incr_decr_op : incr_decr_op -> Sexplib0.Sexp.t
 type id_decl = Id of string
-[@@deriving sexp_of]
-
-type typ = 
-| Int
-| Bool
-| Void
-| String
-[@@deriving sexp_of]
-
-
-let string_to_typ s = match s with
-  | "int" -> Int
-  | "bool" -> Bool
-  | "void" -> Void
-  | "string" -> String
-  | _ -> raise (Printf.sprintf "Unknown type: %s" s |> Failure)
-
+val sexp_of_id_decl : id_decl -> Sexplib0.Sexp.t
+type typ = Int | Bool | Void | String
+val sexp_of_typ : typ -> Sexplib0.Sexp.t
+val string_to_typ : string -> typ
 type type_decl = Type of typ
-[@@deriving sexp_of]
-
+val sexp_of_type_decl : type_decl -> Sexplib0.Sexp.t
 type func_param = Param of id_decl * type_decl
-[@@deriving sexp_of]
-
-
+val sexp_of_func_param : func_param -> Sexplib0.Sexp.t
 type expr =
-  | Expr of expr
+    Expr of expr
   | IntLiteral of int
   | BoolLiteral of bool
-  | VoidType 
+  | VoidType
   | StringType of string
   | Id of string
   | BinOp of bin_op * expr * expr
   | Not of expr
   | Print of string
-  | Unit  
-  | StringLiteral of string 
+  | Unit
+  | StringLiteral of string
   | Lambda of func_param list * expr
   | Call of string * expr list
-[@@deriving sexp_of]
-
+val sexp_of_expr : expr -> Sexplib0.Sexp.t
 type statement =
-  | Let of (id_decl * type_decl) * expr
+    Let of (id_decl * type_decl) * expr
   | Assign of string * expr
   | If of expr * statement * statement
   | While of expr * statement
@@ -76,7 +50,5 @@ type statement =
   | FuncDecl of id_decl * func_param list * type_decl * statement list
   | Return of expr
   | Expr of expr
-[@@deriving sexp_of]
-
-let sexp_of_statements statements =
-  Sexp.List (List.map statements ~f:sexp_of_statement)
+val sexp_of_statement : statement -> Sexplib0.Sexp.t
+val sexp_of_statements : statement list -> Sexplib0.Sexp.t

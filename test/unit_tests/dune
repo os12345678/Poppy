@@ -1,0 +1,13 @@
+; (tests
+;  (names test_parser)
+;  (libraries poppy_parser poppy_codegen ppx_inline_test)
+;  (preprocess (pps ppx_expect))
+;  (flags (:standard -inline-test-lib))
+; )
+
+(library
+ (name test_parser)
+ (inline_tests)
+ (libraries poppy_parser poppy_codegen)
+ (preprocess
+  (pps ppx_jane)))
