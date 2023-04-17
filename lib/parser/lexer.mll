@@ -50,6 +50,7 @@ rule read_tok =
   | "!" { NOT }
   | "^" { XOR }
   (* Keywords *)
+  | "main" { MAIN }
   | "if" { IF }
   | "else" { ELSE }
   | "while" { WHILE }

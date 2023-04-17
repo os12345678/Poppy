@@ -74,6 +74,7 @@ type statement =
   | For of string * int * expr * incr_decr_op * statement
   | Block of statement list
   | FuncDecl of id_decl * func_param list * type_decl * statement list
+  | MainFunc of statement list
   | Return of expr
   | Expr of expr
 [@@deriving sexp_of]
