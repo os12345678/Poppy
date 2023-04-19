@@ -8,33 +8,42 @@ let builder = builder context
 let the_module = create_module context "poppy_compiler"
 let scopes = Stack.create ()
 
+let function_protos: (string, (string * Ast.func_param list * Ast.type_decl) option) Hashtbl.t = Hashtbl.create 50
+
 (* Helper Functions *)
 let counter = ref 0
+;;
 
 let generate_unique_id () =
   let time = Unix.gettimeofday () in
   let id = Printf.sprintf "%.0f_%d" time !counter in
   counter := !counter + 1;
   id
+;;
 
 let string_of_llmodule m =
   let s = string_of_llmodule m in
   dispose_module m;
   s
+;;
 
 let enter_scope () =
   Stack.push (Hashtbl.create 10) scopes
+;;
 
 let exit_scope () =
   ignore (Stack.pop scopes)
+;;
 
 let current_scope () =
   Stack.top scopes
+;;
 
-  let add_var_to_current_scope id alloca =
-    let scope = current_scope () in
-    Hashtbl.add scope id alloca;
-    alloca  
+let add_var_to_current_scope id alloca =
+  let scope = current_scope () in
+  Hashtbl.add scope id alloca;
+  alloca  
+;;
 
   let lookup_var_in_scopes id =
     let result = ref None in
@@ -42,7 +51,28 @@ let current_scope () =
       if Hashtbl.mem scope id then result := Some (Hashtbl.find scope id)
     ) scopes;
     !result
+;;
 
+let find_function_prototype function_name =
+  try
+    let the_function = Hashtbl.find function_protos function_name in
+    Some the_function
+  with Not_found ->
+    None
+;;
+
+let is_valid_main_function_signature args return_type =
+  (* Check if the return type is int *)
+  let valid_return_type = match return_type with
+    | Ast.Type Ast.Int -> true
+    | _ -> false
+  in
+  (* Check if the arguments are empty *)
+  let valid_args = args = [] in
+  valid_return_type && valid_args
+;;
+
+let is_void llvm_type = classify_type llvm_type = TypeKind.Void;;
 
 let llvm_type_of_ast_type = function
 | Ast.Int-> i64_type context
@@ -132,54 +162,71 @@ let rec codegen_expr = function
     raise (Failure ("expression not implemented: " ^ expr_str))
 
 (* Codegen Statement *)
-let rec codegen_block (block: Ast.statement list) : llvalue option =
-  enter_scope ();
-  let result =
-    match block with
-    | [] -> None (* return None for empty block *)
-    | [last] -> codegen_statement last
-    | stmt :: rest ->
-      match codegen_statement stmt with
-      | Some ret_value -> Some ret_value
-      | None -> codegen_block rest
-  in
-  exit_scope ();
-  result
+let rec codegen_block (block: Ast.statement list) : bool =
+  match block with
+  | [] -> false 
+  | [s] -> begin
+    match codegen_statement s with 
+    | Some _ -> true
+    | None -> false
+  end 
+  | s::rest -> begin
+    match codegen_statement s with 
+    | Some _ -> codegen_block rest
+    | None -> false
+  end
 
 and codegen_statement = function
   | Ast.FuncDecl (Ast.Id name, args, return_type, body) ->
-    let llvm_return_type = match return_type with Ast.Type typ -> llvm_type_of_ast_type typ in
-    let llvm_arg_types = List.map (fun (Ast.Param (_, arg_type)) -> match arg_type with Ast.Type typ -> llvm_type_of_ast_type typ) args in
-    let arg_types = Array.of_list llvm_arg_types in
-    let ft = function_type llvm_return_type arg_types in
-    let the_function = declare_function name ft the_module in
-    let n = Array.length (params the_function) in
-    if n == List.length args then () else
-      raise (Failure "incorrect # arguments passed");
-    let named_values:(string, llvalue) Hashtbl.t = Hashtbl.create 10 in
-    Stack.push (named_values) scopes;
-    for i = 0 to n - 1 do
-      let Ast.Param (Ast.Id arg, _) = List.nth args i in
-      let param = param the_function i in
-      set_value_name arg param;
-      Hashtbl.add named_values arg param
-    done;
-    let bb = append_block context "entry" the_function in
-    position_at_end bb builder;
+    (* Check if the function is the main function *)
+    let is_main_function = (name = "main") in
+    (* If it is the main function, ensure it has the correct signature *)
+    if is_main_function && (not (is_valid_main_function_signature args return_type)) then
+      raise (Failure "Invalid main function signature");
     begin
-      match codegen_block body with
-      | Some ret_value ->
-        if (match return_type with Ast.Type typ -> typ) = Ast.String then
-          let loaded_value = ret_value in
-          ignore (build_ret loaded_value builder)
-        else
-          ignore (build_ret ret_value builder)
-      | None -> ignore (build_ret (const_null llvm_return_type) builder)
-    end;
-    position_at_end bb builder;
-    let popped_scope = Stack.pop scopes in
-    Hashtbl.clear popped_scope;
-    Some the_function
+      match find_function_prototype name with
+      | Some _ ->
+        raise (Failure ("Function " ^ name ^ " already exists."))
+      | None ->
+        let llvm_return_type = match return_type with Ast.Type typ -> llvm_type_of_ast_type typ in
+        let llvm_arg_types = List.map (fun (Ast.Param (_, arg_type)) -> match arg_type with Ast.Type typ -> llvm_type_of_ast_type typ) args in
+        let arg_types = Array.of_list llvm_arg_types in
+        let ft = function_type llvm_return_type arg_types in
+        let the_function = declare_function name ft the_module in
+        Hashtbl.add function_protos name (Some (name, args, return_type));
+        let n = Array.length (params the_function) in
+        if n == List.length args then () else
+          raise (Failure "incorrect # arguments passed");
+        let named_values:(string, llvalue) Hashtbl.t = Hashtbl.create 10 in
+        Stack.push (named_values) scopes;
+        for i = 0 to n - 1 do
+          let Ast.Param (Ast.Id arg, _) = List.nth args i in
+          let param = param the_function i in
+          set_value_name arg param;
+          Hashtbl.add named_values arg param
+        done;
+        let bb = append_block context "entry" the_function in
+        position_at_end bb builder;
+        begin
+          match codegen_block body with
+          | true ->
+            if (match return_type with Ast.Type typ -> typ) = Ast.String then
+              let loaded_value = build_load (Hashtbl.find named_values "return") "loadtmp" builder in
+              ignore (build_ret loaded_value builder)
+            else
+              let ret_value = build_load (Hashtbl.find named_values "return") "loadtmp" builder in
+              ignore (build_ret ret_value builder)
+          | false ->
+            if is_main_function then
+              ignore (build_ret (const_int (i64_type context) 0) builder)
+            else
+              ignore (build_ret (const_null llvm_return_type) builder)
+        end;
+        position_at_end bb builder;
+        let popped_scope = Stack.pop scopes in
+        Hashtbl.clear popped_scope;
+        Some the_function
+    end
 
   | Ast.Assign (id, expr) ->
     let value = codegen_expr expr in
@@ -212,6 +259,10 @@ and codegen_statement = function
     ignore (build_store value alloca builder);
     ignore (add_var_to_current_scope id alloca);
     None
+
+  (* | Ast.Block stmts ->
+    codegen_block stmts;
+    None *)
 
   | unimplemented_statement -> 
     let sexp = Ast.sexp_of_statement unimplemented_statement in
