@@ -39,6 +39,9 @@ let main () =
       | Ast.FuncDecl _ ->
         let _ = Codegen.codegen_statement statement in
         ()
+      (* | Ast.MainFunc _ ->
+        let _ = Codegen.codegen_statement statement in
+        () *)
       | _ -> ()
     ) ast;
     
