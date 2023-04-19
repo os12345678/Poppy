@@ -59,6 +59,10 @@ rule read_tok =
   | "return" { RETURN }
   | "lambda" { LAMBDA }
   | "->" { ARROW }
+  | "thread" { THREAD }
+  | "mutex" { MUTEX }
+  | "lock" { LOCK }
+  | "unlock" { UNLOCK }
   (* Symbols *)
   | "=" { ASSIGN }
   | ":" { COLON }

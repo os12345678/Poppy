@@ -22,6 +22,7 @@
 %token RETURN
 %token COMMA
 %token LAMBDA ARROW
+%token THREAD MUTEX LOCK UNLOCK
 %token EOF
 
 %type <Ast.expr> expr
@@ -70,7 +71,20 @@ statement:
   | WHILE LPAREN expr RPAREN LBRACE statements RBRACE { While($3, Block($6)) }
   | FOR LPAREN ID ASSIGN INT COMMA expr COMMA increment RPAREN LBRACE statements RBRACE { For($3, $5, $7, $9, Block($12)) }
   | FN ID LPAREN params RPAREN ARROW typ_decl LBRACE statements RBRACE { FuncDecl (Id $2, $4, $7, $9) }
+  | THREAD LBRACE statements RBRACE { Thread (Block($3)) }
   | RETURN expr SEMICOLON { Return($2) }
+  | mutex_declaration SEMICOLON { $1 }
+  | mutex_lock SEMICOLON{ $1 }
+  | mutex_unlock SEMICOLON { $1 }
+
+mutex_declaration:
+  | LET ID COLON typ_decl ASSIGN MUTEX { MutexDeclaration(MutexId $2, $4) }
+
+mutex_lock:
+  | ID COLON COLON LOCK LPAREN RPAREN { MutexLock(MutexId $1) }
+
+mutex_unlock:
+  | ID COLON COLON UNLOCK LPAREN RPAREN { MutexUnlock(MutexId $1) }
 
 expr_statement:
   | expr SEMICOLON { Expr($1) }

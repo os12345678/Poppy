@@ -65,6 +65,9 @@ type expr =
   | Call of string * expr list
 [@@deriving sexp_of]
 
+type mutexId = MutexId of string
+[@@deriving sexp_of]
+
 type statement =
   | Let of (id_decl * type_decl) * expr
   | Assign of string * expr
@@ -75,8 +78,12 @@ type statement =
   | Block of statement list
   | FuncDecl of id_decl * func_param list * type_decl * statement list
   | MainFunc of statement list
+  | Thread of statement
   | Return of expr
   | Expr of expr
+  | MutexDeclaration of mutexId * type_decl
+  | MutexLock of mutexId
+  | MutexUnlock of mutexId
 [@@deriving sexp_of]
 
 let sexp_of_statements statements =
