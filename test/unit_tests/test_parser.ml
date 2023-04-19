@@ -67,3 +67,30 @@ let%expect_test "function_statement_application" =
      ((If (BinOp Lt (Id x) (IntLiteral 5)) (Block ((Return (BoolLiteral true))))
        (Block ((Return (BoolLiteral false)))))))
     (MainFunc ((Expr (Call f ((IntLiteral 1)))))) |}]
+
+let%expect_test "thread_creation" = 
+  let input = "
+    fn main() -> void {
+      thread{
+        // do something
+      }
+    }
+  " in
+  let output = parse_input input in
+  print_endline (to_string output);
+  [%expect {| (MainFunc ((Thread (Block ())))) |}]
+
+let%expect_test "define mutexes" = 
+  let input = "
+    fn main() -> void {
+      let mut1:int = mutex;
+      mut1::lock();
+      mut1::unlock();
+    }
+  " in
+  let output = parse_input input in
+  print_endline (to_string output);
+  [%expect {|
+    (MainFunc
+     ((MutexDeclaration (MutexId mut1) (Type Int)) (MutexLock (MutexId mut1))
+      (MutexUnlock (MutexId mut1)))) |}]
