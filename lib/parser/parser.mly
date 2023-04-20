@@ -18,7 +18,7 @@
 %token WHILE FOR
 %token ASSIGN
 %token COLON SEMICOLON
-%token FN (*MAIN*)
+%token FN
 %token RETURN
 %token COMMA
 %token LAMBDA ARROW
@@ -61,9 +61,6 @@ main:
       else raise (Parse_error "main function entrypoint not found!")
     }
 
-// main_func:
-//   | FN MAIN LPAREN RPAREN ARROW typ_decl LBRACE statements RBRACE { if $6 = Type Void then MainFunc ($8) else raise (Parse_error "Invalid main function identifier") }
-
 statement:
   | LET ID COLON typ_decl ASSIGN expr SEMICOLON { Let((Id $2, $4), $6) }
   | ID ASSIGN expr SEMICOLON { Assign($1, $3) }
@@ -99,10 +96,6 @@ increment:
   | ID MINUS MINUS { Decr($1) }
 
 statements:
-  // | main_func statements { 
-  //     if List.exists (function MainFunc _ -> true | _ -> false) $2
-  //     then raise (Parse_error "Multiple main functions found!");
-  //     $1 :: $2 }
   | statement statements { $1 :: $2 }
   | expr_statement statements { $1 :: $2 }
   | { [] }
