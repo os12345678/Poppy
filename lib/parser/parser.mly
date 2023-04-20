@@ -64,12 +64,12 @@ main:
 statement:
   | LET ID COLON typ_decl ASSIGN expr SEMICOLON { Let((Id $2, $4), $6) }
   | ID ASSIGN expr SEMICOLON { Assign($1, $3) }
-  | IF LPAREN expr RPAREN LBRACE statements RBRACE ELSE LBRACE statements RBRACE { If($3, Block($6), Block($10)) }
+  | IF LPAREN expr RPAREN LBRACE statements RBRACE ELSE LBRACE statements RBRACE { If($3, Block $6, Block $10) }
   | WHILE LPAREN expr RPAREN LBRACE statements RBRACE { While($3, Block($6)) }
-  | FOR LPAREN ID ASSIGN INT COMMA expr COMMA increment RPAREN LBRACE statements RBRACE { For($3, $5, $7, $9, Block($12)) }
+  | FOR LPAREN ID ASSIGN INT COMMA expr COMMA increment RPAREN LBRACE statements RBRACE { For($3, $5, $7, $9, Block $12) }
   | FN ID LPAREN params RPAREN ARROW typ_decl LBRACE statements RBRACE { FuncDecl (Id $2, $4, $7, $9) }
-  | THREAD LBRACE statements RBRACE { Thread (Block($3)) }
-  | RETURN expr SEMICOLON { Return($2) }
+  | THREAD LBRACE statements RBRACE { Thread (Block $3) }
+  | RETURN expr SEMICOLON { Return $2 }
   | mutex_declaration SEMICOLON { $1 }
   | mutex_lock SEMICOLON{ $1 }
   | mutex_unlock SEMICOLON { $1 }

@@ -7,9 +7,8 @@ let context = global_context ()
 let builder = builder context
 let the_module = create_module context "poppy_compiler"
 let scopes = Stack.create ()
-
 let function_protos: (string, (string * Ast.func_param list * Ast.type_decl) option) Hashtbl.t = Hashtbl.create 50
-
+(* let double_type = double_type context *)
 (* Helper Functions *)
 let counter = ref 0
 ;;
@@ -80,6 +79,18 @@ let llvm_type_of_ast_type = function
 | Ast.Void -> void_type context (* void type not working *)
 | Ast.String -> pointer_type (i8_type context) 
 
+let add_implicit_return return_type last_value =
+  match return_type with
+  | Ast.Type Ast.Void ->
+    ignore (build_ret_void builder)
+  | Ast.Type Ast.Int ->
+    ignore (build_ret (last_value) builder)
+  | Ast.Type Ast.String ->
+    ignore (build_ret (last_value) builder)
+  | Ast.Type Ast.Bool ->
+    ignore (build_ret (last_value) builder)
+;;
+
 (* Codegen Expressions *)
 let rec codegen_expr = function
   | Ast.IntLiteral i -> const_int (i64_type context) i
@@ -103,32 +114,23 @@ let rec codegen_expr = function
       | Ast.Times -> build_mul lhs_val rhs_val "multmp" builder
       | Ast.Div -> build_fdiv lhs_val rhs_val "divtmp" builder
       | Ast.Lt -> 
-        let i = build_icmp Icmp.Slt lhs_val rhs_val "cmptmp" builder in
-        build_zext i (i1_type context) "booltmp" builder
-      | Ast.Gt ->
-        let i = build_icmp Icmp.Sgt lhs_val rhs_val "cmptmp" builder in
-        build_zext i (i1_type context) "booltmp" builder
-      | Ast.Leq ->
-        let i = build_icmp Icmp.Sle lhs_val rhs_val "cmptmp" builder in
-        build_zext i (i1_type context) "booltmp" builder
-      | Ast.Geq ->
-        let i = build_icmp Icmp.Sge lhs_val rhs_val "cmptmp" builder in
-        build_zext i (i1_type context) "booltmp" builder
-      | Ast.Eq ->
-        let i = build_icmp Icmp.Eq lhs_val rhs_val "cmptmp" builder in
-        build_zext i (i1_type context) "booltmp" builder
-      | Ast.Neq ->
-        let i = build_icmp Icmp.Ne lhs_val rhs_val "cmptmp" builder in
-        build_zext i (i1_type context) "booltmp" builder
-      | Ast.And ->
-        let i = build_and lhs_val rhs_val "andtmp" builder in
-        build_zext i (i1_type context) "booltmp" builder
-      | Ast.Or ->
-        let i = build_or lhs_val rhs_val "ortmp" builder in
-        build_zext i (i1_type context) "booltmp" builder
-      | Ast.Xor ->
-        let i = build_xor lhs_val rhs_val "xortmp" builder in
-        build_zext i (i1_type context) "booltmp" builder
+        build_icmp Icmp.Slt lhs_val rhs_val "cmptmp" builder
+        | Ast.Gt ->
+          build_icmp Icmp.Sgt lhs_val rhs_val "cmptmp" builder
+        | Ast.Leq ->
+          build_icmp Icmp.Sle lhs_val rhs_val "cmptmp" builder
+        | Ast.Geq ->
+          build_icmp Icmp.Sge lhs_val rhs_val "cmptmp" builder
+        | Ast.Eq ->
+          build_icmp Icmp.Eq lhs_val rhs_val "cmptmp" builder
+        | Ast.Neq ->
+          build_icmp Icmp.Ne lhs_val rhs_val "cmptmp" builder
+        | Ast.And ->
+          build_and lhs_val rhs_val "andtmp" builder
+        | Ast.Or ->
+          build_or lhs_val rhs_val "ortmp" builder
+        | Ast.Xor ->
+          build_xor lhs_val rhs_val "xortmp" builder
     end
 
   | Ast.Not e ->
@@ -162,20 +164,18 @@ let rec codegen_expr = function
     raise (Failure ("expression not implemented: " ^ expr_str))
 
 (* Codegen Statement *)
-let rec codegen_block (block: Ast.statement list) : Ast.statement option =
+let rec codegen_block (block: Ast.statement list) : llvalue =
   match block with
-  | [] -> None
+  | [] -> const_int (i64_type context) 0
   | [s] -> begin
-    ignore (codegen_statement s);
-    Some s
+    codegen_statement s
   end 
   | s::rest -> begin
     ignore (codegen_statement s);
     codegen_block rest
   end
 
-
-and codegen_statement : Ast.statement -> llvalue option = function
+and codegen_statement : Ast.statement -> llvalue = function
   | Ast.FuncDecl (Ast.Id name, args, return_type, body) ->
     (* Check if the function is the main function *)
     let is_main_function = (name = "main") in
@@ -207,22 +207,16 @@ and codegen_statement : Ast.statement -> llvalue option = function
         let bb = append_block context "entry" the_function in
         position_at_end bb builder;
         begin
-          let last_statement = codegen_block body in
-          if not (match last_statement with Some (Ast.Return _) -> true | _ -> false) then
-            match return_type with
-            | Ast.Type Ast.Void ->
-              ignore (build_ret_void builder)
-            | Ast.Type Ast.Int ->
-              ignore (build_ret (const_int (i64_type context) 0) builder)
-            | Ast.Type Ast.String ->
-              ignore (build_ret (const_pointer_null (pointer_type (i8_type context))) builder)
-            | _ ->
-              ()
+          let last_value = codegen_block body in
+          if is_main_function then
+            ignore (build_ret (const_int (i64_type context) 0) builder)
+          else
+            add_implicit_return return_type last_value;
         end;
         position_at_end bb builder;
         let popped_scope = Stack.pop scopes in
         Hashtbl.clear popped_scope;
-        Some the_function
+        the_function
     end
 
   | Ast.Assign (id, expr) ->
@@ -232,29 +226,62 @@ and codegen_statement : Ast.statement -> llvalue option = function
   | None -> raise (Failure ("Undefined variable: " ^ id))
     in
     ignore (build_store value alloca builder);
-    None
+    undef (i32_type context)
     
   | Ast.Expr expr -> 
     ignore (codegen_expr expr);
-    None
+    undef (i32_type context)
 
   | Ast.Return expr ->
     let ret_value = codegen_expr expr in
     ignore (build_ret ret_value builder);
-    None
+    undef (i32_type context)
 
-    
   | Ast.Let ((id_decl, _), expr) ->
     let id = match id_decl with Ast.Id id_str -> id_str in
     let value = codegen_expr expr in
     let alloca = build_alloca (Llvm.type_of value) id builder in
     ignore (build_store value alloca builder);
     ignore (add_var_to_current_scope id alloca);
-    None
+    undef (i32_type context)
 
-  (* | Ast.Block stmts ->
-    codegen_block stmts;
-    None *)
+  (* | Ast.If (cond, then_, else_) ->
+    let bool_val = codegen_expr cond in
+    let zero_val = const_int (type_of bool_val) 0 in
+    let cond_val = build_icmp Icmp.Ne bool_val zero_val "ifcond" builder in
+
+    let start_bb = insertion_block builder in
+    let the_function = block_parent start_bb in
+    let then_bb = append_block context "then" the_function in
+    position_at_end then_bb builder;
+    ignore(codegen_statement then_);
+    
+    let then_val = const_int (i1_type context) 1 in
+    let new_then_bb = insertion_block builder in
+    let else_bb = append_block context "else" the_function in
+    position_at_end else_bb builder;
+    ignore(codegen_statement else_);
+
+    let else_val = const_int (i1_type context) 0 in
+    let new_else_bb = insertion_block builder in
+    
+    let merge_bb = append_block context "ifcont" the_function in
+    position_at_end merge_bb builder;
+    let incoming = [(then_val, new_then_bb); (else_val, new_else_bb)] in
+    let phi = build_phi incoming "iftmp" builder in
+    position_at_end start_bb builder;
+    ignore (build_cond_br cond_val then_bb else_bb builder);
+    position_at_end new_then_bb builder; ignore (build_br merge_bb builder);
+    position_at_end new_else_bb builder; ignore (build_br merge_bb builder);
+    position_at_end merge_bb builder;
+    phi *)
+  
+
+  | Ast.Block stmt_list ->
+    enter_scope ();
+    let block_result = codegen_block stmt_list in
+    exit_scope ();
+    block_result
 
   | unimplemented_statement -> 
     let sexp = Ast.sexp_of_statement unimplemented_statement in
@@ -262,9 +289,7 @@ and codegen_statement : Ast.statement -> llvalue option = function
     raise (Failure ("statement not implemented: " ^ stmt_str))
 
 let codegen_ast (ast : Ast.statement list) : llmodule =
-  enter_scope ();
   List.iter (fun stmt -> ignore (codegen_statement stmt)) ast;
-  exit_scope ();
   the_module
 
 let codegen_ast_to_string (ast : Ast.statement list) : string =
