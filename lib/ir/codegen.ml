@@ -142,7 +142,6 @@ let rec codegen_expr = function
       | Some callee -> callee
       | None -> raise (Failure "unknown function referenced")
     in
-    Printf.printf "Callee LLVM IR: %s\n" (string_of_llvalue callee);
     let params = params callee in
     let args_array = Array.of_list args in
     if Array.length params == Array.length args_array then () else 
@@ -261,3 +260,13 @@ and codegen_statement : Ast.statement -> llvalue option = function
     let sexp = Ast.sexp_of_statement unimplemented_statement in
     let stmt_str = Sexp.to_string_hum sexp in
     raise (Failure ("statement not implemented: " ^ stmt_str))
+
+let codegen_ast (ast : Ast.statement list) : llmodule =
+  enter_scope ();
+  List.iter (fun stmt -> ignore (codegen_statement stmt)) ast;
+  exit_scope ();
+  the_module
+
+let codegen_ast_to_string (ast : Ast.statement list) : string =
+  let module_ = codegen_ast ast in
+  string_of_llmodule module_

@@ -6,7 +6,7 @@
 ; )
 
 (library
- (name test_parser)
+ (name test_codegen)
  (inline_tests)
  (libraries poppy_parser poppy_codegen)
  (preprocess
