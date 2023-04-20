@@ -142,6 +142,7 @@ let rec codegen_expr = function
       | Some callee -> callee
       | None -> raise (Failure "unknown function referenced")
     in
+    Printf.printf "Callee LLVM IR: %s\n" (string_of_llvalue callee);
     let params = params callee in
     let args_array = Array.of_list args in
     if Array.length params == Array.length args_array then () else 
@@ -162,21 +163,20 @@ let rec codegen_expr = function
     raise (Failure ("expression not implemented: " ^ expr_str))
 
 (* Codegen Statement *)
-let rec codegen_block (block: Ast.statement list) : bool =
+let rec codegen_block (block: Ast.statement list) : Ast.statement option =
   match block with
-  | [] -> false 
+  | [] -> None
   | [s] -> begin
-    match codegen_statement s with 
-    | Some _ -> true
-    | None -> false
+    ignore (codegen_statement s);
+    Some s
   end 
   | s::rest -> begin
-    match codegen_statement s with 
-    | Some _ -> codegen_block rest
-    | None -> false
+    ignore (codegen_statement s);
+    codegen_block rest
   end
 
-and codegen_statement = function
+
+and codegen_statement : Ast.statement -> llvalue option = function
   | Ast.FuncDecl (Ast.Id name, args, return_type, body) ->
     (* Check if the function is the main function *)
     let is_main_function = (name = "main") in
@@ -208,19 +208,17 @@ and codegen_statement = function
         let bb = append_block context "entry" the_function in
         position_at_end bb builder;
         begin
-          match codegen_block body with
-          | true ->
-            if (match return_type with Ast.Type typ -> typ) = Ast.String then
-              let loaded_value = build_load (Hashtbl.find named_values "return") "loadtmp" builder in
-              ignore (build_ret loaded_value builder)
-            else
-              let ret_value = build_load (Hashtbl.find named_values "return") "loadtmp" builder in
-              ignore (build_ret ret_value builder)
-          | false ->
-            if is_main_function then
+          let last_statement = codegen_block body in
+          if not (match last_statement with Some (Ast.Return _) -> true | _ -> false) then
+            match return_type with
+            | Ast.Type Ast.Void ->
+              ignore (build_ret_void builder)
+            | Ast.Type Ast.Int ->
               ignore (build_ret (const_int (i64_type context) 0) builder)
-            else
-              ignore (build_ret (const_null llvm_return_type) builder)
+            | Ast.Type Ast.String ->
+              ignore (build_ret (const_pointer_null (pointer_type (i8_type context))) builder)
+            | _ ->
+              ()
         end;
         position_at_end bb builder;
         let popped_scope = Stack.pop scopes in
@@ -243,14 +241,9 @@ and codegen_statement = function
 
   | Ast.Return expr ->
     let ret_value = codegen_expr expr in
-    let loaded_value = ret_value in
-    let current_block = insertion_block builder in
-    let parent_function = block_parent current_block in
-    let ret_block = append_block context "return" parent_function in
-    position_at_end ret_block builder;
-    ignore (build_ret loaded_value builder);
-    position_at_end current_block builder;
+    ignore (build_ret ret_value builder);
     None
+
     
   | Ast.Let ((id_decl, _), expr) ->
     let id = match id_decl with Ast.Id id_str -> id_str in
