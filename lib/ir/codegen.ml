@@ -333,6 +333,7 @@ and codegen_statement : Ast.statement -> llvalue = function
     let stmt_str = Sexp.to_string_hum sexp in
     raise (Failure ("statement not implemented: " ^ stmt_str))
 
+
 let codegen_ast (ast : Ast.statement list) : llmodule =
   List.iter (fun stmt -> ignore (codegen_statement stmt)) ast;
   the_module
@@ -340,3 +341,16 @@ let codegen_ast (ast : Ast.statement list) : llmodule =
 let codegen_ast_to_string (ast : Ast.statement list) : string =
   let module_ = codegen_ast ast in
   string_of_llmodule module_
+
+(* Function to link core library to the main module *)
+let link_core_library the_module =
+  let bindings = "../core_lib/bindings.ll" in
+
+  (* Parse the core library LLVM IR *)
+  let context = global_context () in
+  let corelib_buf = MemoryBuffer.of_file bindings in
+  let corelib_module = Llvm_irreader.parse_ir context corelib_buf in
+
+  (* Link the core library to the main module *)
+  Llvm_linker.link_modules' the_module corelib_module
+
