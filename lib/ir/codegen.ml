@@ -8,7 +8,7 @@ let builder = builder context
 let the_module = create_module context "poppy_compiler"
 let scopes = Stack.create ()
 let function_protos: (string, (string * Ast.func_param list * Ast.type_decl) option) Hashtbl.t = Hashtbl.create 50
-(* let double_type = double_type context *)
+
 (* Helper Functions *)
 let counter = ref 0
 ;;
@@ -79,17 +79,27 @@ let llvm_type_of_ast_type = function
 | Ast.Void -> void_type context (* void type not working *)
 | Ast.String -> pointer_type (i8_type context) 
 
-let add_implicit_return return_type last_value =
-  match return_type with
-  | Ast.Type Ast.Void ->
-    ignore (build_ret_void builder)
-  | Ast.Type Ast.Int ->
-    ignore (build_ret (last_value) builder)
-  | Ast.Type Ast.String ->
-    ignore (build_ret (last_value) builder)
-  | Ast.Type Ast.Bool ->
-    ignore (build_ret (last_value) builder)
-;;
+let add_implicit_return return_type last_value_opt =
+  match last_value_opt with
+  | None -> () (* Do not add an implicit return if the last statement was a return *)
+  | Some last_value ->
+    match return_type with
+    | Ast.Type Ast.Void ->
+      ignore (build_ret_void builder)
+    | Ast.Type Ast.Int ->
+      ignore (build_ret (last_value) builder)
+    | Ast.Type Ast.String ->
+      ignore (build_ret (last_value) builder)
+    | Ast.Type Ast.Bool ->
+      ignore (build_ret (last_value) builder)
+
+let is_return_statement (stmt: Ast.statement) : bool =
+  match stmt with
+  | Ast.Return _ -> true
+  | _ -> false
+
+let is_pointer (llvm_type: lltype) : bool =
+  classify_type llvm_type = TypeKind.Pointer
 
 (* Codegen Expressions *)
 let rec codegen_expr = function
@@ -109,27 +119,57 @@ let rec codegen_expr = function
     let rhs_val = codegen_expr rhs in
     begin 
       match op with
-      | Ast.Plus -> build_add lhs_val rhs_val "addtmp" builder
-      | Ast.Minus -> build_sub lhs_val rhs_val "subtmp" builder
-      | Ast.Times -> build_mul lhs_val rhs_val "multmp" builder
-      | Ast.Div -> build_fdiv lhs_val rhs_val "divtmp" builder
+      | Ast.Plus ->
+        let lhs_val = if is_pointer (type_of lhs_val) then build_load lhs_val "loadtmp" builder else lhs_val in
+        let rhs_val = if is_pointer (type_of rhs_val) then build_load rhs_val "loadtmp" builder else rhs_val in
+        build_add lhs_val rhs_val "addtmp" builder
+      | Ast.Minus -> 
+        let lhs_val = if is_pointer (type_of lhs_val) then build_load lhs_val "loadtmp" builder else lhs_val in
+        let rhs_val = if is_pointer (type_of rhs_val) then build_load rhs_val "loadtmp" builder else rhs_val in
+        build_sub lhs_val rhs_val "subtmp" builder
+      | Ast.Times -> 
+        let lhs_val = if is_pointer (type_of lhs_val) then build_load lhs_val "loadtmp" builder else lhs_val in
+        let rhs_val = if is_pointer (type_of rhs_val) then build_load rhs_val "loadtmp" builder else rhs_val in
+        build_mul lhs_val rhs_val "multmp" builder
+      | Ast.Div -> 
+        let lhs_val = if is_pointer (type_of lhs_val) then build_load lhs_val "loadtmp" builder else lhs_val in
+        let rhs_val = if is_pointer (type_of rhs_val) then build_load rhs_val "loadtmp" builder else rhs_val in
+        build_sdiv lhs_val rhs_val "divtmp" builder
       | Ast.Lt -> 
+        let lhs_val = if is_pointer (type_of lhs_val) then build_load lhs_val "loadtmp" builder else lhs_val in
+        let rhs_val = if is_pointer (type_of rhs_val) then build_load rhs_val "loadtmp" builder else rhs_val in
         build_icmp Icmp.Slt lhs_val rhs_val "cmptmp" builder
         | Ast.Gt ->
+          let lhs_val = if is_pointer (type_of lhs_val) then build_load lhs_val "loadtmp" builder else lhs_val in
+          let rhs_val = if is_pointer (type_of rhs_val) then build_load rhs_val "loadtmp" builder else rhs_val in
           build_icmp Icmp.Sgt lhs_val rhs_val "cmptmp" builder
         | Ast.Leq ->
+          let lhs_val = if is_pointer (type_of lhs_val) then build_load lhs_val "loadtmp" builder else lhs_val in
+          let rhs_val = if is_pointer (type_of rhs_val) then build_load rhs_val "loadtmp" builder else rhs_val in
           build_icmp Icmp.Sle lhs_val rhs_val "cmptmp" builder
         | Ast.Geq ->
+          let lhs_val = if is_pointer (type_of lhs_val) then build_load lhs_val "loadtmp" builder else lhs_val in
+          let rhs_val = if is_pointer (type_of rhs_val) then build_load rhs_val "loadtmp" builder else rhs_val in
           build_icmp Icmp.Sge lhs_val rhs_val "cmptmp" builder
         | Ast.Eq ->
+          let lhs_val = if is_pointer (type_of lhs_val) then build_load lhs_val "loadtmp" builder else lhs_val in
+          let rhs_val = if is_pointer (type_of rhs_val) then build_load rhs_val "loadtmp" builder else rhs_val in
           build_icmp Icmp.Eq lhs_val rhs_val "cmptmp" builder
         | Ast.Neq ->
+          let lhs_val = if is_pointer (type_of lhs_val) then build_load lhs_val "loadtmp" builder else lhs_val in
+          let rhs_val = if is_pointer (type_of rhs_val) then build_load rhs_val "loadtmp" builder else rhs_val in
           build_icmp Icmp.Ne lhs_val rhs_val "cmptmp" builder
         | Ast.And ->
+          let lhs_val = if is_pointer (type_of lhs_val) then build_load lhs_val "loadtmp" builder else lhs_val in
+          let rhs_val = if is_pointer (type_of rhs_val) then build_load rhs_val "loadtmp" builder else rhs_val in
           build_and lhs_val rhs_val "andtmp" builder
         | Ast.Or ->
+          let lhs_val = if is_pointer (type_of lhs_val) then build_load lhs_val "loadtmp" builder else lhs_val in
+          let rhs_val = if is_pointer (type_of rhs_val) then build_load rhs_val "loadtmp" builder else rhs_val in
           build_or lhs_val rhs_val "ortmp" builder
         | Ast.Xor ->
+          let lhs_val = if is_pointer (type_of lhs_val) then build_load lhs_val "loadtmp" builder else lhs_val in
+          let rhs_val = if is_pointer (type_of rhs_val) then build_load rhs_val "loadtmp" builder else rhs_val in
           build_xor lhs_val rhs_val "xortmp" builder
     end
 
@@ -164,12 +204,16 @@ let rec codegen_expr = function
     raise (Failure ("expression not implemented: " ^ expr_str))
 
 (* Codegen Statement *)
-let rec codegen_block (block: Ast.statement list) : llvalue =
+let rec codegen_block (block: Ast.statement list) : llvalue option =
   match block with
-  | [] -> const_int (i64_type context) 0
+  | [] -> Some (const_int (i64_type context) 0)
   | [s] -> begin
-    codegen_statement s
-  end 
+    let last_value = codegen_statement s in
+    if is_return_statement s then
+      None (* return statement within a block (i.e return add(i+1); not working)*)
+    else
+      Some last_value
+  end
   | s::rest -> begin
     ignore (codegen_statement s);
     codegen_block rest
@@ -226,16 +270,16 @@ and codegen_statement : Ast.statement -> llvalue = function
   | None -> raise (Failure ("Undefined variable: " ^ id))
     in
     ignore (build_store value alloca builder);
-    undef (i32_type context)
+    const_int (i32_type context) 0
     
   | Ast.Expr expr -> 
     ignore (codegen_expr expr);
-    undef (i32_type context)
+    const_int (i32_type context) 0
 
   | Ast.Return expr ->
     let ret_value = codegen_expr expr in
     ignore (build_ret ret_value builder);
-    undef (i32_type context)
+    const_int (i32_type context) 0
 
   | Ast.Let ((id_decl, _), expr) ->
     let id = match id_decl with Ast.Id id_str -> id_str in
@@ -243,9 +287,9 @@ and codegen_statement : Ast.statement -> llvalue = function
     let alloca = build_alloca (Llvm.type_of value) id builder in
     ignore (build_store value alloca builder);
     ignore (add_var_to_current_scope id alloca);
-    undef (i32_type context)
+    const_int (i32_type context) 0
 
-  (* | Ast.If (cond, then_, else_) ->
+  | Ast.If (cond, then_, else_) ->
     let bool_val = codegen_expr cond in
     let zero_val = const_int (type_of bool_val) 0 in
     let cond_val = build_icmp Icmp.Ne bool_val zero_val "ifcond" builder in
@@ -274,14 +318,15 @@ and codegen_statement : Ast.statement -> llvalue = function
     position_at_end new_then_bb builder; ignore (build_br merge_bb builder);
     position_at_end new_else_bb builder; ignore (build_br merge_bb builder);
     position_at_end merge_bb builder;
-    phi *)
+    phi
   
-
-  | Ast.Block stmt_list ->
-    enter_scope ();
-    let block_result = codegen_block stmt_list in
-    exit_scope ();
-    block_result
+| Ast.Block stmt_list ->
+  enter_scope ();
+  let block_result = codegen_block stmt_list in
+  exit_scope ();
+  (match block_result with
+    | None -> raise (Failure "block result is None")
+    | Some llvalue -> llvalue)
 
   | unimplemented_statement -> 
     let sexp = Ast.sexp_of_statement unimplemented_statement in
