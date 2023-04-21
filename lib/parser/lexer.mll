@@ -24,7 +24,6 @@ let whitespace = [' ' '\t']+
 let newline = '\n' | "\r\n"
 
 (* Rules *)
-
 rule read_tok = 
   parse
   (* Brackets *)
@@ -50,7 +49,6 @@ rule read_tok =
   | "!" { NOT }
   | "^" { XOR }
   (* Keywords *)
-  | "main" { MAIN }
   | "if" { IF }
   | "else" { ELSE }
   | "while" { WHILE }
@@ -59,6 +57,10 @@ rule read_tok =
   | "return" { RETURN }
   | "lambda" { LAMBDA }
   | "->" { ARROW }
+  | "thread" { THREAD }
+  | "mutex" { MUTEX }
+  | "lock" { LOCK }
+  | "unlock" { UNLOCK }
   (* Symbols *)
   | "=" { ASSIGN }
   | ":" { COLON }
@@ -73,7 +75,6 @@ rule read_tok =
   | id { ID (Lexing.lexeme lexbuf) }
   | '"' { read_string (Buffer.create 17) lexbuf }  
   (* Other *)
-  (* | "print" { PRINT } *)
   | whitespace { read_tok lexbuf }
   | newline { advance_line lexbuf; read_tok lexbuf }
   | "//" { read_single_line_comment lexbuf }

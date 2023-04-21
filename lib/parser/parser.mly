@@ -18,10 +18,11 @@
 %token WHILE FOR
 %token ASSIGN
 %token COLON SEMICOLON
-%token FN MAIN
+%token FN
 %token RETURN
 %token COMMA
 %token LAMBDA ARROW
+%token THREAD MUTEX LOCK UNLOCK
 %token EOF
 
 %type <Ast.expr> expr
@@ -52,7 +53,7 @@ main:
     {
       let main_found =
         List.exists (function
-          | MainFunc _ -> true
+          | FuncDecl (Id "main",_,_,_) -> true
           | _ -> false
         ) $1
       in
@@ -60,17 +61,27 @@ main:
       else raise (Parse_error "main function entrypoint not found!")
     }
 
-main_func:
-  | FN MAIN LPAREN RPAREN ARROW typ_decl LBRACE statements RBRACE { if $6 = Type Void then MainFunc ($8) else raise (Parse_error "Invalid main function identifier") }
-
 statement:
   | LET ID COLON typ_decl ASSIGN expr SEMICOLON { Let((Id $2, $4), $6) }
   | ID ASSIGN expr SEMICOLON { Assign($1, $3) }
-  | IF LPAREN expr RPAREN LBRACE statements RBRACE ELSE LBRACE statements RBRACE { If($3, Block($6), Block($10)) }
+  | IF LPAREN expr RPAREN LBRACE statements RBRACE ELSE LBRACE statements RBRACE { If($3, Block $6, Block $10) }
   | WHILE LPAREN expr RPAREN LBRACE statements RBRACE { While($3, Block($6)) }
-  | FOR LPAREN ID ASSIGN INT COMMA expr COMMA increment RPAREN LBRACE statements RBRACE { For($3, $5, $7, $9, Block($12)) }
+  | FOR LPAREN ID ASSIGN INT COMMA expr COMMA increment RPAREN LBRACE statements RBRACE { For($3, $5, $7, $9, Block $12) }
   | FN ID LPAREN params RPAREN ARROW typ_decl LBRACE statements RBRACE { FuncDecl (Id $2, $4, $7, $9) }
-  | RETURN expr SEMICOLON { Return($2) }
+  | THREAD LBRACE statements RBRACE { Thread (Block $3) }
+  | RETURN expr SEMICOLON { Return $2 }
+  | mutex_declaration SEMICOLON { $1 }
+  | mutex_lock SEMICOLON{ $1 }
+  | mutex_unlock SEMICOLON { $1 }
+
+mutex_declaration:
+  | LET ID COLON typ_decl ASSIGN MUTEX { MutexDeclaration(MutexId $2, $4) }
+
+mutex_lock:
+  | ID COLON COLON LOCK LPAREN RPAREN { MutexLock(MutexId $1) }
+
+mutex_unlock:
+  | ID COLON COLON UNLOCK LPAREN RPAREN { MutexUnlock(MutexId $1) }
 
 expr_statement:
   | expr SEMICOLON { Expr($1) }
@@ -85,10 +96,6 @@ increment:
   | ID MINUS MINUS { Decr($1) }
 
 statements:
-  | main_func statements { 
-      if List.exists (function MainFunc _ -> true | _ -> false) $2
-      then raise (Parse_error "Multiple main functions found!");
-      $1 :: $2 }
   | statement statements { $1 :: $2 }
   | expr_statement statements { $1 :: $2 }
   | { [] }

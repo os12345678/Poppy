@@ -1,43 +1,45 @@
 open Poppy_parser.Parser_interface
 
 let%expect_test "parse_empty_fn" =
-  let input = "fn main() -> void {}" in
+  let input = "fn main() -> int { return 0; }" in
   let output = parse_input input in
   print_endline (to_string output);
-  [%expect {| (MainFunc ()) |}]
+  [%expect {| (FuncDecl (Id main) () (Type Int) ((Return (IntLiteral 0)))) |}]
 
 let%expect_test "parse_int" = 
-  let input = "fn main() -> void { 123; }" in
+  let input = "fn main() -> int { 123; }" in
   let output = parse_input input in
   print_endline (to_string output);
-  [%expect {| (MainFunc ((Expr (IntLiteral 123)))) |}]
+  [%expect {| (FuncDecl (Id main) () (Type Int) ((Expr (IntLiteral 123)))) |}]
 
 let%expect_test "parse_expr" =
-  let input = "fn main() -> void { 1 + 2; }" in
+  let input = "fn main() -> int { 1 + 2; }" in
   let output = parse_input input in
   print_endline (to_string output);
   [%expect {|
-    (MainFunc ((Expr (BinOp Plus (IntLiteral 1) (IntLiteral 2))))) |}]
+    (FuncDecl (Id main) () (Type Int)
+     ((Expr (BinOp Plus (IntLiteral 1) (IntLiteral 2))))) |}]
 
 let%expect_test "parse_function_call" =
-  let input = "fn main() -> void { foo(); }" in
+  let input = "fn main() -> int { foo(); }" in
   let output = parse_input input in
   print_endline (to_string output);
-  [%expect {| (MainFunc ((Expr (Call foo ())))) |}]
+  [%expect {| (FuncDecl (Id main) () (Type Int) ((Expr (Call foo ())))) |}]
 
 let%expect_test "parse_function_call_with_args" =
-  let input = "fn main() -> void { foo(1, 2); }" in
+  let input = "fn main() -> int { foo(1, 2); }" in
   let output = parse_input input in
   print_endline (to_string output);
   [%expect {|
-    (MainFunc ((Expr (Call foo ((IntLiteral 1) (IntLiteral 2)))))) |}]
+    (FuncDecl (Id main) () (Type Int)
+     ((Expr (Call foo ((IntLiteral 1) (IntLiteral 2)))))) |}]
 
 let%expect_test "function_expression_application" = 
   let input = "
     fn f(x: int) -> int {
       x;
     }
-    fn main() -> void {
+    fn main() -> int {
       f(1);
     }
   " in
@@ -45,7 +47,7 @@ let%expect_test "function_expression_application" =
   print_endline (to_string output);
   [%expect {|
     (FuncDecl (Id f) ((Param (Id x) (Type Int))) (Type Int) ((Expr (Id x))))
-    (MainFunc ((Expr (Call f ((IntLiteral 1)))))) |}]
+    (FuncDecl (Id main) () (Type Int) ((Expr (Call f ((IntLiteral 1)))))) |}]
 
 let%expect_test "function_statement_application" = 
   let input = "
@@ -56,7 +58,7 @@ let%expect_test "function_statement_application" =
         return False;
       }
     }
-    fn main() -> void {
+    fn main() -> int {
       f(1);
     }
   " in
@@ -66,4 +68,31 @@ let%expect_test "function_statement_application" =
     (FuncDecl (Id f) ((Param (Id x) (Type Int))) (Type Bool)
      ((If (BinOp Lt (Id x) (IntLiteral 5)) (Block ((Return (BoolLiteral true))))
        (Block ((Return (BoolLiteral false)))))))
-    (MainFunc ((Expr (Call f ((IntLiteral 1)))))) |}]
+    (FuncDecl (Id main) () (Type Int) ((Expr (Call f ((IntLiteral 1)))))) |}]
+
+let%expect_test "thread_creation" = 
+  let input = "
+    fn main() -> int {
+      thread{
+        // do something
+      }
+    }
+  " in
+  let output = parse_input input in
+  print_endline (to_string output);
+  [%expect {| (FuncDecl (Id main) () (Type Int) ((Thread (Block ())))) |}]
+
+let%expect_test "define mutexes" = 
+  let input = "
+    fn main() -> int {
+      let mut1:int = mutex;
+      mut1::lock();
+      mut1::unlock();
+    }
+  " in
+  let output = parse_input input in
+  print_endline (to_string output);
+  [%expect {|
+    (FuncDecl (Id main) () (Type Int)
+     ((MutexDeclaration (MutexId mut1) (Type Int)) (MutexLock (MutexId mut1))
+      (MutexUnlock (MutexId mut1)))) |}]

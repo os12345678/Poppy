@@ -1,6 +1,4 @@
 exception ParseError of string
-(* open Sexplib *)
-(* open Poppy_parser *)
 
 let parse_input input =
   let lexbuf = Lexing.from_string input in
