@@ -41,6 +41,9 @@ let main () =
         ()
       | _ -> ()
     ) ast;
+
+    (* Link the core library to the main module *)
+    Codegen.link_core_library codegen_module;
     
 
     (* Print the LLVM IR *)

@@ -217,3 +217,15 @@ and codegen_statement = function
     let sexp = Ast.sexp_of_statement unimplemented_statement in
     let stmt_str = Sexp.to_string_hum sexp in
     raise (Failure ("statement not implemented: " ^ stmt_str))
+
+(* Function to link core library to the main module *)
+let link_core_library the_module =
+  let bindings = "../core_lib/bindings.ll" in
+
+  (* Parse the core library LLVM IR *)
+  let context = global_context () in
+  let corelib_buf = MemoryBuffer.of_file bindings in
+  let corelib_module = Llvm_irreader.parse_ir context corelib_buf in
+
+  (* Link the core library to the main module *)
+  Llvm_linker.link_modules' the_module corelib_module
