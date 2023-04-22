@@ -101,13 +101,23 @@ let is_return_statement (stmt: Ast.statement) : bool =
 let is_pointer (llvm_type: lltype) : bool =
   classify_type llvm_type = TypeKind.Pointer
 
+let declare_print_function the_module =
+  let void_type = Llvm.void_type (Llvm.module_context the_module) in
+  let string_type = Llvm.pointer_type (Llvm.i8_type (Llvm.module_context the_module)) in
+  let int_ptr_type = Llvm.pointer_type (Llvm.i64_type (Llvm.module_context the_module)) in
+  let print_type = Llvm.function_type void_type [| string_type; int_ptr_type |] in
+  Llvm.declare_function "print" print_type the_module
+let print_function = declare_print_function the_module
+    
 (* Codegen Expressions *)
 let rec codegen_expr = function
   | Ast.IntLiteral i -> const_int (i64_type context) i
 
   | Ast.BoolLiteral b -> const_int (i1_type context) (if b then 1 else 0)
 
-  | Ast.StringLiteral s -> const_stringz context s
+  | Ast.StringLiteral s ->
+    let str = Llvm.build_global_stringptr s "global_string" builder in
+    str
 
   | Ast.Id s ->
     (match lookup_var_in_scopes s with
@@ -178,25 +188,41 @@ let rec codegen_expr = function
     let i = build_not e_val "nottmp" builder in
     build_zext i (i1_type context) "booltmp" builder
 
-  | Ast.Call (callee, args) ->
-    let callee = 
-      match lookup_function callee the_module with 
-      | Some callee -> callee
-      | None -> raise (Failure "unknown function referenced")
-    in
-    let params = params callee in
-    let args_array = Array.of_list args in
-    if Array.length params == Array.length args_array then () else 
-      raise (Failure "incorrect # arguments passed");
-    let args = Array.map (fun arg ->
-      let arg_val = codegen_expr arg in
-      match classify_type (type_of arg_val) with
-      | TypeKind.Pointer ->
-        build_load arg_val "loadtmp" builder
-      | _ ->
-        arg_val
-    ) args_array in
-    build_call callee args "calltmp" builder
+    | Ast.Call (fnname, args) ->
+      let callee = 
+        match lookup_function fnname the_module with 
+        | Some callee -> callee
+        | None -> 
+          match Llvm.lookup_function fnname the_module with
+          | Some ext_callee -> ext_callee
+          | None ->
+            Llvm.iter_functions (fun f -> Printf.printf "Function: %s\n" (Llvm.value_name f)) the_module;
+            raise (Failure ("unknown function referenced: " ^ fnname))
+      in
+      let args_array = Array.of_list args in
+      let params = params callee in
+      if Array.length params <> Array.length args_array then
+        raise (Failure "incorrect # arguments passed");
+        let args = Array.mapi (fun i arg ->
+          let arg_val = codegen_expr arg in
+          match classify_type (type_of arg_val) with
+          | TypeKind.Pointer when fnname = "print" && i = 0 ->
+            build_load arg_val "loadtmp" builder
+          | TypeKind.Pointer when not (fnname = "print") ->
+            build_load arg_val "loadtmp" builder
+          | TypeKind.Integer when fnname = "print" && i = 1 ->
+            (* build_sext arg_val (Llvm.i64_type (Llvm.global_context ())) "sexttmp" builder *)
+            build_sext arg_val (Llvm.pointer_type (Llvm.i64_type (Llvm.global_context ()))) "sexttmp" builder
+          | _ ->
+            arg_val
+        ) args_array in
+      let call_inst = build_call callee args "calltmp" builder in
+      if fnname = "print" then
+        let arg0_ptr = build_gep (Llvm.param callee 0) [| const_int (Llvm.i64_type (Llvm.global_context ())) 0 |] "arg0_ptr" builder in
+        build_store args.(0) arg0_ptr builder
+      else
+        call_inst
+    
   
   | unimplement_expression ->
     let sexp = Ast.sexp_of_expr unimplement_expression in
@@ -270,16 +296,16 @@ and codegen_statement : Ast.statement -> llvalue = function
   | None -> raise (Failure ("Undefined variable: " ^ id))
     in
     ignore (build_store value alloca builder);
-    const_int (i32_type context) 0
+    const_int (i64_type context) 0
     
   | Ast.Expr expr -> 
     ignore (codegen_expr expr);
-    const_int (i32_type context) 0
+    const_int (i64_type context) 0
 
   | Ast.Return expr ->
     let ret_value = codegen_expr expr in
     ignore (build_ret ret_value builder);
-    const_int (i32_type context) 0
+    const_int (i64_type context) 0
 
   | Ast.Let ((id_decl, _), expr) ->
     let id = match id_decl with Ast.Id id_str -> id_str in
@@ -287,7 +313,7 @@ and codegen_statement : Ast.statement -> llvalue = function
     let alloca = build_alloca (Llvm.type_of value) id builder in
     ignore (build_store value alloca builder);
     ignore (add_var_to_current_scope id alloca);
-    const_int (i32_type context) 0
+    const_int (i64_type context) 0
 
   | Ast.If (cond, then_, else_) ->
     let bool_val = codegen_expr cond in
@@ -344,13 +370,24 @@ let codegen_ast_to_string (ast : Ast.statement list) : string =
 
 (* Function to link core library to the main module *)
 let link_core_library the_module =
-  let bindings = "../core_lib/bindings.ll" in
+  let bindings = "/Users/oliver/Documents/University/Honours/poppy/core_lib/bindings.ll" in
 
   (* Parse the core library LLVM IR *)
   let context = global_context () in
   let corelib_buf = MemoryBuffer.of_file bindings in
-  let corelib_module = Llvm_irreader.parse_ir context corelib_buf in
+  let corelib_module =
+    try
+      Llvm_irreader.parse_ir context corelib_buf
+    with
+    | Llvm_irreader.Error msg ->
+      Printf.printf "Error parsing core library: %s\n" msg;
+      raise (Failure "Error parsing core library")
+    in
+
+  Llvm.iter_functions (fun f -> Printf.printf "Core lib function: %s\n" (Llvm.value_name f)) corelib_module;
 
   (* Link the core library to the main module *)
-  Llvm_linker.link_modules' the_module corelib_module
+  Llvm_linker.link_modules' the_module corelib_module;
+  print_endline "Core library linked to the main module."
 
+ 

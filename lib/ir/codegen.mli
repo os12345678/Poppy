@@ -23,9 +23,15 @@ val is_valid_main_function_signature :
   'a list -> Poppy_parser.Ast.type_decl -> bool
 val is_void : Llvm.lltype -> bool
 val llvm_type_of_ast_type : Poppy_parser.Ast.typ -> Llvm.lltype
-val add_implicit_return : Poppy_parser.Ast.type_decl -> Llvm.llvalue -> unit
+val add_implicit_return :
+  Poppy_parser.Ast.type_decl -> Llvm.llvalue option -> unit
+val is_return_statement : Poppy_parser.Ast.statement -> bool
+val is_pointer : Llvm.lltype -> bool
+val declare_print_function : Llvm.llmodule -> Llvm.llvalue
+val print_function : Llvm.llvalue
 val codegen_expr : Poppy_parser.Ast.expr -> Llvm.llvalue
-val codegen_block : Poppy_parser.Ast.statement list -> Llvm.llvalue
+val codegen_block : Poppy_parser.Ast.statement list -> Llvm.llvalue option
 val codegen_statement : Poppy_parser.Ast.statement -> Llvm.llvalue
 val codegen_ast : Poppy_parser.Ast.statement list -> Llvm.llmodule
 val codegen_ast_to_string : Poppy_parser.Ast.statement list -> string
+val link_core_library : Llvm.llmodule -> unit
