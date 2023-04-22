@@ -4,14 +4,15 @@ target datalayout = "e-m:o-i64:64-i128:128-n32:64-S128"
 target triple = "arm64-apple-macosx13.0.0"
 
 ; Function Attrs: noinline nounwind optnone ssp uwtable
-define void @print(i8* %0, i64 %1) #0 {
+define void @print(i8* %0, i64* %1) #0 {
   %3 = alloca i8*, align 8
-  %4 = alloca i64, align 8
+  %4 = alloca i64*, align 8
   store i8* %0, i8** %3, align 8
-  store i64 %1, i64* %4, align 8
+  store i64* %1, i64** %4, align 8
   %5 = load i8*, i8** %3, align 8
-  %6 = load i64, i64* %4, align 8
-  %7 = call i32 (i8*, ...) @printf(i8* %5, i64 %6)
+  %6 = load i64*, i64** %4, align 8
+  %7 = load i64, i64* %6, align 8
+  %8 = call i32 (i8*, ...) @printf(i8* %5, i64 %7)
   ret void
 }
 
