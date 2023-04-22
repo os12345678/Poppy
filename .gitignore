@@ -1,4 +1,6 @@
 _build/*
 *.poppy
-*.ll
+/*.ll
 .gitignore
+out
+output
