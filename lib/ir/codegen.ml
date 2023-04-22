@@ -203,25 +203,20 @@ let rec codegen_expr = function
       let params = params callee in
       if Array.length params <> Array.length args_array then
         raise (Failure "incorrect # arguments passed");
-        let args = Array.mapi (fun i arg ->
-          let arg_val = codegen_expr arg in
-          match classify_type (type_of arg_val) with
-          | TypeKind.Pointer when fnname = "print" && i = 0 ->
-            build_load arg_val "loadtmp" builder
-          | TypeKind.Pointer when not (fnname = "print") ->
-            build_load arg_val "loadtmp" builder
-          | TypeKind.Integer when fnname = "print" && i = 1 ->
-            (* build_sext arg_val (Llvm.i64_type (Llvm.global_context ())) "sexttmp" builder *)
-            build_sext arg_val (Llvm.pointer_type (Llvm.i64_type (Llvm.global_context ()))) "sexttmp" builder
-          | _ ->
-            arg_val
-        ) args_array in
-      let call_inst = build_call callee args "calltmp" builder in
-      if fnname = "print" then
-        let arg0_ptr = build_gep (Llvm.param callee 0) [| const_int (Llvm.i64_type (Llvm.global_context ())) 0 |] "arg0_ptr" builder in
-        build_store args.(0) arg0_ptr builder
-      else
-        call_inst
+      let args = Array.mapi (fun i arg ->
+        let arg_val = codegen_expr arg in
+        match classify_type (type_of arg_val) with
+        | TypeKind.Pointer when fnname = "print" && i = 0 ->
+          arg_val
+        | TypeKind.Pointer when not (fnname = "print") ->
+          build_load arg_val "loadtmp" builder
+        | TypeKind.Integer when fnname = "print" && i = 1 ->
+          build_sext arg_val (Llvm.pointer_type (Llvm.i64_type (Llvm.global_context ()))) "sexttmp" builder
+        | _ ->
+          arg_val
+      ) args_array in
+      let call_inst = build_call callee args "" builder in
+      call_inst
     
   
   | unimplement_expression ->
