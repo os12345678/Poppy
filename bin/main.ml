@@ -34,7 +34,6 @@ let main () =
 
     (* Link the core library to the main module *)
     Codegen.link_core_library codegen_module;
-    (* Codegen.declare_snprintf codegen_module; *)
     print_endline("Linking successful");
 
     List.iter ~f:(fun statement ->
