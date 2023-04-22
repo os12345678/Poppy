@@ -31,6 +31,12 @@ let main () =
 
     (* Codegen *)
     let codegen_module = Codegen.the_module in
+
+    (* Link the core library to the main module *)
+    Codegen.link_core_library codegen_module;
+    (* Codegen.declare_snprintf codegen_module; *)
+    print_endline("Linking successful");
+
     List.iter ~f:(fun statement ->
       match statement with
       | Ast.Expr expr ->
@@ -39,16 +45,9 @@ let main () =
       | Ast.FuncDecl _ ->
         let _ = Codegen.codegen_statement statement in
         ()
-      (* | Ast.MainFunc _ ->
-        let _ = Codegen.codegen_statement statement in
-        () *)
       | _ -> ()
-    ) ast;
-
-    (* Link the core library to the main module *)
-    Codegen.link_core_library codegen_module;
+    ) ast;  
     
-
     (* Print the LLVM IR *)
     print_endline (string_of_llmodule codegen_module)
   with

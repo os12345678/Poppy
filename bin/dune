@@ -3,4 +3,5 @@
  (libraries core menhirLib poppy llvm llvm.executionengine llvm.linker llvm.irreader
  llvm.target poppy_codegen poppy_parser ppx_expect ppx_inline_test)
  (preprocess (pps ppx_jane))
+ ; (link_deps (file core_lib/libbindings.so))
  (modules main))
