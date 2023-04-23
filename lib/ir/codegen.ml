@@ -73,11 +73,16 @@ let is_valid_main_function_signature args return_type =
 
 let is_void llvm_type = classify_type llvm_type = TypeKind.Void;;
 
-let llvm_type_of_ast_type = function
+let rec llvm_type_of_ast_type context = function
 | Ast.Int-> i64_type context
 | Ast.Bool -> i1_type context
 | Ast.Void -> void_type context (* void type not working *)
 | Ast.String -> pointer_type (i8_type context) 
+| Ast.Function (param_types, return_type) ->
+  let llvm_param_types = Array.of_list (List.map (fun typ -> llvm_type_of_ast_type context typ) param_types) in
+  let llvm_return_type = llvm_type_of_ast_type context return_type in
+  function_type llvm_return_type llvm_param_types
+;;
 
 let add_implicit_return return_type last_value_opt =
   match last_value_opt with
@@ -92,14 +97,20 @@ let add_implicit_return return_type last_value_opt =
       ignore (build_ret (last_value) builder)
     | Ast.Type Ast.Bool ->
       ignore (build_ret (last_value) builder)
+    | Ast.Type (Ast.Function _) ->
+      (* No implicit return for lambda functions *)
+      ()
+    ;;
 
 let is_return_statement (stmt: Ast.statement) : bool =
   match stmt with
   | Ast.Return _ -> true
   | _ -> false
+;;
 
 let is_pointer (llvm_type: lltype) : bool =
   classify_type llvm_type = TypeKind.Pointer
+;;
 
 let declare_print_function the_module =
   let void_type = Llvm.void_type (Llvm.module_context the_module) in
@@ -107,7 +118,8 @@ let declare_print_function the_module =
   let int_ptr_type = Llvm.pointer_type (Llvm.i64_type (Llvm.module_context the_module)) in
   let print_type = Llvm.function_type void_type [| string_type; int_ptr_type |] in
   Llvm.declare_function "print" print_type the_module
-let print_function = declare_print_function the_module
+;;
+let print_function = declare_print_function the_module ;;
     
 (* Codegen Expressions *)
 let rec codegen_expr = function
@@ -252,8 +264,8 @@ and codegen_statement : Ast.statement -> llvalue = function
       | Some _ ->
         raise (Failure ("Function " ^ name ^ " already exists."))
       | None ->
-        let llvm_return_type = match return_type with Ast.Type typ -> llvm_type_of_ast_type typ in
-        let llvm_arg_types = List.map (fun (Ast.Param (_, arg_type)) -> match arg_type with Ast.Type typ -> llvm_type_of_ast_type typ) args in
+        let llvm_return_type = match return_type with Ast.Type typ -> llvm_type_of_ast_type context typ in
+        let llvm_arg_types = List.map (fun (Ast.Param (_, arg_type)) -> match arg_type with Ast.Type typ -> llvm_type_of_ast_type context typ) args in
         let arg_types = Array.of_list llvm_arg_types in
         let ft = function_type llvm_return_type arg_types in
         let the_function = declare_function name ft the_module in
