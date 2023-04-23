@@ -1,8 +1,5 @@
 open! Core
 
-(* Heper Functions *)
-
-
 type bin_op =
   | Plus
   | Minus
@@ -32,7 +29,8 @@ type typ =
 | Bool
 | Void
 | String
-[@@deriving sexp_of]
+| Function of typ list * typ
+[@@deriving sexp_of, equal]
 
 
 let string_to_typ s = match s with
