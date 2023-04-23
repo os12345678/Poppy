@@ -22,7 +22,8 @@ val find_function_prototype :
 val is_valid_main_function_signature :
   'a list -> Poppy_parser.Ast.type_decl -> bool
 val is_void : Llvm.lltype -> bool
-val llvm_type_of_ast_type : Poppy_parser.Ast.typ -> Llvm.lltype
+val llvm_type_of_ast_type :
+  Llvm.llcontext -> Poppy_parser.Ast.typ -> Llvm.lltype
 val add_implicit_return :
   Poppy_parser.Ast.type_decl -> Llvm.llvalue option -> unit
 val is_return_statement : Poppy_parser.Ast.statement -> bool
