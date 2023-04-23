@@ -35,10 +35,10 @@ let main () =
     (* Print the parsed AST *)
     print_endline (Sexp.to_string_hum (Ast.sexp_of_statements ast));
 
+
     (* Type check the AST *)
     Type_check.check_program ast;
     print_endline "Type checking successful";
-    
 
     List.iter ~f:(fun statement ->
       match statement with

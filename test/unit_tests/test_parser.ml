@@ -96,3 +96,13 @@ let%expect_test "define mutexes" =
     (FuncDecl (Id main) () (Type Int)
      ((MutexDeclaration (MutexId mut1) (Type Int)) (MutexLock (MutexId mut1))
       (MutexUnlock (MutexId mut1)))) |}]
+
+let%expect_test "test_print" = 
+  let input = "
+    fn main() -> int {
+      print(1);
+    }
+  " in
+  let output = parse_input input in
+  print_endline (to_string output);
+  [%expect {| (FuncDecl (Id main) () (Type Int) ((Print (IntLiteral 1)))) |}]
