@@ -200,37 +200,36 @@ let rec codegen_expr = function
     let i = build_not e_val "nottmp" builder in
     build_zext i (i1_type context) "booltmp" builder
 
-    | Ast.Call (fnname, args) ->
-      let callee = 
-        match lookup_function fnname the_module with 
-        | Some callee -> callee
-        | None -> 
-          match Llvm.lookup_function fnname the_module with
-          | Some ext_callee -> ext_callee
-          | None ->
-            Llvm.iter_functions (fun f -> Printf.printf "Function: %s\n" (Llvm.value_name f)) the_module;
-            raise (Failure ("unknown function referenced: " ^ fnname))
-      in
-      let args_array = Array.of_list args in
-      let params = params callee in
-      if Array.length params <> Array.length args_array then
-        raise (Failure "incorrect # arguments passed");
-      let args = Array.mapi (fun i arg ->
-        let arg_val = codegen_expr arg in
-        match classify_type (type_of arg_val) with
-        | TypeKind.Pointer when fnname = "print" && i = 0 ->
-          arg_val
-        | TypeKind.Pointer when not (fnname = "print") ->
-          build_load arg_val "loadtmp" builder
-        | TypeKind.Integer when fnname = "print" && i = 1 ->
-          build_sext arg_val (Llvm.pointer_type (Llvm.i64_type (Llvm.global_context ()))) "sexttmp" builder
-        | _ ->
-          arg_val
-      ) args_array in
-      let call_inst = build_call callee args "" builder in
-      call_inst
+  | Ast.Call (fnname, args) ->
+    let callee = 
+      match lookup_function fnname the_module with 
+      | Some callee -> callee
+      | None -> 
+        match Llvm.lookup_function fnname the_module with
+        | Some ext_callee -> ext_callee
+        | None ->
+          Llvm.iter_functions (fun f -> Printf.printf "Function: %s\n" (Llvm.value_name f)) the_module;
+          raise (Failure ("unknown function referenced: " ^ fnname))
+    in
+    let args_array = Array.of_list args in
+    let params = params callee in
+    if Array.length params <> Array.length args_array then
+      raise (Failure "incorrect # arguments passed");
+    let args = Array.mapi (fun i arg ->
+      let arg_val = codegen_expr arg in
+      match classify_type (type_of arg_val) with
+      | TypeKind.Pointer when fnname = "print" && i = 0 ->
+        arg_val
+      | TypeKind.Pointer when not (fnname = "print") ->
+        build_load arg_val "loadtmp" builder
+      | TypeKind.Integer when fnname = "print" && i = 1 ->
+        build_sext arg_val (Llvm.pointer_type (Llvm.i64_type (Llvm.global_context ()))) "sexttmp" builder
+      | _ ->
+        arg_val
+    ) args_array in
+    let call_inst = build_call callee args "" builder in
+    call_inst
     
-  
   | unimplement_expression ->
     let sexp = Ast.sexp_of_expr unimplement_expression in
     let expr_str = Sexp.to_string_hum sexp in
@@ -285,14 +284,19 @@ and codegen_statement : Ast.statement -> llvalue = function
         position_at_end bb builder;
         begin
           let last_value = codegen_block body in
-          if is_main_function then
-            ignore (build_ret (const_int (i64_type context) 0) builder)
-          else
-            add_implicit_return return_type last_value;
+          match last_value with
+          | None ->
+            if is_main_function then
+              ignore (build_ret (const_int (i64_type context) 0) builder)
+            else
+              ()
+          | Some return_val ->
+            ignore (build_ret return_val builder)
         end;
         position_at_end bb builder;
         let popped_scope = Stack.pop scopes in
         Hashtbl.clear popped_scope;
+        Llvm_analysis.assert_valid_function the_function;
         the_function
     end
 
@@ -311,6 +315,7 @@ and codegen_statement : Ast.statement -> llvalue = function
 
   | Ast.Return expr ->
     let ret_value = codegen_expr expr in
+    (* let loaded_value = build_load ret_value "" builder in *)
     ignore (build_ret ret_value builder);
     const_int (i64_type context) 0
 
