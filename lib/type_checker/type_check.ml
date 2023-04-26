@@ -43,7 +43,6 @@ let rec check_expr (ctx : context) (expr : expr) : typ =
     let expr_typ = check_expr ctx expr in
     if equal_typ expr_typ Bool then Bool
     else raise (Failure "Type error: expected bool for logical operation")
-  | Print _ -> Void (* Assuming print returns Void *)
   | Unit -> Void
   | StringLiteral _ -> String
   | Lambda (params, body) ->
@@ -112,7 +111,7 @@ let rec check_statement (ctx : context) (stmt : statement) : context =
     ctx
   | Block stmts ->
     List.fold stmts ~init:ctx ~f:check_statement
-  | FuncDecl (Id id, params, Type ret_typ, body) ->
+  | FuncDecl (Id id, params, Type ret_typ, body) -> (* if main function, dont allow return statement*)
     let ctx' = List.fold params ~init:ctx ~f:(fun ctx (Param (Id id, Type typ)) ->
       { ctx with variables = Map.set ctx.variables ~key:id ~data:typ }) in
     let _ = List.fold body ~init:ctx' ~f:check_statement in

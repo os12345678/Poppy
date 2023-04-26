@@ -56,7 +56,6 @@ type expr =
   | Id of string
   | BinOp of bin_op * expr * expr
   | Not of expr
-  | Print of string
   | Unit  
   | StringLiteral of string 
   | Lambda of func_param list * expr
