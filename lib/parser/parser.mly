@@ -18,7 +18,7 @@
 %token WHILE FOR
 %token ASSIGN
 %token COLON SEMICOLON
-%token FN
+%token FN CLASS DOT PUBLIC PRIVATE PROTECTED
 %token RETURN
 %token COMMA
 %token LAMBDA ARROW
@@ -69,6 +69,7 @@ statement:
   | FOR LPAREN ID ASSIGN INT COMMA expr COMMA increment RPAREN LBRACE statements RBRACE { For($3, $5, $7, $9, Block $12) }
   | FN ID LPAREN params RPAREN ARROW typ_decl LBRACE statements RBRACE { FuncDecl (Id $2, $4, $7, $9) }
   | THREAD LBRACE statements RBRACE { Thread (Block $3) }
+  | CLASS ID LBRACE class_members RBRACE { ClassDecl (Id $2, $4) }
   | RETURN expr SEMICOLON { Return $2 }
   | mutex_declaration SEMICOLON { $1 }
   | mutex_lock SEMICOLON{ $1 }
@@ -85,6 +86,20 @@ mutex_unlock:
 
 expr_statement:
   | expr SEMICOLON { Expr($1) }
+
+class_members:
+  | { [] }
+  | class_member class_members { $1 :: $2 }
+
+class_member:
+  | access_modifier ID COLON typ_decl SEMICOLON { ClassVar ($1, Id $2, $4) }
+  | access_modifier FN ID LPAREN params RPAREN ARROW typ_decl LBRACE statements RBRACE { ClassMethod ($1, Id $3, $5, $8, $10) }
+
+access_modifier:
+  | PRIVATE { Private }
+  | PROTECTED { Protected }
+  | PUBLIC { Public }
+  | { Public } // Default to public if no access modifier is specified
 
 params: 
   | { [] }
@@ -129,6 +144,7 @@ atom_expr:
   | TRUE                        { BoolLiteral true }
   | FALSE                       { BoolLiteral false }
   | STRING                      { StringLiteral $1 }
+  | expr DOT ID { ClassMemberAccess ($1, $3) }
 
 args:
   | { [] }
