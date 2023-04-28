@@ -30,6 +30,7 @@ type typ =
 | Void
 | String
 | Function of typ list * typ
+| ClassInstance of string
 [@@deriving sexp_of, equal]
 
 
@@ -47,20 +48,21 @@ type func_param = Param of id_decl * type_decl
 [@@deriving sexp_of]
 
 type expr =
-  | Expr of expr
-  | IntLiteral of int
-  | BoolLiteral of bool
-  | VoidType 
-  | StringType of string
-  | Id of string
-  | BinOp of bin_op * expr * expr
-  | Not of expr
-  | ClassInstantiation of string * expr list
-  | ClassMemberAccess of expr * string
-  | Unit  
-  | StringLiteral of string 
-  | Lambda of func_param list * expr
-  | Call of string * expr list
+| Expr of expr
+| IntLiteral of int
+| BoolLiteral of bool
+| This
+| VoidType 
+| StringType of string
+| Id of string
+| BinOp of bin_op * expr * expr
+| Not of expr
+| ClassInstantiation of string * expr list
+| ClassMemberAccess of expr * string
+| Unit  
+| StringLiteral of string 
+| Lambda of func_param list * expr
+| Call of string * expr list
 [@@deriving sexp_of]
 
 type mutexId = MutexId of string
@@ -76,6 +78,7 @@ type statement =
 | Block of statement list
 | FuncDecl of id_decl * func_param list * type_decl * statement list
 | ClassDecl of id_decl * class_member list
+| ClassMemberAssign of expr * string * expr
 | Thread of statement
 | Return of expr
 | Expr of expr

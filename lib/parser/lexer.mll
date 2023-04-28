@@ -65,6 +65,8 @@ rule read_tok =
   | "private" { PRIVATE }
   | "public" { PUBLIC }
   | "protected" { PROTECTED }
+  | "this" { THIS }
+  | "new" { NEW }
   (* Symbols *)
   | "=" { ASSIGN }
   | ":" { COLON }

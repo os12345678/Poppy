@@ -23,6 +23,8 @@
 %token COMMA
 %token LAMBDA ARROW
 %token THREAD MUTEX LOCK UNLOCK
+%token THIS
+%token NEW
 %token EOF
 
 %type <Ast.expr> expr
@@ -70,6 +72,7 @@ statement:
   | FN ID LPAREN params RPAREN ARROW typ_decl LBRACE statements RBRACE { FuncDecl (Id $2, $4, $7, $9) }
   | THREAD LBRACE statements RBRACE { Thread (Block $3) }
   | CLASS ID LBRACE class_members RBRACE { ClassDecl (Id $2, $4) }
+  | expr DOT ID ASSIGN expr SEMICOLON { ClassMemberAssign ($1, $3, $5) }
   | RETURN expr SEMICOLON { Return $2 }
   | mutex_declaration SEMICOLON { $1 }
   | mutex_lock SEMICOLON{ $1 }
@@ -120,6 +123,7 @@ typ_decl:
 
 expr:
   | atom_expr                 { $1 }
+  | class_instantiation       { $1 }
   | expr PLUS expr            { BinOp (Plus, $1, $3) }
   | expr MINUS expr           { BinOp (Minus, $1, $3) }
   | expr TIMES expr           { BinOp (Times, $1, $3) }
@@ -144,7 +148,10 @@ atom_expr:
   | TRUE                        { BoolLiteral true }
   | FALSE                       { BoolLiteral false }
   | STRING                      { StringLiteral $1 }
+  | THIS                        { This }
   | expr DOT ID { ClassMemberAccess ($1, $3) }
+
+class_instantiation: NEW ID LPAREN args RPAREN { ClassInstantiation ($2, $4) } 
 
 args:
   | { [] }
