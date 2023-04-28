@@ -1,10 +1,9 @@
-type context = {
-  variables : (string, Poppy_parser.Ast.typ) Core.Map.Poly.t;
-  functions :
-    (string, Poppy_parser.Ast.typ list * Poppy_parser.Ast.typ)
-    Core.Map.Poly.t;
-}
-val empty_context : context
-val check_expr : context -> Poppy_parser.Ast.expr -> Poppy_parser.Ast.typ
-val check_statement : context -> Poppy_parser.Ast.statement -> context
-val check_program : Poppy_parser.Ast.statement list -> unit
+val access_to_string : Poppy_parser.Ast.access_modifier -> string
+val typ_to_string : Poppy_parser.Ast.typ -> string
+val initialize_global_scope : unit -> Scoping.scope
+val check_type : Scoping.scope -> Poppy_parser.Ast.typ -> unit
+val type_check_expr :
+  Scoping.scope -> Poppy_parser.Ast.expr -> Poppy_parser.Ast.typ
+val type_check_statement :
+  Scoping.scope -> Poppy_parser.Ast.statement -> unit
+val type_check_program : Poppy_parser.Ast.statement list -> unit
