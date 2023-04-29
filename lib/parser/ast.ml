@@ -57,7 +57,7 @@ type expr =
 | Id of string
 | BinOp of bin_op * expr * expr
 | Not of expr
-| ClassInstantiation of string * expr list
+| ClassInstantiation of string * string * expr list
 | ClassMemberAccess of expr * string
 | Unit  
 | StringLiteral of string 

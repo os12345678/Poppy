@@ -151,7 +151,7 @@ atom_expr:
   | THIS                        { This }
   | expr DOT ID { ClassMemberAccess ($1, $3) }
 
-class_instantiation: NEW ID LPAREN args RPAREN { ClassInstantiation ($2, $4) } 
+class_instantiation: LET ID ASSIGN NEW ID LPAREN args RPAREN { ClassInstantiation ($2, $5, $7) } 
 
 args:
   | { [] }
