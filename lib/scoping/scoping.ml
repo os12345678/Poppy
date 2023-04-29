@@ -14,10 +14,10 @@ type value =
     class_name: string;
     parent_class: class_info option;
     class_scope: scope;
-    member_variables: (string, value) Hashtbl.t;
-    member_methods: (string, (statement * string list)) Hashtbl.t;
+    member_variables: (string, (access_modifier * value)) Hashtbl.t;
+    member_methods: (string, (access_modifier * (statement * string list))) Hashtbl.t;
   }
-
+  
 and scope = {
   parent: scope option; (* optional field that refers to the parent scope in the hierarchy. *)
   table: (string, value) Hashtbl.t; (* hash table that maps string keys (identifiers) to values, such as variables and method parameters. *)
@@ -25,7 +25,8 @@ and scope = {
 }
 
 let create_instance (class_info : class_info) : value =
-  let instance_data = Hashtbl.copy class_info.member_variables in
+  let instance_data = Hashtbl.create (Hashtbl.length class_info.member_variables) in
+  Hashtbl.iter (fun key (_access, value) -> Hashtbl.add instance_data key value) class_info.member_variables;
   ClassInstance (class_info, instance_data)
 
 let create_new_scope parent =
@@ -57,17 +58,17 @@ let add_identifier (current_scope : scope) (var_name : string) (typ : typ) =
   else
     Hashtbl.add current_scope.table var_name (Variable (Id var_name, typ))
   
-let add_member_variable (class_info : class_info) (var_name : string) (value : value) =
+let add_member_variable (class_info : class_info) (var_name : string) (access_and_value : access_modifier * value) =
   if Hashtbl.mem class_info.member_variables var_name then
     raise (DuplicateMemberVariable var_name)
   else
-    Hashtbl.add class_info.member_variables var_name value
+    Hashtbl.add class_info.member_variables var_name access_and_value
   
-let add_member_method (class_info : class_info) (method_name : string) (stmt : statement) (arg_names : string list) =
+let add_member_method (class_info : class_info) (method_name : string) (access_and_method_data : access_modifier * (statement * string list)) =
   if Hashtbl.mem class_info.member_methods method_name then
     raise (DuplicateMemberMethod method_name)
   else
-    Hashtbl.add class_info.member_methods method_name (stmt, arg_names)
+    Hashtbl.add class_info.member_methods method_name access_and_method_data
       
 let add_local_variable (current_scope : scope) (var_name : string) (value : value) =
   if Hashtbl.mem current_scope.table var_name then
@@ -99,15 +100,9 @@ let rec find_expr_type (expr : expr)  : typ =
   | Id _ -> failwith "Cannot determine the type of an identifier without scope information"
   | BinOp (_, left, _) -> find_expr_type left (* Assumes the binary operation returns the same type as its operands *)
   | Call (callee, _) -> failwith (Printf.sprintf "Cannot determine the return type of function %s without scope information" callee)
-  | ClassInstantiation (_, _) -> failwith "Cannot determine the type of a class instantiation without scope information"
+  | ClassInstantiation (_, _, _) -> failwith "Cannot determine the type of a class instantiation without scope information"
   | ClassMemberAccess (_, _) -> failwith "Cannot determine the type of a class member access without scope information"
-  (* | This -> (
-    match current_class_info with
-    | Some class_info -> ClassInstance class_info.class_name
-    | None -> failwith "Cannot determine the type of 'this' outside of a class context"
-  ) *)
 | _ -> Void
- 
 
 let rec find_return_type (stmt : statement) : typ =
   match stmt with
@@ -120,7 +115,7 @@ let rec find_return_type (stmt : statement) : typ =
 let rec find_method_return_type (class_info : class_info) (method_name : string) : typ option =
   try
     match Hashtbl.find class_info.member_methods method_name with
-    | stmt, _ -> Some (find_return_type stmt)
+    | (_access, (stmt, _)) -> Some (find_return_type stmt)
   with Not_found ->
     match class_info.parent_class with
     | Some parent_class_info -> find_method_return_type parent_class_info method_name
@@ -134,12 +129,12 @@ let rec find_class (current_scope : scope) (class_name : string) : class_info op
     | Some parent_scope -> find_class parent_scope class_name
     | None -> None
 
-let rec find_member_variable (class_info : class_info) (var_name : string) : value option =
+let rec find_member_variable (class_info : class_info) (var_name : string) : (access_modifier * value) option =
   try
     Some (Hashtbl.find class_info.member_variables var_name)
   with Not_found ->
     match class_info.parent_class with
     | Some parent_class_info -> find_member_variable parent_class_info var_name
     | None -> None
-    
+  
 
