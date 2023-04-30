@@ -128,6 +128,7 @@ let rec find_class (current_scope : scope) (class_name : string) : class_info op
     | Some parent_scope -> find_class parent_scope class_name
     | None -> None
 
+    
 let rec find_member_variable (class_info : class_info) (var_name : string) : (access_modifier * value) option =
   try
     Some (Hashtbl.find class_info.member_variables var_name)
@@ -135,7 +136,15 @@ let rec find_member_variable (class_info : class_info) (var_name : string) : (ac
     match class_info.parent_class with
     | Some parent_class_info -> find_member_variable parent_class_info var_name
     | None -> None
-  
+    
+let rec find_member_variable_in_class_and_ancestors (class_info : class_info) (member_name : string) : (access_modifier * value) option =
+  match find_member_variable class_info member_name with
+  | Some member -> Some member
+  | None ->
+    match class_info.parent_class with
+    | Some parent_class_info -> find_member_variable_in_class_and_ancestors parent_class_info member_name
+    | None -> None
+
   let string_of_typ = function
   | Int -> "int"
   | Bool -> "bool"
@@ -149,15 +158,24 @@ let string_of_value = function
   | ReturnValue (_, typ) -> "ReturnValue (" ^ (string_of_typ typ) ^ ")"
   | ClassInstance (class_info, _) -> "ClassInstance " ^ class_info.class_name
 
-let print_scope_contents (current_scope : scope) : unit =
-  print_endline (Printf.sprintf ("=== Identifiers in the current scope ==="));
+let rec print_scope_contents (current_scope : scope) (indent_level : int) : unit =
+  let indent = String.make (indent_level * 2) ' ' in
+
+  (match current_scope.parent with
+  | Some parent_scope ->
+    print_scope_contents parent_scope (indent_level + 1)
+  | None -> ());
+
+  print_endline (Printf.sprintf "%s=== Identifiers in the current scope (level %d) ===" indent indent_level);
   Hashtbl.iter (fun key value ->
-    print_endline (Printf.sprintf "%s: %s" key (string_of_value value))
+    print_endline (Printf.sprintf "%s%s: %s" indent key (string_of_value value))
   ) current_scope.table;
 
-  print_endline (Printf.sprintf ("\n=== Classes in the current scope ==="));
+  print_endline (Printf.sprintf "%s=== Classes in the current scope (level %d) ===" indent indent_level);
   Hashtbl.iter (fun key class_info ->
-    print_endline (Printf.sprintf "%s: %s" key class_info.class_name)
+    print_endline (Printf.sprintf "%s%s: %s" indent key class_info.class_name)
   ) current_scope.class_table;
-  print_endline "======================================";
+  
+  print_endline (Printf.sprintf "%s======================================" indent);
+  
 
