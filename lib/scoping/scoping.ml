@@ -78,9 +78,8 @@ let add_local_variable (current_scope : scope) (var_name : string) (value : valu
 
 (* Finds an identifier by looking up in the current scope and its ancestors *)
 let rec find_identifier (current_scope : scope) (id_name : string) : typ option =
-  (* print current scope and id name *)
-  print_endline (Printf.sprintf "current scope: %s" (Hashtbl.fold (fun k _v acc -> acc ^ k ^ ", ") current_scope.table ""));
-  print_endline (Printf.sprintf "id name: %s" id_name);
+  (* print_endline (Printf.sprintf "current scope: %s" (Hashtbl.fold (fun k _v acc -> acc ^ k ^ ", ") current_scope.table ""));
+  print_endline (Printf.sprintf "id name: %s" id_name); *)
   try
     match Hashtbl.find current_scope.table id_name with
     | Variable (_, typ) -> Some typ
@@ -137,4 +136,28 @@ let rec find_member_variable (class_info : class_info) (var_name : string) : (ac
     | Some parent_class_info -> find_member_variable parent_class_info var_name
     | None -> None
   
+  let string_of_typ = function
+  | Int -> "int"
+  | Bool -> "bool"
+  | String -> "string"
+  | Void -> "void"
+  | _ -> "unknown??? class"
+  
+let string_of_value = function
+  | Variable (_, typ) -> "Variable (" ^ (string_of_typ typ) ^ ")"
+  | Parameter (_, typ) -> "Parameter (" ^ (string_of_typ typ) ^ ")"
+  | ReturnValue (_, typ) -> "ReturnValue (" ^ (string_of_typ typ) ^ ")"
+  | ClassInstance (class_info, _) -> "ClassInstance " ^ class_info.class_name
+
+let print_scope_contents (current_scope : scope) : unit =
+  print_endline (Printf.sprintf ("=== Identifiers in the current scope ==="));
+  Hashtbl.iter (fun key value ->
+    print_endline (Printf.sprintf "%s: %s" key (string_of_value value))
+  ) current_scope.table;
+
+  print_endline (Printf.sprintf ("\n=== Classes in the current scope ==="));
+  Hashtbl.iter (fun key class_info ->
+    print_endline (Printf.sprintf "%s: %s" key class_info.class_name)
+  ) current_scope.class_table;
+  print_endline "======================================";
 
