@@ -45,21 +45,38 @@ let class_info_to_string class_info =
   in
   Printf.sprintf "%s {%s%s\n}" class_info.class_name member_variables_str member_methods_str
   
-  let find_member_access_and_type (current_class_info: class_info) (member_name: string) : (access_modifier * typ) option =
-    match Stdlib.Hashtbl.find_opt current_class_info.member_variables member_name with
-    | Some (access, Variable (_, typ)) -> Some (access, typ)
-    | _ -> None 
-    (* TODO: match access modifier for class methods *)
-      (* match Stdlib.Hashtbl.find_opt current_class_info.member_methods member_name with
-      | Some (access, (Method (_, _, _, ret_type), _)) -> Some (access, ret_type)
-      | None -> None *)
-
-let is_member_accessible (current_class_info: class_info) (_target_class_info: class_info) (member_name : string) : bool =
+let find_member_access_and_type (current_class_info: class_info) (member_name: string) : (access_modifier * typ) option =
   match Stdlib.Hashtbl.find_opt current_class_info.member_variables member_name with
-  | Some (Public, _) -> true
-  | Some (Private, _) -> false
-  | _ -> false (* implement protected later*)
-  (* TODO, match access modifier for class methods + implement protected *)
+  | Some (access, Variable (_, typ)) -> Some (access, typ)
+  | _ ->
+    match Stdlib.Hashtbl.find_opt current_class_info.member_methods member_name with
+    | Some (access, (stmt, _)) -> Some (access, find_return_type stmt)
+    | None -> None
+  
+
+let is_same_or_subclass_of (target_class_info: class_info option) (base_class_info: class_info option) : bool =
+  let rec check_class (class_info : class_info option) : bool =
+    match class_info with
+    | Some info ->
+      if String.equal info.class_name (match base_class_info with Some base_info -> base_info.class_name | None -> "") then
+        true
+      else
+        check_class info.parent_class
+    | None -> false
+  in
+  check_class target_class_info
+    
+    
+let is_member_accessible (current_class_info: class_info) (target_class_info: class_info) (member_name : string) : bool =
+  let check_accessibility access =
+    match access with
+    | Public -> true
+    | Private -> false
+    | Protected -> is_same_or_subclass_of (Some target_class_info) (Some current_class_info)
+  in
+  match find_member_access_and_type current_class_info member_name with
+  | Some (access, _) -> check_accessibility access
+  | None -> false
   
 let initialize_global_scope () = create_new_scope None
 
@@ -195,7 +212,8 @@ let rec type_check_statement (current_scope : scope) (stmt : statement) (current
 
   | ClassMemberAssign (instance_expr, member_name, expr) -> (* TODO debug this case *)
     (* Check the type of the instance expression *)
-    print_scope_contents current_scope;
+    print_scope_contents current_scope 0;
+    print_endline (Printf.sprintf "Current Class info \n %s" (class_info_to_string current_class_info));
     let instance_type = type_check_expr current_scope instance_expr current_class_info in
     (* Check if the instance type is a class instance *)
     (match instance_type with
@@ -204,7 +222,7 @@ let rec type_check_statement (current_scope : scope) (stmt : statement) (current
       (match find_class current_scope class_name with
       | Some class_info ->
         (* Check if the member exists in the class *)
-        (match find_member_variable class_info member_name with
+        (match find_member_variable_in_class_and_ancestors class_info member_name with
         | Some (_, Variable (_, member_type)) ->
           (* Check if the expression type matches the member type *)
           let expr_type = type_check_expr current_scope expr current_class_info in
@@ -286,12 +304,6 @@ let rec type_check_statement (current_scope : scope) (stmt : statement) (current
 let type_check_program (statements : statement list) : unit =
   (* Create the top-level scope for the program *)
   let global_scope = create_new_scope None in
-
-  (* Add built-in types to the global scope *)
-  add_identifier global_scope "int" Int;
-  add_identifier global_scope "bool" Bool;
-  add_identifier global_scope "void" Void;
-  add_identifier global_scope "string" String;
 
   (* Type-check each statement in the program *)
   let empty_class_info = { class_name = ""; 
