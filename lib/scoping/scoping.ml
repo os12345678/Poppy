@@ -45,13 +45,12 @@ let create_new_class_info class_name parent_class =
     member_methods = Hashtbl.create 10;
   }
 
-let add_class (current_scope : scope) (class_name : string) (parent_class : class_info option) =
-  let class_info = create_new_class_info class_name parent_class in
-  if Hashtbl.mem current_scope.class_table class_name then
-    raise (DuplicateClass class_name)
-  else
-    Hashtbl.add current_scope.class_table class_name class_info
-  
+  let add_class (current_scope : scope) (class_name : string) (class_info : class_info) : unit =
+    if Hashtbl.mem current_scope.class_table class_name then
+      raise (Failure (Printf.sprintf "Duplicate class declaration: %s" class_name))
+    else
+      Hashtbl.add current_scope.class_table class_name class_info
+    
 let add_identifier (current_scope : scope) (var_name : string) (typ : typ) =
   if Hashtbl.mem current_scope.table var_name then
     raise (DuplicateLocalVariable var_name)
@@ -158,6 +157,47 @@ let string_of_value = function
   | ReturnValue (_, typ) -> "ReturnValue (" ^ (string_of_typ typ) ^ ")"
   | ClassInstance (class_info, _) -> "ClassInstance " ^ class_info.class_name
 
+
+  let rec string_of_expr expr =
+    match expr with
+    | IntLiteral i -> "IntLiteral (" ^ (string_of_int i) ^ ")"
+    | BoolLiteral b -> "BoolLiteral (" ^ (string_of_bool b) ^ ")"
+    | StringLiteral s -> "StringLiteral (" ^ s ^ ")"
+    | Id id -> "Id (" ^ id ^ ")"
+    | BinOp (op, left, right) -> "BinOp (" ^ (string_of_binop op) ^ ", " ^ (string_of_expr left) ^ ", " ^ (string_of_expr right) ^ ")"
+    | Call (callee, args) -> "Call (" ^ callee ^ ", " ^ (String.concat ", " (List.map string_of_expr args)) ^ ")"
+    | ClassInstantiation (class_name, _constructor, args) -> "ClassInstantiation (" ^ class_name ^ ", " ^ (String.concat ", " (List.map string_of_expr args)) ^ ")"
+    | ClassMemberAccess (expr, member_name) -> "ClassMemberAccess (" ^ (string_of_expr expr) ^ ", " ^ member_name ^ ")"
+    | _ -> "Unknown expression"
+  
+  and string_of_binop = function
+    | Plus -> "Add"
+    | Minus -> "Sub"
+    | Times -> "Mult"
+    | Div -> "Div"
+    | And -> "And"
+    | Or -> "Or"
+    | Eq -> "Eq"
+    | Neq -> "Neq"
+    | Lt -> "Lt"
+    | Leq -> "Leq"
+    | Gt -> "Gt"
+    | Geq -> "Geq"
+    | Xor -> "Xor"
+  
+  let string_of_access_modifier = function
+  | Public -> "public"
+  | Private -> "private"
+  | Protected -> "protected"
+
+  let  string_of_statement stmt =
+    match stmt with
+    | Return expr -> "Return (" ^ (string_of_expr expr) ^ ")"
+    | If (expr, _stmt1, _stmt2) -> "If (" ^ (string_of_expr expr) ^ ")"
+    | While (expr, _stmt) -> "While (" ^ (string_of_expr expr) ^ ")"
+    | Block _ -> "Block"
+    | _ -> "Unknown statement"
+  
 let rec print_scope_contents (current_scope : scope) (indent_level : int) : unit =
   let indent = String.make (indent_level * 2) ' ' in
 
@@ -173,7 +213,18 @@ let rec print_scope_contents (current_scope : scope) (indent_level : int) : unit
 
   print_endline (Printf.sprintf "%s=== Classes in the current scope (level %d) ===" indent indent_level);
   Hashtbl.iter (fun key class_info ->
-    print_endline (Printf.sprintf "%s%s: %s" indent key class_info.class_name)
+    print_endline (Printf.sprintf "%s%s: %s" indent key class_info.class_name);
+
+    print_endline (Printf.sprintf "%s  === Member Variables ===" indent);
+    Hashtbl.iter (fun key (access_modifier, value) ->
+      print_endline (Printf.sprintf "%s  %s (%s): %s" indent key (string_of_access_modifier access_modifier) (string_of_value value))
+    ) class_info.member_variables;
+
+    print_endline (Printf.sprintf "%s  === Member Methods ===" indent);
+    Hashtbl.iter (fun key (access_modifier, (stmt, _param_names)) ->
+      print_endline (Printf.sprintf "%s  %s (%s): %s" indent key (string_of_access_modifier access_modifier) (string_of_statement stmt))
+    ) class_info.member_methods;
+
   ) current_scope.class_table;
   
   print_endline (Printf.sprintf "%s======================================" indent);
