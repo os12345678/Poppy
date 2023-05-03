@@ -36,6 +36,14 @@ let create_new_scope parent =
     class_table = Hashtbl.create 10;
   }
 
+let scope_level (scope : scope) : int =
+  let rec scope_level_aux (scope : scope) (level : int) : int =
+    match scope.parent with
+    | Some parent_scope -> scope_level_aux parent_scope (level + 1)
+    | None -> level
+  in
+  scope_level_aux scope 0
+
 let create_new_class_info class_name parent_class =
   {
     class_name;
@@ -46,6 +54,7 @@ let create_new_class_info class_name parent_class =
   }
 
   let add_class (current_scope : scope) (class_name : string) (class_info : class_info) : unit =
+    print_endline (Printf.sprintf "Adding class %s to scope level %d" class_name (scope_level current_scope));
     if Hashtbl.mem current_scope.class_table class_name then
       raise (Failure (Printf.sprintf "Duplicate class declaration: %s" class_name))
     else
@@ -119,14 +128,24 @@ let rec find_method_return_type (class_info : class_info) (method_name : string)
     | Some parent_class_info -> find_method_return_type parent_class_info method_name
     | None -> None
     
-let rec find_class (current_scope : scope) (class_name : string) : class_info option =
-  try
-    Some (Hashtbl.find current_scope.class_table class_name)
-  with Not_found ->
-    match current_scope.parent with
-    | Some parent_scope -> find_class parent_scope class_name
-    | None -> None
-
+let find_class (current_scope : scope) (class_name : string) : class_info option =
+  let rec find_class_aux (scope : scope) : class_info option =
+    print_endline (Printf.sprintf "Searching for class %s in scope level %d" class_name (scope_level scope));
+    match Hashtbl.find_opt scope.class_table class_name with
+    | Some class_info ->
+      print_endline (Printf.sprintf "Found class %s" class_name); 
+      Some class_info
+    | None ->
+      match scope.parent with
+      | Some parent_scope -> find_class_aux parent_scope
+      | None -> None
+  in
+  find_class_aux current_scope
+  
+let rec get_global_scope (current_scope : scope) : scope =
+  match current_scope.parent with
+  | Some parent_scope -> get_global_scope parent_scope
+  | None -> current_scope
     
 let rec find_member_variable (class_info : class_info) (var_name : string) : (access_modifier * value) option =
   try
@@ -149,7 +168,8 @@ let rec find_member_variable_in_class_and_ancestors (class_info : class_info) (m
   | Bool -> "bool"
   | String -> "string"
   | Void -> "void"
-  | _ -> "unknown??? class"
+  | ClassInstance class_name -> "ClassInstance " ^ class_name
+  | _ -> "Unknown"
   
 let string_of_value = function
   | Variable (_, typ) -> "Variable (" ^ (string_of_typ typ) ^ ")"
