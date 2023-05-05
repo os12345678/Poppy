@@ -1,4 +1,4 @@
 (library
  (name poppy_codegen)
- (libraries poppy_parser llvm llvm.analysis)
+ (libraries poppy_parser scoping poppy_type_checker llvm llvm.analysis)
  (preprocess (pps ppx_expect ppx_inline_test)))

@@ -61,11 +61,18 @@ rule read_tok =
   | "mutex" { MUTEX }
   | "lock" { LOCK }
   | "unlock" { UNLOCK }
+  | "class" { CLASS }
+  | "private" { PRIVATE }
+  | "public" { PUBLIC }
+  | "protected" { PROTECTED }
+  | "this" { THIS }
+  | "new" { NEW }
   (* Symbols *)
   | "=" { ASSIGN }
   | ":" { COLON }
   | ";" { SEMICOLON }
   | "," { COMMA }
+  | "." { DOT }
   (* Identifiers and constants *)
   | "let" { LET }
   | "True" { TRUE }

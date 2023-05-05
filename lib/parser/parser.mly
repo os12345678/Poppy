@@ -18,11 +18,13 @@
 %token WHILE FOR
 %token ASSIGN
 %token COLON SEMICOLON
-%token FN
+%token FN CLASS DOT PUBLIC PRIVATE PROTECTED
 %token RETURN
 %token COMMA
 %token LAMBDA ARROW
 %token THREAD MUTEX LOCK UNLOCK
+%token THIS
+%token NEW
 %token EOF
 
 %type <Ast.expr> expr
@@ -69,6 +71,8 @@ statement:
   | FOR LPAREN ID ASSIGN INT COMMA expr COMMA increment RPAREN LBRACE statements RBRACE { For($3, $5, $7, $9, Block $12) }
   | FN ID LPAREN params RPAREN ARROW typ_decl LBRACE statements RBRACE { FuncDecl (Id $2, $4, $7, $9) }
   | THREAD LBRACE statements RBRACE { Thread (Block $3) }
+  | CLASS ID LBRACE class_members RBRACE { ClassDecl (Id $2, $4) }
+  | expr DOT ID ASSIGN expr SEMICOLON { ClassMemberAssign ($1, $3, $5) }
   | RETURN expr SEMICOLON { Return $2 }
   | mutex_declaration SEMICOLON { $1 }
   | mutex_lock SEMICOLON{ $1 }
@@ -85,6 +89,20 @@ mutex_unlock:
 
 expr_statement:
   | expr SEMICOLON { Expr($1) }
+
+class_members:
+  | { [] }
+  | class_member class_members { $1 :: $2 }
+
+class_member:
+  | access_modifier ID COLON typ_decl SEMICOLON { ClassVar ($1, Id $2, $4) }
+  | access_modifier FN ID LPAREN params RPAREN ARROW typ_decl LBRACE statements RBRACE { ClassMethod ($1, Id $3, $5, $8, $10) }
+
+access_modifier:
+  | PRIVATE { Private }
+  | PROTECTED { Protected }
+  | PUBLIC { Public }
+  | { Public } // Default to public if no access modifier is specified
 
 params: 
   | { [] }
@@ -105,6 +123,7 @@ typ_decl:
 
 expr:
   | atom_expr                 { $1 }
+  | class_instantiation       { $1 }
   | expr PLUS expr            { BinOp (Plus, $1, $3) }
   | expr MINUS expr           { BinOp (Minus, $1, $3) }
   | expr TIMES expr           { BinOp (Times, $1, $3) }
@@ -121,6 +140,7 @@ expr:
   | expr NEQ expr             { BinOp (Neq, $1, $3) }
   | LPAREN expr RPAREN        { $2 }
   | ID LPAREN args RPAREN     { Call ($1, $3) }
+  | expr DOT ID LPAREN args RPAREN { InstanceMethodCall ($1, $3, $5) }
   | LAMBDA LPAREN params RPAREN ARROW LPAREN expr RPAREN { Lambda ($3, $7) }
 
 atom_expr:
@@ -129,6 +149,10 @@ atom_expr:
   | TRUE                        { BoolLiteral true }
   | FALSE                       { BoolLiteral false }
   | STRING                      { StringLiteral $1 }
+  | THIS                        { This }
+  | expr DOT ID { ClassMemberAccess ($1, $3) }
+
+class_instantiation: LET ID ASSIGN NEW ID LPAREN args RPAREN { ClassInstantiation ($2, $5, $7) } 
 
 args:
   | { [] }

@@ -30,6 +30,7 @@ type typ =
 | Void
 | String
 | Function of typ list * typ
+| ClassInstance of string
 [@@deriving sexp_of, equal]
 
 
@@ -46,40 +47,56 @@ type type_decl = Type of typ
 type func_param = Param of id_decl * type_decl
 [@@deriving sexp_of]
 
-
 type expr =
-  | Expr of expr
-  | IntLiteral of int
-  | BoolLiteral of bool
-  | VoidType 
-  | StringType of string
-  | Id of string
-  | BinOp of bin_op * expr * expr
-  | Not of expr
-  | Unit  
-  | StringLiteral of string 
-  | Lambda of func_param list * expr
-  | Call of string * expr list
+| Expr of expr
+| IntLiteral of int
+| BoolLiteral of bool
+| This
+| VoidType 
+| StringType of string
+| Id of string
+| BinOp of bin_op * expr * expr
+| Not of expr
+| ClassInstantiation of string * string * expr list
+| ClassMemberAccess of expr * string
+| Unit  
+| StringLiteral of string 
+| Lambda of func_param list * expr
+| Call of string * expr list
+| InstanceMethodCall of expr * string * expr list
 [@@deriving sexp_of]
 
 type mutexId = MutexId of string
 [@@deriving sexp_of]
 
 type statement =
-  | Let of (id_decl * type_decl) * expr
-  | Assign of string * expr
-  | If of expr * statement * statement
-  | While of expr * statement
-  | IncrDecr of string * incr_decr_op
-  | For of string * int * expr * incr_decr_op * statement
-  | Block of statement list
-  | FuncDecl of id_decl * func_param list * type_decl * statement list
-  | Thread of statement
-  | Return of expr
-  | Expr of expr
-  | MutexDeclaration of mutexId * type_decl
-  | MutexLock of mutexId
-  | MutexUnlock of mutexId
+| Let of (id_decl * type_decl) * expr
+| Assign of string * expr
+| If of expr * statement * statement
+| While of expr * statement
+| IncrDecr of string * incr_decr_op
+| For of string * int * expr * incr_decr_op * statement
+| Block of statement list
+| FuncDecl of id_decl * func_param list * type_decl * statement list
+| ClassDecl of id_decl * class_member list
+| ClassMemberAssign of expr * string * expr
+| Thread of statement
+| Return of expr
+| Expr of expr
+| MutexDeclaration of mutexId * type_decl
+| MutexLock of mutexId
+| MutexUnlock of mutexId
+[@@deriving sexp_of]
+
+and class_member =
+  | ClassVar of access_modifier * id_decl * type_decl
+  | ClassMethod of access_modifier * id_decl * func_param list * type_decl * statement list
+[@@deriving sexp_of]
+
+and access_modifier =
+  | Public
+  | Private
+  | Protected
 [@@deriving sexp_of]
 
 let sexp_of_statements statements =
