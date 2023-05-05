@@ -140,6 +140,7 @@ expr:
   | expr NEQ expr             { BinOp (Neq, $1, $3) }
   | LPAREN expr RPAREN        { $2 }
   | ID LPAREN args RPAREN     { Call ($1, $3) }
+  | expr DOT ID LPAREN args RPAREN { InstanceMethodCall ($1, $3, $5) }
   | LAMBDA LPAREN params RPAREN ARROW LPAREN expr RPAREN { Lambda ($3, $7) }
 
 atom_expr:
