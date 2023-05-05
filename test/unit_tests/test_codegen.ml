@@ -1,4 +1,4 @@
-open Poppy_codegen.Codegen
+(* open Poppy_codegen.Codegen
 open Poppy_parser.Parser_interface
 
 
@@ -21,4 +21,4 @@ let llvm_ir_string = codegen_ast_to_string ast in
 print_endline (llvm_ir_string);
 [%expect{||}]
 
-
+ *)

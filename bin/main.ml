@@ -1,8 +1,8 @@
 open Core
 open Poppy_parser
-open Poppy_codegen
+(* open Poppy_codegen *)
 open Poppy_type_checker
-open Llvm
+(* open Llvm *)
 open Parser_interface
 
 
@@ -15,9 +15,9 @@ let read_file filename =
 let main () =
   try
     (* Link the core library to the main module *)
-    let codegen_module = Codegen.the_module in
+    (* let codegen_module = Codegen.the_module in
     Codegen.link_core_library codegen_module;
-    print_endline("Linking successful");
+    print_endline("Linking successful"); *)
 
     (* Get the command-line arguments *)
     let argv = Sys.get_argv () in
@@ -37,10 +37,10 @@ let main () =
 
 
     (* Type check the AST *)
-    Type_check.check_program ast;
+    Type_check.type_check_program ast;
     print_endline "Type checking successful";
 
-    List.iter ~f:(fun statement ->
+    (* List.iter ~f:(fun statement ->
       match statement with
       | Ast.Expr expr ->
         let _ = Codegen.codegen_expr expr in
@@ -49,10 +49,10 @@ let main () =
         let _ = Codegen.codegen_statement statement in
         ()
       | _ -> ()
-    ) ast;  
+    ) ast;   *)
     
     (* Print the LLVM IR *)
-    print_endline (string_of_llmodule codegen_module)
+    (* print_endline (string_of_llmodule codegen_module) *)
   with
   | Sys_error msg -> print_endline ("Error: " ^ msg)
   | Failure msg -> print_endline ("Syntax Error: " ^ msg)
