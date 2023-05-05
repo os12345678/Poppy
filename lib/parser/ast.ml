@@ -63,6 +63,7 @@ type expr =
 | StringLiteral of string 
 | Lambda of func_param list * expr
 | Call of string * expr list
+| InstanceMethodCall of expr * string * expr list
 [@@deriving sexp_of]
 
 type mutexId = MutexId of string
