@@ -54,7 +54,6 @@ let create_new_class_info class_name parent_class =
   }
 
   let add_class (current_scope : scope) (class_name : string) (class_info : class_info) : unit =
-    print_endline (Printf.sprintf "Adding class %s to scope level %d" class_name (scope_level current_scope));
     if Hashtbl.mem current_scope.class_table class_name then
       raise (Failure (Printf.sprintf "Duplicate class declaration: %s" class_name))
     else
@@ -86,8 +85,6 @@ let add_local_variable (current_scope : scope) (var_name : string) (value : valu
 
 (* Finds an identifier by looking up in the current scope and its ancestors *)
 let rec find_identifier (current_scope : scope) (id_name : string) : typ option =
-  (* print_endline (Printf.sprintf "current scope: %s" (Hashtbl.fold (fun k _v acc -> acc ^ k ^ ", ") current_scope.table ""));
-  print_endline (Printf.sprintf "id name: %s" id_name); *)
   try
     match Hashtbl.find current_scope.table id_name with
     | Variable (_, typ) -> Some typ
@@ -127,13 +124,11 @@ let rec find_method_return_type (class_info : class_info) (method_name : string)
     match class_info.parent_class with
     | Some parent_class_info -> find_method_return_type parent_class_info method_name
     | None -> None
-    
+
 let find_class (current_scope : scope) (class_name : string) : class_info option =
   let rec find_class_aux (scope : scope) : class_info option =
-    print_endline (Printf.sprintf "Searching for class %s in scope level %d" class_name (scope_level scope));
     match Hashtbl.find_opt scope.class_table class_name with
     | Some class_info ->
-      print_endline (Printf.sprintf "Found class %s" class_name); 
       Some class_info
     | None ->
       match scope.parent with
