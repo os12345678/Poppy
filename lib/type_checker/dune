@@ -1,4 +1,4 @@
 (library
  (name poppy_type_checker)
- (libraries poppy_parser scoping)
+ (libraries scoping)
  (preprocess (pps ppx_expect ppx_inline_test)))
