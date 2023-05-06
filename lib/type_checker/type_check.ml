@@ -9,6 +9,13 @@ let access_to_string access : string =
   | Private -> "private"
   | Protected -> "protected"
 
+let value_to_string value : string = 
+  match value with 
+  | Variable _ -> "variable"
+  | Parameter _ -> "parameter"
+  | ReturnValue _ -> "return value"
+  | ClassInstance _ -> "class instance"
+
 let rec typ_to_string (typ : typ) : string =
   match typ with
   | Int -> "int"
@@ -43,6 +50,85 @@ let class_info_to_string class_info =
       class_info.member_methods ""
   in
   Printf.sprintf "%s {%s%s\n}" class_info.class_name member_variables_str member_methods_str
+
+(* let id_decl_to_string (id_decl: id_decl) : string =
+  match id_decl with
+  | Id (id) -> Printf.sprintf "%s" id *)
+
+  (* let rec statement_to_string (stmt: statement) : string =
+    match stmt with
+    | Let ((id, typ), expr) -> Printf.sprintf "Let: %s : %s = %s" (id_decl_to_string id) (type_decl_to_string typ) (expr_to_string expr)
+    | Assign (id, expr) -> Printf.sprintf "Assign: %s = %s" id (expr_to_string expr)
+    | If (cond, stmt_true, stmt_false) -> Printf.sprintf "If: %s then %s else %s" (expr_to_string cond) (statement_to_string stmt_true) (statement_to_string stmt_false)
+    | While (cond, stmt) -> Printf.sprintf "While: %s do %s" (expr_to_string cond) (statement_to_string stmt)
+    (* | IncrDecr (id, op) -> Printf.sprintf "IncrDecr: %s %s" id (incr_decr_op_to_string op) *)
+    (* | For (id, start, end_expr, op, stmt) -> Printf.sprintf "For: %s = %d to %s %s do %s" id start (expr_to_string end_expr) (incr_decr_op_to_string op) (statement_to_string stmt) *)
+    | Block stmts -> Printf.sprintf "Block: %s" (String.concat ~sep:"; " (List.map stmts ~f:statement_to_string))
+    (* | FuncDecl (id, params, ret_type, stmts) -> Printf.sprintf "FuncDecl: %s(%s) -> %s { %s }" (id_decl_to_string id) (String.concat ~sep:", " (List.map params ~f:func_param_to_string)) (type_decl_to_string ret_type) (String.concat ~sep:"; " (List.map stmts ~f:statement_to_string)) *)
+    (* | ClassDecl (id, members) -> Printf.sprintf "ClassDecl: %s { %s }" (id_decl_to_string id) (String.concat ~sep:"; " (List.map members ~f:class_member_to_string)) *)
+    | ClassMemberAssign (expr1, id, expr2) -> Printf.sprintf "ClassMemberAssign: %s.%s = %s" (expr_to_string expr1) id (expr_to_string expr2)
+    | Thread stmt -> Printf.sprintf "Thread: %s" (statement_to_string stmt)
+    | Return expr -> Printf.sprintf "Return: %s" (expr_to_string expr)
+    | Expr expr -> Printf.sprintf "Expr: %s" (expr_to_string expr)
+    (* | MutexDeclaration (mutex_id, typ) -> Printf.sprintf "MutexDeclaration: mutex %s : %s" mutex_id (type_decl_to_string typ) *)
+    (* | MutexLock mutex_id -> Printf.sprintf "MutexLock: lock(%s)" mutex_id *)
+    (* | MutexUnlock mutex_id -> Printf.sprintf "MutexUnlock: unlock(%s)" mutex_id *)
+    | _ -> "Other statement" *)
+  
+  
+  let _expr_to_string expr =
+    match expr with
+    | IntLiteral i -> Printf.sprintf "IntLit: %d" i
+    | StringLiteral s -> Printf.sprintf "StringLit: %s" s
+    | Id id -> Printf.sprintf "Id: %s" id
+    | This -> Printf.sprintf "This"
+    | _ -> "Other expression" 
+  
+  and type_decl_to_string (type_decl: type_decl) : string =
+    match type_decl with
+    | Type typ -> typ_to_string typ
+
+  (* let func_param_to_typ (param: func_param) : typ =
+    match param with
+    | Param (_, type_decl) ->
+      (match type_decl with
+        | Type typ -> typ) *)
+  (* let func_params_to_typs (params: func_param list) : typ list =
+    List.map params ~f:func_param_to_typ *)
+
+  let _print_member_variables (class_info: class_info) : unit =
+    print_endline (Printf.sprintf "Member variables of class %s:" class_info.class_name);
+    Stdlib.Hashtbl.iter
+      (fun key (access, value) ->
+        let access_str = access_to_string access in
+        let value_str = value_to_string value in
+        print_endline (Printf.sprintf "  %s (%s) : %s" key access_str value_str))
+      class_info.member_variables
+      
+  let print_member_methods (class_info: class_info) : unit =
+    print_endline (Printf.sprintf "Member methods of class %s:" class_info.class_name);
+    Stdlib.Hashtbl.iter
+      (fun key (access, (stmt, _)) ->
+        let access_str = access_to_string access in
+        (match stmt with
+        | FuncDecl (_, args, ret_type, _) ->
+          let args_str = String.concat ~sep:", " (List.map args ~f:(fun (Param (Id name, t)) -> name ^ ": " ^ (type_decl_to_string t))) in
+          let ret_type_str = type_decl_to_string ret_type in
+          print_endline (Printf.sprintf "  %s (%s) : (%s) -> %s" key access_str args_str ret_type_str)
+        | _ -> ()))
+      class_info.member_methods
+      
+  
+  let type_decl_to_typ (type_decl: type_decl) : typ =
+    match type_decl with
+    | Type typ -> typ
+
+  let extract_arg_types_and_return_type stmt =
+    match stmt with
+    | FuncDecl(_, args, ret_type, _) ->
+      let arg_types = List.map args ~f:(fun (Param(_, t)) -> type_decl_to_typ t) in
+      (arg_types, type_decl_to_typ ret_type)
+    | _ -> failwith "Not a function declaration"
   
 let find_member_access_and_type (current_class_info: class_info) (member_name: string) : (access_modifier * typ) option =
   match Stdlib.Hashtbl.find_opt current_class_info.member_variables member_name with
@@ -51,6 +137,17 @@ let find_member_access_and_type (current_class_info: class_info) (member_name: s
     match Stdlib.Hashtbl.find_opt current_class_info.member_methods member_name with
     | Some (access, (stmt, _)) -> Some (access, find_return_type stmt)
     | None -> None
+
+  let find_method_access_and_type (current_class_info: class_info) (method_name: string) : (access_modifier * typ) option =
+    match Stdlib.Hashtbl.find_opt current_class_info.member_methods method_name with
+    | Some (access, (stmt, _)) -> 
+      (match stmt with
+      | FuncDecl(_, _, _, _) ->
+        let arg_types, ret_type = extract_arg_types_and_return_type stmt in
+        Some (access, Function (arg_types, ret_type))
+      | _ -> raise (Failure "cp: Not a function declaration"))
+    | _ -> None
+    
   
 let is_same_or_subclass_of (target_class_info: class_info option) (base_class_info: class_info option) : bool =
   let rec check_class (class_info : class_info option) : bool =
@@ -99,27 +196,23 @@ let rec type_check_expr (current_scope : scope) (expr: expr) (current_class_info
   | Unit -> Void
 
   | Id id -> 
+    print_endline ("Looking for id: " ^ id);
     (match find_identifier current_scope id with
      | Some typ -> typ
      | None -> raise (Failure (Printf.sprintf "Unbound variable: %s" id)))
 
-  | BinOp (_, e1, e2) ->
-    let t1 = type_check_expr current_scope e1 current_class_info  in
-    let t2 = type_check_expr current_scope e2 current_class_info in
-    if equal_typ t1 t2 then t1
-    else raise (Failure "Type error: binary operator types do not match")
- 
- 
-  (* TODO: Ast.Not *)
-
-  (* TODO: Ast.Expr *)
-
-
-  (* TODO: Ast.Not *)
-
-  (* TODO: Ast.Expr *)
-
+  | BinOp (op, e1, e2) ->
+  let t1 = type_check_expr current_scope e1 current_class_info in
+  let t2 = type_check_expr current_scope e2 current_class_info in
+  (match op with
+  | Plus | Minus | Times | Div when equal_typ t1 Int && equal_typ t2 Int -> Int
+  | Lt | Gt | Leq | Geq when equal_typ t1 Int && equal_typ t2 Int -> Bool
+  | Eq | Neq when equal_typ t1 t2 -> Bool
+  | And | Or when equal_typ t1 Bool && equal_typ t2 Bool -> Bool
+  | _ -> raise (Failure "Type error: binary operator types do not match"))
+  
   | ClassInstantiation (var_name, class_name, exprs) ->
+    print_endline ("Instantiating class: " ^ class_name);
     (* Check if the class exists in the scope *)
     (match find_class current_scope class_name with
     | Some class_info ->
@@ -133,6 +226,7 @@ let rec type_check_expr (current_scope : scope) (expr: expr) (current_class_info
     | None -> raise (Failure (Printf.sprintf "Class %s not found" class_name)))
   
   | ClassMemberAccess (instance_expr, member_name) ->
+    print_endline ("Accessing member: " ^ member_name);
     (* Check the type of the instance expression *)
     let instance_type = type_check_expr current_scope instance_expr current_class_info in
     (* Check if the instance type is a class instance *)
@@ -152,7 +246,7 @@ let rec type_check_expr (current_scope : scope) (expr: expr) (current_class_info
         | None -> raise (Failure (Printf.sprintf "ClassMemberAccess: Member %s not found in class %s" member_name class_name)))
       | None -> raise (Failure (Printf.sprintf "Class %s not found" class_name)))
     | _ -> raise (Failure "The expression is not an instance of a class"))
-  
+
   | Lambda (params, body) ->
     let param_types = List.map params ~f:(fun (Param (_, Type param_type)) -> param_type) in
     let body_scope = create_new_scope (Some current_scope) in
@@ -163,6 +257,7 @@ let rec type_check_expr (current_scope : scope) (expr: expr) (current_class_info
     Function (param_types, body_typ)
 
   | Call (func_name, args) ->
+    print_endline ("Calling function: " ^ func_name);
     (match find_identifier current_scope func_name with
     | Some (Function (arg_types, ret_type)) ->
       let args_types = List.map args ~f:(fun arg -> type_check_expr current_scope arg current_class_info) in
@@ -173,43 +268,48 @@ let rec type_check_expr (current_scope : scope) (expr: expr) (current_class_info
     | _ -> raise (Failure (Printf.sprintf "Type error: function %s not found or not a function" func_name)))
     
   | This ->
+    print_endline ("Using 'this' keyword");
     (match find_identifier current_scope "this" with 
     | Some (ClassInstance class_name) -> ClassInstance class_name
     | _ -> raise (Failure "Type error: 'this' keyword can only be used inside a class instance method"))
 
-  | InstanceMethodCall (expr, method_name, args) -> 
+  | InstanceMethodCall (expr, method_name, args) ->
+    print_endline ("Calling instance method: " ^ method_name);
     (* Check the type of the instance expression *)
     let instance_type = type_check_expr current_scope expr current_class_info in
+    print_endline ("Instance type: " ^ (typ_to_string instance_type));
     (* Check if the instance type is a class instance *)
     (match instance_type with
     | ClassInstance class_name ->
       (* Find the class in the scope *)
       (match find_class current_scope class_name with
       | Some class_info ->
+        print_member_methods class_info;
         (* Check if the member exists in the class *)
-        (match find_member_access_and_type class_info method_name with
-        | Some (access, typ) ->
+        (match find_method_access_and_type class_info method_name with
+        | Some (access, Function (arg_types, ret_type)) ->  (* Ensure it's a Function type *)
+          print_endline (access_to_string access);
+          print_endline ((typ_to_string (Function (arg_types, ret_type))));
           (* Check if the access modifier allows access to the member from the current scope *)
           if is_member_accessible current_class_info class_info method_name then
-            (* Check if the member is a function *)
-            (match typ with
-            | Function (arg_types, ret_type) ->
-              (* Check if the number of arguments matches the number of parameters *)
-              if List.length arg_types = List.length args then
-                (* Check if the types of the arguments match the types of the parameters *)
-                let args_types = List.map args ~f:(fun arg -> type_check_expr current_scope arg current_class_info) in
-                if List.equal equal_typ arg_types args_types then
-                  ret_type
-                else
-                  raise (Failure (Printf.sprintf "Type error: argument types do not match function signature for %s" method_name))
+            (* Check if the number of arguments matches the number of parameters *)
+            if phys_equal (List.length arg_types) (List.length args) then
+              (* Check if the types of the arguments match the types of the parameters *)
+              let args_types = List.map args ~f:(fun arg -> type_check_expr current_scope arg current_class_info) in
+              if List.equal equal_typ arg_types args_types then
+                ret_type
               else
-                raise (Failure (Printf.sprintf "Type error: number of arguments does not match function signature for %s" method_name))
-            | _ -> raise (Failure (Printf.sprintf "Type error: member %s is not a function" method_name)))
+                raise (Failure (Printf.sprintf "Type error: argument types do not match function signature for %s" method_name))
+            else
+              raise (Failure (Printf.sprintf "Type error: number of arguments does not match function signature for %s" method_name))
           else
             raise (Failure (Printf.sprintf "Access error: %s member %s is not accessible from the current scope" (access_to_string access) method_name))
+        | Some (_, _) -> raise (Failure (Printf.sprintf "Type error: member %s is not a function" method_name))
         | None -> raise (Failure (Printf.sprintf "InstanceMethodCall: Member %s not found in class %s" method_name class_name)))
       | None -> raise (Failure (Printf.sprintf "Class %s not found" class_name)))
     | _ -> raise (Failure "The expression is not an instance of a class"))
+  
+
     
   | unimplemented_expression ->
     let sexp = sexp_of_expr unimplemented_expression in
@@ -221,6 +321,7 @@ let rec type_check_expr (current_scope : scope) (expr: expr) (current_class_info
 let rec type_check_statement (current_scope : scope) (stmt : statement) (current_class_info : class_info): unit =
   match stmt with
   | ClassDecl (Id class_name, class_members) ->
+    print_endline "entering class decl";
     if phys_equal current_class_info.class_name "" then
       (* Step 1: Create a new class *)
       let current_class_info = create_new_class_info class_name None in      
@@ -231,10 +332,12 @@ let rec type_check_statement (current_scope : scope) (stmt : statement) (current
       List.iter class_members ~f:(fun member ->
         match member with
         | ClassVar (access, Id var_name, Type var_type) ->
+          print_endline ("Adding member variable: " ^ var_name);
           check_type class_scope var_type ; 
           add_member_variable current_class_info var_name (access, Variable (Id var_name, var_type));
           
         | ClassMethod (access, Id method_name, params, Type ret_type, body) -> 
+            print_endline ("Adding member method: " ^ method_name);
             check_type class_scope ret_type;
             let method_scope = create_new_scope (Some class_scope) in
             add_identifier method_scope "this" (ClassInstance class_name); (* Add the "this" identifier to the method scope *)
@@ -243,8 +346,8 @@ let rec type_check_statement (current_scope : scope) (stmt : statement) (current
               check_type class_scope param_type;
               add_identifier method_scope param_name param_type);
               (* Step 4: Add the method to the class *)
-              add_member_method current_class_info method_name (access, (Block body, List.map params ~f:(fun (Param (Id param_name, _)) -> param_name))));
-            
+              add_member_method current_class_info method_name (access, (FuncDecl (Id method_name, params, Type ret_type, body), List.map params ~f:(fun (Param (Id param_name, _)) -> param_name)));
+      );            
       (* Step 5: Add the class to the scope *) 
       let global_scope = get_global_scope current_scope in
       add_class global_scope class_name current_class_info;
@@ -263,24 +366,31 @@ let rec type_check_statement (current_scope : scope) (stmt : statement) (current
         )
       | None -> raise (Failure (Printf.sprintf "Class %s not found" class_name)))
   
-  | ClassMemberAssign (instance_expr, member_name, expr) -> 
+  | ClassMemberAssign (instance_expr, member_name, rhs_expr) ->
+    print_endline "entering class member assign";
     let instance_type = type_check_expr current_scope instance_expr current_class_info in
     (match instance_type with
     | ClassInstance class_name ->
       (match find_class current_scope class_name with
       | Some class_info ->
-        (match find_member_variable_in_class_and_ancestors class_info member_name with
-        | Some (_, Variable (_, member_type)) ->
-          let expr_type = type_check_expr current_scope expr current_class_info in
-          if equal_typ expr_type member_type then
-            ()
+        (match find_member_access_and_type class_info member_name with
+        | Some (access, member_type) ->
+          if is_member_accessible current_class_info class_info member_name then
+            let rhs_type = type_check_expr current_scope rhs_expr current_class_info in
+            if equal_typ member_type rhs_type then
+              ()
+            else
+              raise (Failure (Printf.sprintf "Type error: assignment to member %s has incompatible types" member_name))
           else
-            raise (Failure (Printf.sprintf "Type error: expression type does not match member type in class member assignment"))
-        | _ -> raise (Failure (Printf.sprintf "ClassMemberAssign: Member %s not found in class %s" member_name class_name)))
-      | None -> raise (Failure (Printf.sprintf "Class %s not found" class_name)));
-    | _ -> raise (Failure "The expression is not an instance of a class"));
+            raise (Failure (Printf.sprintf "Access error: %s member %s is not accessible from the current scope" (access_to_string access) member_name))
+        | None -> raise (Failure (Printf.sprintf "ClassMemberAssign: Member %s not found in class %s" member_name class_name)))
+      | None -> raise (Failure (Printf.sprintf "Class %s not found" class_name)))
+    | _ -> raise (Failure "The expression is not an instance of a class"))
+    
       
   | FuncDecl (Id func_name, params, Type ret_type, body) ->
+    print_endline "entering func decl";
+    print_endline ("adding function: " ^ func_name);
     check_type current_scope ret_type;
     let arg_types = List.map params ~f:(fun (Param (_, Type param_type)) -> param_type) in
     let func_type = Function (arg_types, ret_type) in
@@ -293,6 +403,7 @@ let rec type_check_statement (current_scope : scope) (stmt : statement) (current
       List.iter body ~f:(fun stmt -> type_check_statement func_scope stmt current_class_info);
 
   | Let ((Id var_name, Type var_type), expr) ->
+    print_endline "entering let";
     check_type current_scope var_type;
     let expr_typ = type_check_expr current_scope expr current_class_info in
     if equal_typ expr_typ var_type then
@@ -307,6 +418,7 @@ let rec type_check_statement (current_scope : scope) (stmt : statement) (current
       raise (Failure "Type error: assignment type mismatch") 
 
   | If (cond_expr, true_stmt, false_stmt) ->
+    print_endline "entering if";
     let cond_typ = type_check_expr current_scope cond_expr current_class_info in
     if not (equal_typ cond_typ Bool) then
       raise (Failure "Type error: if condition must be a boolean expression");
@@ -325,6 +437,7 @@ let rec type_check_statement (current_scope : scope) (stmt : statement) (current
       raise (Failure "Type error: increment/decrement operation requires an integer variable")
   
   | Block stmts ->
+    print_endline "entering block";
     let block_scope = create_new_scope (Some current_scope) in
     List.iter stmts ~f:(fun stmts -> type_check_statement block_scope stmts current_class_info);
   
