@@ -50,51 +50,10 @@ let class_info_to_string class_info =
       class_info.member_methods ""
   in
   Printf.sprintf "%s {%s%s\n}" class_info.class_name member_variables_str member_methods_str
-
-(* let id_decl_to_string (id_decl: id_decl) : string =
-  match id_decl with
-  | Id (id) -> Printf.sprintf "%s" id *)
-
-  (* let rec statement_to_string (stmt: statement) : string =
-    match stmt with
-    | Let ((id, typ), expr) -> Printf.sprintf "Let: %s : %s = %s" (id_decl_to_string id) (type_decl_to_string typ) (expr_to_string expr)
-    | Assign (id, expr) -> Printf.sprintf "Assign: %s = %s" id (expr_to_string expr)
-    | If (cond, stmt_true, stmt_false) -> Printf.sprintf "If: %s then %s else %s" (expr_to_string cond) (statement_to_string stmt_true) (statement_to_string stmt_false)
-    | While (cond, stmt) -> Printf.sprintf "While: %s do %s" (expr_to_string cond) (statement_to_string stmt)
-    (* | IncrDecr (id, op) -> Printf.sprintf "IncrDecr: %s %s" id (incr_decr_op_to_string op) *)
-    (* | For (id, start, end_expr, op, stmt) -> Printf.sprintf "For: %s = %d to %s %s do %s" id start (expr_to_string end_expr) (incr_decr_op_to_string op) (statement_to_string stmt) *)
-    | Block stmts -> Printf.sprintf "Block: %s" (String.concat ~sep:"; " (List.map stmts ~f:statement_to_string))
-    (* | FuncDecl (id, params, ret_type, stmts) -> Printf.sprintf "FuncDecl: %s(%s) -> %s { %s }" (id_decl_to_string id) (String.concat ~sep:", " (List.map params ~f:func_param_to_string)) (type_decl_to_string ret_type) (String.concat ~sep:"; " (List.map stmts ~f:statement_to_string)) *)
-    (* | ClassDecl (id, members) -> Printf.sprintf "ClassDecl: %s { %s }" (id_decl_to_string id) (String.concat ~sep:"; " (List.map members ~f:class_member_to_string)) *)
-    | ClassMemberAssign (expr1, id, expr2) -> Printf.sprintf "ClassMemberAssign: %s.%s = %s" (expr_to_string expr1) id (expr_to_string expr2)
-    | Thread stmt -> Printf.sprintf "Thread: %s" (statement_to_string stmt)
-    | Return expr -> Printf.sprintf "Return: %s" (expr_to_string expr)
-    | Expr expr -> Printf.sprintf "Expr: %s" (expr_to_string expr)
-    (* | MutexDeclaration (mutex_id, typ) -> Printf.sprintf "MutexDeclaration: mutex %s : %s" mutex_id (type_decl_to_string typ) *)
-    (* | MutexLock mutex_id -> Printf.sprintf "MutexLock: lock(%s)" mutex_id *)
-    (* | MutexUnlock mutex_id -> Printf.sprintf "MutexUnlock: unlock(%s)" mutex_id *)
-    | _ -> "Other statement" *)
   
-  
-  let _expr_to_string expr =
-    match expr with
-    | IntLiteral i -> Printf.sprintf "IntLit: %d" i
-    | StringLiteral s -> Printf.sprintf "StringLit: %s" s
-    | Id id -> Printf.sprintf "Id: %s" id
-    | This -> Printf.sprintf "This"
-    | _ -> "Other expression" 
-  
-  and type_decl_to_string (type_decl: type_decl) : string =
+  let type_decl_to_string (type_decl: type_decl) : string =
     match type_decl with
     | Type typ -> typ_to_string typ
-
-  (* let func_param_to_typ (param: func_param) : typ =
-    match param with
-    | Param (_, type_decl) ->
-      (match type_decl with
-        | Type typ -> typ) *)
-  (* let func_params_to_typs (params: func_param list) : typ list =
-    List.map params ~f:func_param_to_typ *)
 
   let _print_member_variables (class_info: class_info) : unit =
     print_endline (Printf.sprintf "Member variables of class %s:" class_info.class_name);
@@ -118,7 +77,6 @@ let class_info_to_string class_info =
         | _ -> ()))
       class_info.member_methods
       
-  
   let type_decl_to_typ (type_decl: type_decl) : typ =
     match type_decl with
     | Type typ -> typ
@@ -147,7 +105,6 @@ let find_member_access_and_type (current_class_info: class_info) (member_name: s
         Some (access, Function (arg_types, ret_type))
       | _ -> raise (Failure "cp: Not a function declaration"))
     | _ -> None
-    
   
 let is_same_or_subclass_of (target_class_info: class_info option) (base_class_info: class_info option) : bool =
   let rec check_class (class_info : class_info option) : bool =
