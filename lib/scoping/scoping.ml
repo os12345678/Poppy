@@ -91,6 +91,43 @@ let find_member_variable_access_and_type (current_class_info: class_info) (var_n
       | _ -> None)
   | None -> None
 
+  let rec find_member_variable (class_info : class_info) (var_name : string) : (access_modifier * value) option =
+    try
+      Some (Hashtbl.find class_info.member_variables var_name)
+    with Not_found ->
+      match class_info.parent_class with
+      | Some parent_class_info -> find_member_variable parent_class_info var_name
+      | None -> None
+      
+  let rec find_member_variable_in_class_and_ancestors (class_info : class_info) (member_name : string) : (access_modifier * value) option =
+    match find_member_variable class_info member_name with
+    | Some member -> Some member
+    | None ->
+      match class_info.parent_class with
+      | Some parent_class_info -> find_member_variable_in_class_and_ancestors parent_class_info member_name
+      | None -> None
+  
+  let rec find_member_method (class_info : class_info) (method_name : string) : (access_modifier * (statement * string list)) option =
+    try
+      Some (Hashtbl.find class_info.member_methods method_name)
+    with Not_found ->
+      match class_info.parent_class with
+      | Some parent_class_info -> find_member_method parent_class_info method_name
+      | None -> None
+  
+  let rec find_member_method_in_class_and_ancestors (class_info : class_info) (method_name : string) : (access_modifier * (statement * string list)) option =
+    match find_member_method class_info method_name with
+    | Some member -> Some member
+    | None ->
+      match class_info.parent_class with
+      | Some parent_class_info -> find_member_method_in_class_and_ancestors parent_class_info method_name
+      | None -> None
+
+let find_member_variable_type (class_info: class_info) (id_name: string) : (typ option) =
+  match Stdlib.Hashtbl.find_opt class_info.member_variables id_name with
+  | Some (_, Variable (_, typ)) -> Some typ
+  | _ -> None
+      
 (* Finds an identifier by looking up in the current scope and its ancestors *)
 let rec find_identifier (current_scope : scope) (id_name : string) (current_class_info : class_info): typ option =
   try
@@ -102,11 +139,7 @@ let rec find_identifier (current_scope : scope) (id_name : string) (current_clas
   with Not_found ->
     match current_scope.parent with
     | Some parent_scope -> find_identifier parent_scope id_name current_class_info
-    | None ->
-        (match find_member_variable_access_and_type current_class_info id_name with
-        | Some (_, id_type) -> Some id_type
-        | None -> None)
-
+    | None -> None
 
 let rec find_expr_type (expr : expr)  : typ =
   match expr with
@@ -153,22 +186,6 @@ let rec get_global_scope (current_scope : scope) : scope =
   match current_scope.parent with
   | Some parent_scope -> get_global_scope parent_scope
   | None -> current_scope
-    
-let rec find_member_variable (class_info : class_info) (var_name : string) : (access_modifier * value) option =
-  try
-    Some (Hashtbl.find class_info.member_variables var_name)
-  with Not_found ->
-    match class_info.parent_class with
-    | Some parent_class_info -> find_member_variable parent_class_info var_name
-    | None -> None
-    
-let rec find_member_variable_in_class_and_ancestors (class_info : class_info) (member_name : string) : (access_modifier * value) option =
-  match find_member_variable class_info member_name with
-  | Some member -> Some member
-  | None ->
-    match class_info.parent_class with
-    | Some parent_class_info -> find_member_variable_in_class_and_ancestors parent_class_info member_name
-    | None -> None
 
   let string_of_typ = function
   | Int -> "int"
@@ -184,6 +201,18 @@ let string_of_value = function
   | ReturnValue (_, typ) -> "ReturnValue (" ^ (string_of_typ typ) ^ ")"
   | ClassInstance (class_info, _) -> "ClassInstance " ^ class_info.class_name
 
+let print_scope_table (table : (string, value) Hashtbl.t) : unit =
+  print_endline "=== Scope table contents ===";
+  Hashtbl.iter (fun key value ->
+    let value_str = match value with
+      | Variable (_, typ) -> "Variable: " ^ string_of_typ typ
+      | Parameter (_, typ) -> "Parameter: " ^ string_of_typ typ
+      | ReturnValue (_, typ) -> "Return Value: " ^ string_of_typ typ
+      | ClassInstance (_, _) -> "ClassInstance"
+    in
+    print_endline (key ^ ": " ^ value_str)
+  ) table;
+  print_endline "============================="
 
   let rec string_of_expr expr =
     match expr with
@@ -248,7 +277,6 @@ let string_of_incr_decr_op op =
     | MutexDeclaration (MutexId id, Type type_decl) -> "MutexDeclaration (" ^ id ^ ": " ^ string_of_typ type_decl ^ ")"
     | MutexLock (MutexId id) -> "MutexLock (" ^ id ^ ")"
     | MutexUnlock (MutexId id) -> "MutexUnlock (" ^ id ^ ")"
-  
   
 let rec print_scope_contents (current_scope : scope) (indent_level : int) : unit =
   let indent = String.make (indent_level * 2) ' ' in
