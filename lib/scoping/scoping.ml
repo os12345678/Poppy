@@ -83,8 +83,16 @@ let add_local_variable (current_scope : scope) (var_name : string) (value : valu
   else
     Hashtbl.add current_scope.table var_name value
 
+let find_member_variable_access_and_type (current_class_info: class_info) (var_name: string) : (access_modifier * typ) option =
+  match Stdlib.Hashtbl.find_opt current_class_info.member_variables var_name with
+  | Some (access, value) ->
+    (match value with
+      | Variable (_, var_type) -> Some (access, var_type)
+      | _ -> None)
+  | None -> None
+
 (* Finds an identifier by looking up in the current scope and its ancestors *)
-let rec find_identifier (current_scope : scope) (id_name : string) : typ option =
+let rec find_identifier (current_scope : scope) (id_name : string) (current_class_info : class_info): typ option =
   try
     match Hashtbl.find current_scope.table id_name with
     | Variable (_, typ) -> Some typ
@@ -93,8 +101,12 @@ let rec find_identifier (current_scope : scope) (id_name : string) : typ option 
     | ClassInstance (class_info, _) -> Some (ClassInstance class_info.class_name)
   with Not_found ->
     match current_scope.parent with
-    | Some parent_scope -> find_identifier parent_scope id_name
-    | None -> None
+    | Some parent_scope -> find_identifier parent_scope id_name current_class_info
+    | None ->
+        (match find_member_variable_access_and_type current_class_info id_name with
+        | Some (_, id_type) -> Some id_type
+        | None -> None)
+
 
 let rec find_expr_type (expr : expr)  : typ =
   match expr with
@@ -205,13 +217,38 @@ let string_of_value = function
   | Private -> "private"
   | Protected -> "protected"
 
-  let  string_of_statement stmt =
+let string_of_params params =
+  let rec aux acc = function
+    | [] -> acc
+    | (Param (Id id, Type type_decl)) :: [] -> acc ^ id ^ ": " ^ string_of_typ type_decl
+    | (Param (Id id, Type type_decl)) :: tl -> aux (acc ^ id ^ ": " ^ string_of_typ type_decl ^ ", ") tl
+  in
+  "(" ^ (aux "" params) ^ ")"
+
+let string_of_incr_decr_op op =
+  match op with
+  | Incr _ -> "Incr"
+  | Decr _ -> "Decr"
+
+  let string_of_statement stmt =
     match stmt with
-    | Return expr -> "Return (" ^ (string_of_expr expr) ^ ")"
+    | Let ((Id id, Type type_decl), expr) -> "Let (" ^ id ^ ": " ^ string_of_typ type_decl ^ ", " ^ (string_of_expr expr) ^ ")"
+    | Assign (id, expr) -> "Assign (" ^ id ^ ", " ^ (string_of_expr expr) ^ ")"
     | If (expr, _stmt1, _stmt2) -> "If (" ^ (string_of_expr expr) ^ ")"
     | While (expr, _stmt) -> "While (" ^ (string_of_expr expr) ^ ")"
+    | IncrDecr (id, op) -> "IncrDecr (" ^ id ^ ", " ^ (string_of_incr_decr_op op) ^ ")"
+    | For (id, init, expr, op, _stmt) -> "For (" ^ id ^ ", " ^ (string_of_int init) ^ ", " ^ (string_of_expr expr) ^ ", " ^ (string_of_incr_decr_op op) ^ ")"
     | Block _ -> "Block"
-    | _ -> "Unknown statement"
+    | FuncDecl (Id id, params, Type ret_type, _body) -> "FuncDecl (" ^ id ^ ", " ^ (string_of_params params) ^ ", " ^ string_of_typ ret_type ^ ")"
+    | ClassDecl (Id id, _class_members) -> "ClassDecl (" ^ id ^ ")"
+    | ClassMemberAssign (expr1, id, expr2) -> "ClassMemberAssign (" ^ (string_of_expr expr1) ^ ", " ^ id ^ ", " ^ (string_of_expr expr2) ^ ")"
+    | Thread _stmt -> "Thread"
+    | Return expr -> "Return (" ^ (string_of_expr expr) ^ ")"
+    | Expr expr -> "Expr (" ^ (string_of_expr expr) ^ ")"
+    | MutexDeclaration (MutexId id, Type type_decl) -> "MutexDeclaration (" ^ id ^ ": " ^ string_of_typ type_decl ^ ")"
+    | MutexLock (MutexId id) -> "MutexLock (" ^ id ^ ")"
+    | MutexUnlock (MutexId id) -> "MutexUnlock (" ^ id ^ ")"
+  
   
 let rec print_scope_contents (current_scope : scope) (indent_level : int) : unit =
   let indent = String.make (indent_level * 2) ' ' in
@@ -243,5 +280,3 @@ let rec print_scope_contents (current_scope : scope) (indent_level : int) : unit
   ) current_scope.class_table;
   
   print_endline (Printf.sprintf "%s======================================" indent);
-  
-
