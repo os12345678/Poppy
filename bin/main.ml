@@ -1,6 +1,6 @@
 open Core
 open Poppy_parser
-(* open Poppy_codegen *)
+open Poppy_codegen
 open Poppy_type_checker
 (* open Llvm *)
 open Parser_interface
@@ -15,9 +15,9 @@ let read_file filename =
 let main () =
   try
     (* Link the core library to the main module *)
-    (* let codegen_module = Codegen.the_module in
-    Codegen.link_core_library codegen_module;
-    print_endline("Linking successful"); *)
+    let codegen_module = Codegen_util.the_module in
+    Codegen_util.link_core_library codegen_module;
+    print_endline("Linking successful");
 
     (* Get the command-line arguments *)
     let argv = Sys.get_argv () in
