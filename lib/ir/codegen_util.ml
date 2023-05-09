@@ -19,7 +19,7 @@ let rec llvm_type_of_typ context = function
     function_type llvm_return_type llvm_param_types
   | _ -> raise (Failure (Printf.sprintf "llvm_type_of_typ: ClassInstance not supported yet"))
 
-(* ###################### Helper functions for codegen ###################### *)
+(* ################### Helper Functions for Aux Functions ################### *)
 
 let func_map : (string, Llvm.llvalue) Stdlib.Hashtbl.t = Stdlib.Hashtbl.create 10
 let is_pointer (llvm_type: lltype) : bool =
@@ -30,6 +30,39 @@ let is_pointer (llvm_type: lltype) : bool =
       Some (Hashtbl.find function_map func_name)
     with
       Not_found -> None
+
+let rec find_class_by_llvm_type (scope: scope) (llvm_type: lltype) : class_info option =
+  let found_class = Hashtbl.fold (fun _ class_info acc ->
+    if acc = None && Llvm.struct_name llvm_type = Some class_info.class_name then
+      Some class_info
+    else
+      acc
+  ) scope.class_table None in
+  match found_class with
+  | Some _ -> found_class
+  | None ->
+    match scope.parent with
+    | Some parent_scope -> find_class_by_llvm_type parent_scope llvm_type
+    | None -> None
+
+let find_class_member_llvm_value (class_info: class_info) (member_name: string) (instance_value: llvalue) : llvalue option =
+  let member_index = ref None in
+  let index = ref 0 in
+  let _ = Hashtbl.iter (fun name _ ->
+    if name = member_name then member_index := Some !index;
+    index := !index + 1;
+  ) class_info.member_variables in
+  match !member_index with
+  | Some index -> Some (build_struct_gep instance_value index (member_name ^ "_gep") builder)
+  | None -> None
+
+let rec find_variable var_name scope : llvalue option = 
+  match Hashtbl.find_opt scope.table var_name with
+  | Some (Llvalue value) -> Some value
+  | None -> 
+    match scope.parent with
+    | Some parent_scope -> find_variable var_name parent_scope
+    | None -> None 
 
 (* ####################### Auxiliary Codegen Expr ########################### *)
 let find_named_value (id : string) (named_values : (string, llvalue) Hashtbl.t) : llvalue option =
@@ -54,15 +87,6 @@ let codegen_binop op left right =
   | Or -> build_or left right "ortmp" builder
   | Xor -> build_xor left right "xortmp" builder
 
-let codegen_class_instantiation (current_scope: scope) (_var_name: string) (class_name: string) (_exprs: expr list) (codegen_class_instance: class_info -> llvalue) : llvalue =
-  match find_class current_scope class_name with
-  | Some class_info ->
-    let instance = create_instance class_info in
-    (match instance with
-    | ClassInstance (instance_class_info, _) -> codegen_class_instance instance_class_info
-    | _ -> raise (Failure (Printf.sprintf "Unexpected value type when creating instance of class %s" class_name)))
-  | None -> raise (Failure (Printf.sprintf "Class %s not found" class_name))
-
 let codegen_call func_name args func_map =
   let func = match find_function func_map func_name with
     | Some func -> func
@@ -80,4 +104,48 @@ let codegen_call func_name args func_map =
     else raise (Failure (Printf.sprintf "Type mismatch in function call %s" func_name))
   ) (Array.to_list params) args in
   build_call func (Array.of_list args) "calltmp" builder
+
+let codegen_class_instantiation (current_scope: scope) (_var_name: string) (class_name: string) (llvm_args: llvalue list) (builder: llbuilder) : llvalue =
+  match find_class current_scope class_name with
+  | Some _class_info ->
+    let constructor_name = class_name ^ "_init" in
+      (match find_function func_map constructor_name with
+      | Some constructor ->
+        let instance = build_call constructor (Array.of_list llvm_args) "instancetmp" builder in
+        instance
+      | None -> raise (Failure (Printf.sprintf "Constructor %s not found" constructor_name)))
+  | None -> raise (Failure (Printf.sprintf "Class %s not found" class_name))
+
+let codegen_class_member_access (instance_value: llvalue) (member_name: string) (scope: scope) (_class_info: class_info) : llvalue =
+  let instance_type = type_of instance_value in
+  (match Llvm.classify_type instance_type with
+  | TypeKind.Struct ->
+    (match find_class_by_llvm_type scope instance_type with
+    | Some found_class_info ->
+      (match find_class_member_llvm_value found_class_info member_name instance_value with
+      | Some member_value -> member_value
+      | None -> raise (Failure (Printf.sprintf "ClassMemberAccess: Member %s not found in class %s" member_name found_class_info.class_name)))
+    | None -> raise (Failure (Printf.sprintf "ClassMemberAccess: Class not found for LLVM type")))
+  | _ -> raise (Failure "The expression is not an instance of a class"))
   
+
+(* ####################### Core Library ##################################### *)
+let link_core_library the_module =
+  let bindings = "/Users/oliver/Documents/University/Honours/poppy/core_lib/bindings.ll" in
+
+  (* Parse the core library LLVM IR *)
+  let context = global_context () in
+  let corelib_buf = MemoryBuffer.of_file bindings in
+  let corelib_module =
+    try
+      Llvm_irreader.parse_ir context corelib_buf
+    with
+    | Llvm_irreader.Error msg ->
+      Printf.printf "Error parsing core library: %s\n" msg;
+      raise (Failure "Error parsing core library")
+    in
+  Llvm.iter_functions (fun f -> Printf.printf "Core lib function: %s\n" (Llvm.value_name f)) corelib_module;
+
+  (* Link the core library into the main module *)
+  Llvm_linker.link_modules' the_module corelib_module;
+  print_endline "Core library linked to the main module."

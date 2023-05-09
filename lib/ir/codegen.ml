@@ -8,16 +8,17 @@ open Poppy_codegen__Codegen_util
 
 exception Codegen_error of string
 
-
-(* Module and context creation *)
+(* ##################### Module and Context Creation ######################## *)
 let context = context
 let builder = builder
 let the_module = the_module
 let named_values : (string, llvalue) Stdlib.Hashtbl.t = Stdlib.Hashtbl.create 10
 let function_protos: (string, (string * func_param list * type_decl) option) Stdlib.Hashtbl.t = Stdlib.Hashtbl.create 50
 let class_protos: (string, class_info) Stdlib.Hashtbl.t = Stdlib.Hashtbl.create 50
+let expr_types : (llvalue, value) Stdlib.Hashtbl.t = Stdlib.Hashtbl.create 10
 
-(* Utility functions for code generation *)
+
+(* ############################# Codegen Expr ############################### *)
 let rec codegen_expr (expr: expr) (scope: scope) (class_info: class_info) (builder: Llvm.llbuilder) (func_map: (string, Llvm.llvalue) Stdlib.Hashtbl.t): Llvm.llvalue =
   match expr with
 | IntLiteral i -> const_int (i64_type context) i
@@ -42,26 +43,20 @@ let rec codegen_expr (expr: expr) (scope: scope) (class_info: class_info) (build
   let llvm_args = List.map ~f:(fun arg -> codegen_expr arg scope class_info builder func_map) args in
   codegen_call func_name llvm_args func_map
   
-(*
 | ClassInstantiation (var_name, class_name, exprs) ->
-  (match find_class current_scope class_name with
-  | Some class_info ->
-    let instance = create_instance class_info in
-    codegen_class_instance instance
-  | None -> failwith (Printf.sprintf "Class not found: %s" class_name))
+  let llvm_args = List.map ~f:(fun arg -> codegen_expr arg scope class_info builder func_map) exprs in
+  codegen_class_instantiation scope var_name class_name llvm_args builder
 
 | ClassMemberAccess (instance_expr, member_name) ->
-  let instance = codegen_expr current_scope instance_expr current_class_info in
-  codegen_class_member_access instance member_name current_class_info
-
-| Lambda (params, body) ->
-  codegen_lambda current_scope params body current_class_info
-
-| Call (func_name, args) ->
-  codegen_call current_scope func_name args current_class_info
-
+  let instance_value = codegen_expr instance_expr scope class_info builder func_map in
+  codegen_class_member_access instance_value member_name scope class_info
+  
 | This ->
-  codegen_this current_scope current_class_info *)
+  let this_param = (match find_variable "this" scope with
+                    | Some this_val -> this_val
+                    | None -> raise (Failure "The 'this' keyword cannot be used outside a class method"))
+  in
+  this_param
 
   | unimplement_expression ->
     let sexp = sexp_of_expr unimplement_expression in
