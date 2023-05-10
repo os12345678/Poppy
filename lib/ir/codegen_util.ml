@@ -1,5 +1,5 @@
 open Llvm
-open Poppy_parser.Ast
+open Poppy_parser
 open Scoping
 
 (* ############################# LLVM setup ################################# *)
@@ -7,17 +7,25 @@ let context = global_context ()
 let builder = builder context
 let the_module = create_module context "Poppy"
 
+let string_of_llmodule m =
+  let s = string_of_llmodule m in
+  dispose_module m;
+  s
+
 (* ############################# LLVM types ################################# *)
 let rec llvm_type_of_typ context = function
-  | Int -> i64_type context
-  | Bool -> i1_type context
-  | Void -> void_type context
-  | String -> pointer_type (i8_type context)
-  | Function (param_types, return_type) ->
-    let llvm_param_types = Array.of_list (List.map (fun typ -> llvm_type_of_typ context typ) param_types) in
-    let llvm_return_type = llvm_type_of_typ context return_type in
-    function_type llvm_return_type llvm_param_types
-  | _ -> raise (Failure (Printf.sprintf "llvm_type_of_typ: ClassInstance not supported yet"))
+| Ast.Int-> i64_type context
+| Ast.Bool -> i1_type context
+| Ast.Void -> void_type context (* void type not working *)
+| Ast.String -> pointer_type (i8_type context) 
+| Ast.Function (param_types, return_type) ->
+  let llvm_param_types = Array.of_list (List.map (fun typ -> llvm_type_of_typ context typ) param_types) in
+  let llvm_return_type = llvm_type_of_typ context return_type in
+  function_type llvm_return_type llvm_param_types
+| _ -> raise (Failure "ClassInstance llvm type not yet implemented!")
+
+(* ############################# LLVM values ################################# *)
+;;
 
 (* ################### Helper Functions for Aux Functions ################### *)
 
@@ -25,11 +33,11 @@ let func_map : (string, Llvm.llvalue) Stdlib.Hashtbl.t = Stdlib.Hashtbl.create 1
 let is_pointer (llvm_type: lltype) : bool =
   classify_type llvm_type = TypeKind.Pointer
 
-  let find_function (function_map: (string, llvalue) Hashtbl.t) (func_name: string) : llvalue option =
-    try
-      Some (Hashtbl.find function_map func_name)
-    with
-      Not_found -> None
+let find_function (function_map: (string, llvalue) Hashtbl.t) (func_name: string) : llvalue option =
+  try
+    Some (Hashtbl.find function_map func_name)
+  with
+    Not_found -> None
 
 let rec find_class_by_llvm_type (scope: scope) (llvm_type: lltype) : class_info option =
   let found_class = Hashtbl.fold (fun _ class_info acc ->
@@ -56,13 +64,14 @@ let find_class_member_llvm_value (class_info: class_info) (member_name: string) 
   | Some index -> Some (build_struct_gep instance_value index (member_name ^ "_gep") builder)
   | None -> None
 
-let rec find_variable var_name scope : llvalue option = 
-  match Hashtbl.find_opt scope.table var_name with
-  | Some (Llvalue value) -> Some value
-  | None -> 
-    match scope.parent with
-    | Some parent_scope -> find_variable var_name parent_scope
-    | None -> None 
+let is_return_statement (stmt: Ast.statement) : bool =
+  match stmt with
+  | Ast.Return _ -> true
+  | _ -> false
+
+let is_data_member = function 
+| Ast.ClassVar _ -> true
+| Ast.ClassMethod _ -> false
 
 (* ####################### Auxiliary Codegen Expr ########################### *)
 let find_named_value (id : string) (named_values : (string, llvalue) Hashtbl.t) : llvalue option =
@@ -73,19 +82,19 @@ let find_named_value (id : string) (named_values : (string, llvalue) Hashtbl.t) 
 
 let codegen_binop op left right =
   match op with
-  | Plus -> build_add left right "addtmp" builder
-  | Minus -> build_sub left right "subtmp" builder
-  | Times -> build_mul left right "multmp" builder
-  | Div -> build_sdiv left right "divtmp" builder
-  | Lt -> build_icmp Icmp.Slt left right "lttmp" builder
-  | Gt -> build_icmp Icmp.Sgt left right "gttmp" builder
-  | Leq -> build_icmp Icmp.Sle left right "leqtmp" builder
-  | Geq -> build_icmp Icmp.Sge left right "geqtmp" builder
-  | Eq -> build_icmp Icmp.Eq left right "eqtmp" builder
-  | Neq -> build_icmp Icmp.Ne left right "neqtmp" builder
-  | And -> build_and left right "andtmp" builder
-  | Or -> build_or left right "ortmp" builder
-  | Xor -> build_xor left right "xortmp" builder
+  | Ast.Plus -> build_add left right "addtmp" builder
+  | Ast.Minus -> build_sub left right "subtmp" builder
+  | Ast.Times -> build_mul left right "multmp" builder
+  | Ast.Div -> build_sdiv left right "divtmp" builder
+  | Ast.Lt -> build_icmp Icmp.Slt left right "lttmp" builder
+  | Ast.Gt -> build_icmp Icmp.Sgt left right "gttmp" builder
+  | Ast.Leq -> build_icmp Icmp.Sle left right "leqtmp" builder
+  | Ast.Geq -> build_icmp Icmp.Sge left right "geqtmp" builder
+  | Ast.Eq -> build_icmp Icmp.Eq left right "eqtmp" builder
+  | Ast.Neq -> build_icmp Icmp.Ne left right "neqtmp" builder
+  | Ast.And -> build_and left right "andtmp" builder
+  | Ast.Or -> build_or left right "ortmp" builder
+  | Ast.Xor -> build_xor left right "xortmp" builder
 
 let codegen_call func_name args func_map =
   let func = match find_function func_map func_name with
@@ -127,9 +136,12 @@ let codegen_class_member_access (instance_value: llvalue) (member_name: string) 
       | None -> raise (Failure (Printf.sprintf "ClassMemberAccess: Member %s not found in class %s" member_name found_class_info.class_name)))
     | None -> raise (Failure (Printf.sprintf "ClassMemberAccess: Class not found for LLVM type")))
   | _ -> raise (Failure "The expression is not an instance of a class"))
+
+(* ####################### Auxiliary Codegen Expr ########################### *)
+
   
 
-(* ####################### Core Library ##################################### *)
+(* ########################### Core Library ################################# *)
 let link_core_library the_module =
   let bindings = "/Users/oliver/Documents/University/Honours/poppy/core_lib/bindings.ll" in
 
