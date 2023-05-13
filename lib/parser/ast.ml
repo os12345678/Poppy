@@ -1,103 +1,57 @@
 open! Core
+open Ast_types
 
-type bin_op =
-  | Plus
-  | Minus
-  | Times
-  | Div
-  | Lt
-  | Gt
-  | Leq
-  | Geq
-  | Eq
-  | Neq
-  | And
-  | Or
-  | Xor
+type identifier = Variable of Var_name.t [@@deriving sexp_of]
+
+type expr = {
+  loc : loc;
+  node: expr_node
+}
 [@@deriving sexp_of]
 
-type incr_decr_op = 
-  | Incr of string
-  | Decr of string
+and expr_node =
+| Int                 of int
+| Boolean             of bool
+| Identifier          of identifier
+| Constructor         of Class_name.t * type_expr option * constructor_arg list
+| Let                 of type_expr option * Var_name.t * expr
+| Assign              of identifier * expr  
+| MethodApp           of Var_name.t * Method_name.t * expr list
+| FunctionApp         of Function_name.t * expr list 
+| If                  of expr * block_expr * block_expr
+| While               of expr * block_expr
+| For                 of expr * expr * expr * block_expr
+| BinOp               of bin_op * expr * expr
+| UnOp                of un_op * expr
 [@@deriving sexp_of]
 
-type id_decl = Id of string
+and block_expr = Block of loc * expr list
 [@@deriving sexp_of]
 
-type typ = 
-| Int
-| Bool
-| Void
-| String
-| Function of typ list * typ
-| ClassInstance of string
-[@@deriving sexp_of, equal]
-
-
-let string_to_typ s = match s with
-  | "int" -> Int
-  | "bool" -> Bool
-  | "void" -> Void
-  | "string" -> String
-  | _ -> raise (Printf.sprintf "Unknown type: %s" s |> Failure)
-
-type type_decl = Type of typ
+and constructor_arg = ConstructorArg of Field_name.t * expr
 [@@deriving sexp_of]
 
-type func_param = Param of id_decl * type_decl
+type function_definition = (*Function of Function_name.t * borrowed_ref option * type_expr * param list * block_expr*)
+| Function of Function_name.t * param list * type_expr * block_expr
 [@@deriving sexp_of]
 
-type expr =
-| Expr of expr
-| IntLiteral of int
-| BoolLiteral of bool
-| This
-| VoidType 
-| StringType of string
-| Id of string
-| BinOp of bin_op * expr * expr
-| Not of expr
-| ClassInstantiation of string * string * expr list
-| ClassMemberAccess of expr * string
-| Unit  
-| StringLiteral of string 
-| Lambda of func_param list * expr
-| Call of string * expr list
-| InstanceMethodCall of expr * string * expr list
+(*Method of Method_name.t * borrowed_ref option * type_expr * param list * Capability_name.t list * block_expr*)
+type method_defn =
+| Method of
+    Method_name.t
+    * param list
+    * type_expr
+    * block_expr
+    [@@deriving sexp_of]
+
+type class_definition = (*Class of Class_name.t * generic_type option * Class_name.t option * capability list * field_defn list * method_defn list*)
+| Class of
+    Class_name.t
+    * method_defn list
+    [@@deriving sexp_of]
+
+type program = Prog of class_definition list * function_definition list * block_expr
 [@@deriving sexp_of]
 
-type mutexId = MutexId of string
-[@@deriving sexp_of]
-
-type statement =
-| Let of (id_decl * type_decl) * expr
-| Assign of string * expr
-| If of expr * statement * statement
-| While of expr * statement
-| IncrDecr of string * incr_decr_op
-| For of string * int * expr * incr_decr_op * statement
-| Block of statement list
-| FuncDecl of id_decl * func_param list * type_decl * statement list
-| ClassDecl of id_decl * class_member list
-| ClassMemberAssign of expr * string * expr
-| Thread of statement
-| Return of expr
-| Expr of expr
-| MutexDeclaration of mutexId * type_decl
-| MutexLock of mutexId
-| MutexUnlock of mutexId
-[@@deriving sexp_of]
-
-and class_member =
-  | ClassVar of access_modifier * id_decl * type_decl
-  | ClassMethod of access_modifier * id_decl * func_param list * type_decl * statement list
-[@@deriving sexp_of]
-
-and access_modifier =
-  | Public
-  | Private
-  | Protected
-[@@deriving sexp_of]
-
-let sexp_of_statements statements =
-  Sexp.List (List.map statements ~f:sexp_of_statement)
+let sexp_of_expressions expr =
+  Sexp.List (List.map expr ~f:sexp_of_expr_node)
