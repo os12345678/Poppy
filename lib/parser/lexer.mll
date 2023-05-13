@@ -16,12 +16,13 @@
 let digit = ['0'-'9']
 let alpha = ['a'-'z' 'A'-'Z']
 
+(* Regexes for tokens *)
 let int = '-'? digit+
-let type_kw = "int" | "bool" | "string" | "void"
 let id = (alpha) (alpha|digit|'_')*
+let generic_type_param =  ['A' -'Z']
 
 let whitespace = [' ' '\t']+
-let newline = '\n' | "\r\n"
+let newline = '\r' | '\n' | "\r\n"
 
 (* Rules *)
 rule read_tok = 
@@ -31,61 +32,58 @@ rule read_tok =
   | ")" { RPAREN }
   | "{" { LBRACE }
   | "}" { RBRACE }
-  (* Arithmetic operators *)
-  | "+" { PLUS }
-  | "-" { MINUS }
-  | "*" { TIMES }
-  | "/" { DIV }
-  (* Comparison operators *)
-  | "<" { LT }
-  | "<=" { LEQ }
-  | ">" { GT }
-  | ">=" { GEQ }
-  | "==" { EQ }
-  | "!=" { NEQ }
-  (* Logical operators *)
-  | "&&" { AND }
-  | "||" { OR }
-  | "!" { NOT }
-  | "^" { XOR }
-  (* Keywords *)
-  | "if" { IF }
-  | "else" { ELSE }
-  | "while" { WHILE }
-  | "for" { FOR }
-  | "fn" { FN }
-  | "return" { RETURN }
-  | "lambda" { LAMBDA }
-  | "->" { ARROW }
-  | "thread" { THREAD }
-  | "mutex" { MUTEX }
-  | "lock" { LOCK }
-  | "unlock" { UNLOCK }
-  | "class" { CLASS }
-  | "private" { PRIVATE }
-  | "public" { PUBLIC }
-  | "protected" { PROTECTED }
-  | "this" { THIS }
-  | "new" { NEW }
-  (* Symbols *)
-  | "=" { ASSIGN }
-  | ":" { COLON }
-  | ";" { SEMICOLON }
   | "," { COMMA }
   | "." { DOT }
-  (* Identifiers and constants *)
+  | ":" { COLON }
+  | "::" { DOUBLECOLON }
+  | ";" { SEMICOLON }
+  | "=" { EQUAL }
+  | "+" { PLUS }
+  | "-" { MINUS }
+  | "*" { MULT } 
+  | "/" { DIV }
+  | "%" { REM }
+  | "<" { LANGLE }
+  | ">" { RANGLE }
+  | "&&" { AND }
+  | "||" { OR }
+  | "!" { EXCLAMATION_MARK }
+  | ":=" { COLONEQ }
   | "let" { LET }
-  | "True" { TRUE }
-  | "False" { FALSE }
-  | int { INT (int_of_string (Lexing.lexeme lexbuf)) }
-  | type_kw { TYPE (Lexing.lexeme lexbuf) }
-  | id { ID (Lexing.lexeme lexbuf) }
-  | '"' { read_string (Buffer.create 17) lexbuf }  
-  (* Other *)
+  | "new" { NEW }
+  (* | "const" {CONST } *)
+  (* | "var" { VAR } *)
+  | "fn" { FUNCTION }
+  (* | "consume" { CONSUME } *)
+  (* | "finish" { FINISH } *)
+  (* | "async" { ASYNC } *)
+  | "class" { CLASS }
+  (* | "extends" {EXTENDS} *)
+  (* | generic_type_param {GENERIC_TYPE} *)
+  (* | "capability" { CAPABILITY } *)
+  (* | "linear" { LINEAR } *)
+  (* | "local" { LOCAL } *)
+  (* | "read" { READ } *)
+  (* | "subordinate" { SUBORDINATE } *)
+  (* | "locked" { LOCKED } *)
+  | "int" { TYPE_INT }
+  | "bool" { TYPE_BOOL } 
+  | "void" { TYPE_VOID }
+  (* | "borrowed" { BORROWED } *)
+  | "true" { TRUE }
+  | "false" { FALSE }
+  | "while" { WHILE }
+  | "if" { IF }
+  | "else" { ELSE }
+  | "for" { FOR }
+  | "main" { MAIN }
   | whitespace { read_tok lexbuf }
-  | newline { advance_line lexbuf; read_tok lexbuf }
   | "//" { read_single_line_comment lexbuf }
-  | "/*" { read_multi_line_comment 1 lexbuf }
+  | "/*" { read_multi_line_comment 1 lexbuf } 
+  | int { INT (int_of_string (Lexing.lexeme lexbuf))}
+  | id { ID (Lexing.lexeme lexbuf) }
+    (* | '"'      { read_string (Buffer.create 17) lexbuf } *)
+  | newline { advance_line lexbuf; read_tok lexbuf }
   | eof { EOF }
   | _ {raise (SyntaxError ("Lexer - Illegal character: " ^ Lexing.lexeme lexbuf)) }
 
@@ -100,19 +98,3 @@ and read_multi_line_comment depth = parse
   | newline { advance_line lexbuf; read_multi_line_comment depth lexbuf }
   | eof { raise (SyntaxError ("Lexer - Unexpected EOF - please terminate your comment.")) }
   | _ { read_multi_line_comment depth lexbuf }
-
-and read_string buf = parse
-  | '"'       { STRING (Buffer.contents buf) }
-  | '\\' '/'  { Buffer.add_char buf '/'; read_string buf lexbuf }
-  | '\\' '\\' { Buffer.add_char buf '\\'; read_string buf lexbuf }
-  | '\\' 'b'  { Buffer.add_char buf '\b'; read_string buf lexbuf }
-  | '\\' 'f'  { Buffer.add_char buf '\012'; read_string buf lexbuf }
-  | '\\' 'n'  { Buffer.add_char buf '\n'; read_string buf lexbuf }
-  | '\\' 'r'  { Buffer.add_char buf '\r'; read_string buf lexbuf }
-  | '\\' 't'  { Buffer.add_char buf '\t'; read_string buf lexbuf }
-  | [^ '"' '\\']+
-    { Buffer.add_string buf (Lexing.lexeme lexbuf);
-      read_string buf lexbuf
-    }
-  | _ { raise (SyntaxError ("Illegal string character: " ^ Lexing.lexeme lexbuf)) }
-  | eof { raise (SyntaxError ("String is not terminated")) }
