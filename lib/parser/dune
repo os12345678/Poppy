@@ -1,9 +1,9 @@
 (library
  (name poppy_parser)
- (libraries core menhirLib)
+ (libraries core base fmt menhirLib)
  (preprocess
   (pps ppx_jane ppx_expect ppx_inline_test))
- (modules ast lexer parser parser_interface)
+ (modules ast lexer parser ast_types lex_and_parse)
  (public_name poppy))
 
 (ocamllex lexer)
