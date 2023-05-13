@@ -1,160 +1,168 @@
 %{
   open Ast
-
-  exception Parse_error of string
+  open Ast_types
 %}
 
-%token <int> INT
-%token <string> ID
-%token <string> TYPE
-%token <string> STRING
-%token LET
-%token TRUE FALSE
-%token LPAREN RPAREN LBRACE RBRACE
-%token PLUS MINUS TIMES DIV
-%token LT LEQ GT GEQ EQ NEQ
-%token AND OR NOT XOR
-%token IF ELSE
-%token WHILE FOR
-%token ASSIGN
-%token COLON SEMICOLON
-%token FN CLASS DOT PUBLIC PRIVATE PROTECTED
-%token RETURN
-%token COMMA
-%token LAMBDA ARROW
-%token THREAD MUTEX LOCK UNLOCK
-%token THIS
-%token NEW
+%token  <int> INT
+%token  <string> ID
+%token  LPAREN
+%token  RPAREN 
+%token  LBRACE 
+%token  RBRACE 
+%token  LANGLE
+%token  RANGLE
+%token  COMMA 
+%token  DOT 
+%token  COLON 
+%token  DOUBLECOLON
+%token  SEMICOLON 
+%token  EQUAL 
+%token  PLUS
+%token  MINUS
+%token  MULT
+%token  DIV
+%token  REM
+%token  AND
+%token  OR
+%token  EXCLAMATION_MARK
+%token COLONEQ
+%token  LET 
+%token  NEW 
+// %token  CONST 
+// %token  VAR 
+%token  FUNCTION 
+// %token  CONSUME
+// %token  FINISH 
+// %token  ASYNC 
+%token  CLASS
+// %token  EXTENDS 
+// %token  GENERIC_TYPE 
+// %token  CAPABILITY 
+// %token  LINEAR 
+// %token  LOCAL 
+// %token  READ 
+// %token  SUBORDINATE 
+// %token  LOCKED 
+%token  TYPE_INT 
+%token  TYPE_BOOL
+%token  TYPE_VOID
+// %token  BORROWED
+%token  TRUE
+%token  FALSE
+%token  IF
+%token  ELSE
+%token  FOR
+%token  WHILE
+%token  MAIN
+// %token PRINTF
+// %token <string> STRING
 %token EOF
 
-%type <Ast.expr> expr
-%type <Ast.statement> statement
-%type <Ast.statement list> statements
-%type <Ast.expr list> args
-%type <Ast.func_param list> params
-%type <Ast.expr> atom_expr
-%type <Ast.statement> expr_statement
-%type <Ast.incr_decr_op> increment
-%type <Ast.type_decl> typ_decl
+%right  COLONEQ   EQUAL              
+%left PLUS MINUS  LANGLE RANGLE
+%left MULT DIV REM
+%left AND OR  
+%nonassoc EXCLAMATION_MARK
 
+%start program 
+%type <program> program
+%type <class_definition> class_definition
+%type <function_definition> function_definition
+%type <block_expr> main_expr
+%type <block_expr> block_expr
 
-%nonassoc EQ NEQ
-%nonassoc LT LEQ GT GEQ
-%left PLUS MINUS
-%left TIMES DIV
-%left AND OR XOR
-%right NOT
-
-
-%start main
-%type <Ast.statement list> main
 %%
 
-main:
-  | statements EOF
-    {
-      let main_found =
-        List.exists (function
-          | FuncDecl (Id "main",_,_,_) -> true
-          | _ -> false
-        ) $1
-      in
-      if main_found then $1
-      else raise (Parse_error "main function entrypoint not found!")
-    }
+program: 
+| class_defns=list(class_definition); function_defns=list(function_definition); 
+    main=main_expr;  EOF {Prog(class_defns, function_defns, main)}
 
-statement:
-  | LET ID COLON typ_decl ASSIGN expr SEMICOLON { Let((Id $2, $4), $6) }
-  | ID ASSIGN expr SEMICOLON { Assign($1, $3) }
-  | IF LPAREN expr RPAREN LBRACE statements RBRACE ELSE LBRACE statements RBRACE { If($3, Block $6, Block $10) }
-  | WHILE LPAREN expr RPAREN LBRACE statements RBRACE { While($3, Block($6)) }
-  | FOR LPAREN ID ASSIGN INT COMMA expr COMMA increment RPAREN LBRACE statements RBRACE { For($3, $5, $7, $9, Block $12) }
-  | FN ID LPAREN params RPAREN ARROW typ_decl LBRACE statements RBRACE { FuncDecl (Id $2, $4, $7, $9) }
-  | THREAD LBRACE statements RBRACE { Thread (Block $3) }
-  | CLASS ID LBRACE class_members RBRACE { ClassDecl (Id $2, $4) }
-  | expr DOT ID ASSIGN expr SEMICOLON { ClassMemberAssign ($1, $3, $5) }
-  | RETURN expr SEMICOLON { Return $2 }
-  | mutex_declaration SEMICOLON { $1 }
-  | mutex_lock SEMICOLON{ $1 }
-  | mutex_unlock SEMICOLON { $1 }
+class_definition:
+| CLASS; name=ID; LBRACE; method_definitions=list(method_definition); RBRACE
+    {Class(Class_name.of_string name, method_definitions)}
 
-mutex_declaration:
-  | LET ID COLON typ_decl ASSIGN MUTEX { MutexDeclaration(MutexId $2, $4) }
+method_definition:
+| method_name=ID; method_params=params; DOUBLECOLON; return_type=type_expr; body=block_expr {Method( Method_name.of_string method_name, method_params, return_type, body)}
 
-mutex_lock:
-  | ID COLON COLON LOCK LPAREN RPAREN { MutexLock(MutexId $1) }
+function_definition:
+| FUNCTION; function_name=ID; function_params=params; DOUBLECOLON; return_type=type_expr; body=block_expr 
+    {Function(Function_name.of_string function_name, function_params, return_type, body) }
 
-mutex_unlock:
-  | ID COLON COLON UNLOCK LPAREN RPAREN { MutexUnlock(MutexId $1) }
+main_expr:
+| TYPE_VOID; MAIN; LPAREN; RPAREN; exprs=block_expr; {exprs}
 
-expr_statement:
-  | expr SEMICOLON { Expr($1) }
+block_expr:
+| LBRACE; exprs=separated_list(SEMICOLON, expr); RBRACE { Block(loc_of_position $startpos, exprs) }
 
-class_members:
-  | { [] }
-  | class_member class_members { $1 :: $2 }
+params:
+| LPAREN; params=separated_list(COMMA,param); RPAREN {params}
 
-class_member:
-  | access_modifier ID COLON typ_decl SEMICOLON { ClassVar ($1, Id $2, $4) }
-  | access_modifier FN ID LPAREN params RPAREN ARROW typ_decl LBRACE statements RBRACE { ClassMethod ($1, Id $3, $5, $8, $10) }
+param: 
+| param_name=ID; COLON; param_type=type_expr  {Param(param_type, Var_name.of_string param_name)}
 
-access_modifier:
-  | PRIVATE { Private }
-  | PROTECTED { Protected }
-  | PUBLIC { Public }
-  | { Public } // Default to public if no access modifier is specified
-
-params: 
-  | { [] }
-  | ID COLON typ_decl { [Param (Id $1, $3)] }
-  | ID COLON typ_decl COMMA params { Param(Id $1, $3) :: $5 }
-
-increment:
-  | ID PLUS PLUS { Incr($1) }
-  | ID MINUS MINUS { Decr($1) }
-
-statements:
-  | statement statements { $1 :: $2 }
-  | expr_statement statements { $1 :: $2 }
-  | { [] }
-
-typ_decl:
-  | TYPE { Type (string_to_typ $1) }
-
-expr:
-  | atom_expr                 { $1 }
-  | class_instantiation       { $1 }
-  | expr PLUS expr            { BinOp (Plus, $1, $3) }
-  | expr MINUS expr           { BinOp (Minus, $1, $3) }
-  | expr TIMES expr           { BinOp (Times, $1, $3) }
-  | expr DIV expr             { BinOp (Div, $1, $3) }
-  | expr AND expr             { BinOp (And, $1, $3) }
-  | expr OR expr              { BinOp (Or, $1, $3) }
-  | expr XOR expr             { BinOp (Xor, $1, $3) }
-  | NOT expr                  { Not $2 }
-  | expr LT expr              { BinOp (Lt, $1, $3) }
-  | expr LEQ expr             { BinOp (Leq, $1, $3) }
-  | expr GT expr              { BinOp (Gt, $1, $3) }
-  | expr GEQ expr             { BinOp (Geq, $1, $3) }
-  | expr EQ expr              { BinOp (Eq, $1, $3) }
-  | expr NEQ expr             { BinOp (Neq, $1, $3) }
-  | LPAREN expr RPAREN        { $2 }
-  | ID LPAREN args RPAREN     { Call ($1, $3) }
-  | expr DOT ID LPAREN args RPAREN { InstanceMethodCall ($1, $3, $5) }
-  | LAMBDA LPAREN params RPAREN ARROW LPAREN expr RPAREN { Lambda ($3, $7) }
-
-atom_expr:
-  | ID                          { Id $1 }
-  | INT                         { IntLiteral $1 }
-  | TRUE                        { BoolLiteral true }
-  | FALSE                       { BoolLiteral false }
-  | STRING                      { StringLiteral $1 }
-  | THIS                        { This }
-  | expr DOT ID { ClassMemberAccess ($1, $3) }
-
-class_instantiation: LET ID ASSIGN NEW ID LPAREN args RPAREN { ClassInstantiation ($2, $5, $7) } 
+constructor_arg:
+| field_name=ID; COLON; assigned_expr=expr {ConstructorArg(Field_name.of_string field_name, assigned_expr)}
 
 args:
-  | { [] }
-  | expr { [$1] }
-  | expr COMMA args { $1 :: $3 }
+| LPAREN; args=separated_list(COMMA, expr); RPAREN {args}
+
+type_expr : 
+// | class_name=ID maybe_param_type=option(parameterised_type) {TEClass(Class_name.of_string class_name,maybe_param_type )}
+| TYPE_INT  {TEInt} 
+| TYPE_BOOL {TEBool}
+| TYPE_VOID {TEVoid}
+// | GENERIC_TYPE {TEGeneric}
+
+let_type_annot:
+| COLON ; type_annot=type_expr {type_annot}
+
+parameterised_type:
+| LANGLE type_param=type_expr RANGLE {type_param}
+
+// modifier:
+// | CONST {MConst}
+// | VAR {MVar}
+
+identifier:
+| variable=ID {Variable(Var_name.of_string variable)}
+// | obj=ID DOT field=ID {ObjField(Var_name.of_string obj, Field_name.of_string field)}
+
+
+expr:
+| LPAREN e=expr RPAREN {e}
+| i=INT {{ loc=loc_of_position $startpos; node=Int(i) }}
+| TRUE {{ loc=loc_of_position $startpos; node=Boolean(true) }}
+| FALSE {{ loc=loc_of_position $startpos; node=Boolean(false) }}
+| id=identifier {{ loc=loc_of_position $startpos; node=Identifier(id) }}
+| op=un_op e=expr {{ loc=loc_of_position $startpos; node=UnOp(op,e) }}
+| e1=expr op=bin_op e2=expr {{ loc=loc_of_position $startpos; node=BinOp(op, e1, e2) }}
+| NEW; class_name=ID; maybe_type_param=option(parameterised_type); LPAREN; constr_args=separated_list(COMMA, constructor_arg); RPAREN {{ loc=loc_of_position $startpos; node=Constructor(Class_name.of_string class_name, maybe_type_param, constr_args) }}
+| LET; var_name=ID; type_annot=option(let_type_annot);  EQUAL; bound_expr=expr  {{ loc=loc_of_position $startpos; node=Let(type_annot, Var_name.of_string var_name, bound_expr) }} 
+| id=identifier; COLONEQ; assigned_expr=expr {{ loc=loc_of_position $startpos; node=Assign(id, assigned_expr) }}
+// | CONSUME; id=identifier {Consume($startpos, id)}
+| obj=ID; DOT; method_name=ID; method_args=args {{ loc=loc_of_position $startpos; node=MethodApp(Var_name.of_string obj, Method_name.of_string method_name, method_args) }}
+| fn=ID; fn_args=args {{ loc=loc_of_position $startpos; node=FunctionApp(Function_name.of_string fn, fn_args) }} 
+| IF; cond_expr=expr; then_expr=block_expr; ELSE; else_expr=block_expr {{ loc=loc_of_position $startpos; node=If(cond_expr, then_expr, else_expr) }}
+| WHILE cond_expr=expr; loop_expr=block_expr {{ loc=loc_of_position $startpos; node=While(cond_expr, loop_expr) }}
+| FOR; LPAREN; init_expr=expr; SEMICOLON; cond_expr=expr; SEMICOLON; step_expr=expr; RPAREN; loop_expr=block_expr 
+    {{ loc=loc_of_position $startpos; node=For(init_expr, cond_expr, step_expr, loop_expr) }}
+
+
+%inline un_op:
+| EXCLAMATION_MARK {UnOpNot}
+| MINUS {UnOpNeg}
+
+%inline bin_op:
+| PLUS { BinOpPlus }
+| MINUS { BinOpMinus }
+| MULT { BinOpMult }
+| DIV { BinOpIntDiv } 
+| REM { BinOpRem }
+| LANGLE { BinOpLessThan }
+| LANGLE EQUAL { BinOpLessThanEq }
+| RANGLE { BinOpGreaterThan }
+| RANGLE EQUAL{ BinOpGreaterThanEq }
+| AND {BinOpAnd}
+| OR {BinOpOr}
+| EQUAL EQUAL {BinOpEq}
+| EXCLAMATION_MARK EQUAL {BinOpNotEq}
