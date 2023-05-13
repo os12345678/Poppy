@@ -1,4 +1,4 @@
-open Poppy_parser.Ast
+(* open Poppy_parser.Ast
 exception DuplicateClass of string
 exception DuplicateMemberVariable of string
 exception DuplicateMemberMethod of string
@@ -227,19 +227,19 @@ let print_scope_table (table : (string, value) Hashtbl.t) : unit =
     | _ -> "Unknown expression"
   
   and string_of_binop = function
-    | Plus -> "Add"
-    | Minus -> "Sub"
-    | Times -> "Mult"
-    | Div -> "Div"
-    | And -> "And"
-    | Or -> "Or"
-    | Eq -> "Eq"
-    | Neq -> "Neq"
-    | Lt -> "Lt"
-    | Leq -> "Leq"
-    | Gt -> "Gt"
-    | Geq -> "Geq"
-    | Xor -> "Xor"
+    | BinOpPlus -> "Add"
+    | BinOpMinus -> "Sub"
+    | BinOpMult -> "Mult"
+    | BinOpIntDiv -> "Div"
+    | BinOpAnd -> "And"
+    | BinOpOr -> "Or"
+    | BinOpEq -> "Eq"
+    | BinOpNotEq -> "Neq"
+    | BinOpLessThan -> "Lt"
+    | BinOpLessThanEq -> "Leq"
+    | BinOpGreaterThan -> "Gt"
+    | BinOpGreaterThanEq -> "Geq"
+    | BinOpRem -> "Rem"
   
   let string_of_access_modifier = function
   | Public -> "public"
@@ -307,4 +307,4 @@ let rec print_scope_contents (current_scope : scope) (indent_level : int) : unit
 
   ) current_scope.class_table;
   
-  print_endline (Printf.sprintf "%s======================================" indent);
+  print_endline (Printf.sprintf "%s======================================" indent); *)

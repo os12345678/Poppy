@@ -1,6 +1,7 @@
-open Llvm
+(* open Llvm
 open Poppy_parser
 open Scoping
+open Ast_types
 
 (* ############################# LLVM setup ################################# *)
 let context = global_context ()
@@ -82,19 +83,19 @@ let find_named_value (id : string) (named_values : (string, llvalue) Hashtbl.t) 
 
 let codegen_binop op left right =
   match op with
-  | Ast.Plus -> build_add left right "addtmp" builder
-  | Ast.Minus -> build_sub left right "subtmp" builder
-  | Ast.Times -> build_mul left right "multmp" builder
-  | Ast.Div -> build_sdiv left right "divtmp" builder
-  | Ast.Lt -> build_icmp Icmp.Slt left right "lttmp" builder
-  | Ast.Gt -> build_icmp Icmp.Sgt left right "gttmp" builder
-  | Ast.Leq -> build_icmp Icmp.Sle left right "leqtmp" builder
-  | Ast.Geq -> build_icmp Icmp.Sge left right "geqtmp" builder
-  | Ast.Eq -> build_icmp Icmp.Eq left right "eqtmp" builder
-  | Ast.Neq -> build_icmp Icmp.Ne left right "neqtmp" builder
-  | Ast.And -> build_and left right "andtmp" builder
-  | Ast.Or -> build_or left right "ortmp" builder
-  | Ast.Xor -> build_xor left right "xortmp" builder
+  | BinOpPlus -> build_add left right "addtmp" builder
+  | BinOpMinus -> build_sub left right "subtmp" builder
+  | BinOpMult -> build_mul left right "multmp" builder
+  | BinOpIntDiv -> build_sdiv left right "divtmp" builder
+  | BinOpLessThan -> build_icmp Icmp.Slt left right "lttmp" builder
+  | BinOpGreaterThan -> build_icmp Icmp.Sgt left right "gttmp" builder
+  | BinOpLessThanEq -> build_icmp Icmp.Sle left right "leqtmp" builder
+  | BinOpGreaterThanEq -> build_icmp Icmp.Sge left right "geqtmp" builder
+  | BinOpEq -> build_icmp Icmp.Eq left right "eqtmp" builder
+  | BinOpNotEq -> build_icmp Icmp.Ne left right "neqtmp" builder
+  | BinOpAnd -> build_and left right "andtmp" builder
+  | BinOpOr -> build_or left right "ortmp" builder
+  | _ -> raise (Failure "Invalid binary operator")
 
 let codegen_call func_name args func_map =
   let func = match find_function func_map func_name with
@@ -160,4 +161,4 @@ let link_core_library the_module =
 
   (* Link the core library into the main module *)
   Llvm_linker.link_modules' the_module corelib_module;
-  print_endline "Core library linked to the main module."
+  print_endline "Core library linked to the main module." *)

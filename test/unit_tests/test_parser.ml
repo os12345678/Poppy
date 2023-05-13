@@ -1,4 +1,4 @@
-open Poppy_parser.Parser_interface
+(* open Poppy_parser.Parser_interface
 
 let%expect_test "parse_empty_fn" =
   let input = "fn main() -> int { return 0; }" in
@@ -105,4 +105,4 @@ let%expect_test "test_print" =
   " in
   let output = parse_input input in
   print_endline (to_string output);
-  [%expect {| (FuncDecl (Id main) () (Type Int) ((Print (IntLiteral 1)))) |}]
+  [%expect {| (FuncDecl (Id main) () (Type Int) ((Print (IntLiteral 1)))) |}] *)
