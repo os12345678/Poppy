@@ -1,26 +1,2 @@
 # Poppy
 A proof-of-concept compiler for a type system I am creating as part of my Honours project.
-
-TODO Checklist:  
-2023 Week 19:
-- [x] Check the structure of AST with Luke
-    add more information to the ast i.e loc, hooks
-- [x] Check progress of the type system with Luke
-- [x] Implement the remaining AST nodes in the type system
-- [x] Make more progress on converting the previous codegen file to new 
-- [x] Research how classes are built in LLVM
-- [x] Think about implementing borrowing.
-
-2023 Week 20:  
-- [x] Check the structure of AST with Luke
-    add more information to the ast i.e loc, hooks
-- [x] Check progress of the type system with Luke
-- [x] Implement the remaining AST nodes in the type system
-- [x] Make more progress on converting the previous codegen file to new 
-- [x] Research how classes are built in LLVM
-- [x] Think about implementing borrowing.  
-
-Later:   
-- [x] Research into what concurrency features i want to include
-- [x] Research into what memory management features i want to include
-- [x] Research into what error handling features i want to include
