@@ -54,8 +54,6 @@
 %token  FOR
 %token  WHILE
 %token  MAIN
-// %token PRINTF
-// %token <string> STRING
 %token EOF
 
 %right  COLONEQ   EQUAL              
