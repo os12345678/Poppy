@@ -1,7 +1,10 @@
 open! Core
 open Ast_types
 
-type identifier = Variable of Var_name.t [@@deriving sexp]
+type identifier = 
+  | Variable of Var_name.t 
+  | ObjField of Var_name.t * Field_name.t
+  [@@deriving sexp]
 
 type expr = {
   loc : loc;
@@ -13,7 +16,7 @@ and expr_node =
 | Int                 of int
 | Boolean             of bool
 | Identifier          of identifier
-| Constructor         of Class_name.t * type_expr option * constructor_arg list
+| Constructor         of Struct_name.t * type_expr option * constructor_arg list
 | Let                 of type_expr option * Var_name.t * expr
 | Assign              of identifier * expr  
 | MethodApp           of Var_name.t * Method_name.t * expr list
@@ -31,26 +34,46 @@ and block_expr = Block of loc * expr list
 and constructor_arg = ConstructorArg of Field_name.t * expr
 [@@deriving sexp]
 
-type function_definition = (*Function of Function_name.t * borrowed_ref option * type_expr * param list * block_expr*)
-| Function of Function_name.t * param list * type_expr * block_expr
+type function_definition = 
+  | Function of
+      Function_name.t * borrowed_ref option * type_expr * param list * block_expr
 [@@deriving sexp]
 
-(*Method of Method_name.t * borrowed_ref option * type_expr * param list * Capability_name.t list * block_expr*)
-type method_defn =
-| Method of
+type struct_definition = 
+  | Struct of 
+      Struct_name.t 
+      * generic_type option 
+      * capability list
+      * field_defn list
+      [@@deriving sexp]
+
+type interface_definition = 
+  | Interface of 
+      Interface_name.t 
+      * method_signature list
+      [@@deriving sexp]
+
+and method_signature = 
+  | MethodSignature of 
     Method_name.t
-    * param list
-    * type_expr
-    * block_expr
+    (* * borrowed_ref option  *)
+    (* * Capability_name.t list  *)
+    * param list 
+    * type_expr 
     [@@deriving sexp]
 
-type class_definition = (*Class of Class_name.t * generic_type option * Class_name.t option * capability list * field_defn list * method_defn list*)
+
+(* type class_definition = 
 | Class of
-    Class_name.t
+    Class_name.t 
+    * generic_type option 
+    * Class_name.t option 
+    * capability list 
+    * field_defn list 
     * method_defn list
-    [@@deriving sexp]
+    [@@deriving sexp] *)
 
-type program = Prog of class_definition list * function_definition list * block_expr
+type program = Prog of struct_definition list * interface_definition list * function_definition list * block_expr
 [@@deriving sexp]
 
 let sexp_of_expressions expr =

@@ -51,25 +51,28 @@ rule read_tok =
   | ":=" { COLONEQ }
   | "let" { LET }
   | "new" { NEW }
-  (* | "const" {CONST } *)
-  (* | "var" { VAR } *)
+  | "const" {CONST }
+  | "var" { VAR }
+  | "struct" { STRUCT }
+  | "type" { TYPE }
+  | "interface" { INTERFACE }
   | "fn" { FUNCTION }
   (* | "consume" { CONSUME } *)
   (* | "finish" { FINISH } *)
   (* | "async" { ASYNC } *)
-  | "class" { CLASS }
+  (* | "class" { CLASS } *)
   (* | "extends" {EXTENDS} *)
-  (* | generic_type_param {GENERIC_TYPE} *)
-  (* | "capability" { CAPABILITY } *)
-  (* | "linear" { LINEAR } *)
-  (* | "local" { LOCAL } *)
-  (* | "read" { READ } *)
-  (* | "subordinate" { SUBORDINATE } *)
-  (* | "locked" { LOCKED } *)
+  | generic_type_param { GENERIC_TYPE }
+  | "capability" { CAPABILITY }
+  | "linear" { LINEAR }
+  | "local" { LOCAL }
+  | "read" { READ }
+  | "subordinate" { SUBORDINATE }
+  | "locked" { LOCKED }
   | "int" { TYPE_INT }
   | "bool" { TYPE_BOOL } 
   | "void" { TYPE_VOID }
-  (* | "borrowed" { BORROWED } *)
+  | "borrowed" { BORROWED }
   | "true" { TRUE }
   | "false" { FALSE }
   | "while" { WHILE }
