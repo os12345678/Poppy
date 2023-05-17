@@ -14,7 +14,7 @@
 %token  COMMA 
 %token  DOT 
 %token  COLON 
-%token  DOUBLECOLON
+// %token  DOUBLECOLON
 %token  SEMICOLON 
 %token  EQUAL 
 %token  PLUS
@@ -31,14 +31,11 @@
 %token  CONST 
 %token  VAR 
 %token  STRUCT
-%token  TYPE
 %token  INTERFACE
 %token  FUNCTION 
 // %token  CONSUME
 // %token  FINISH 
 // %token  ASYNC 
-// %token  CLASS
-// %token  EXTENDS 
 %token  GENERIC_TYPE 
 %token  CAPABILITY 
 %token  LINEAR 
@@ -67,29 +64,53 @@
 
 %start program 
 %type <program> program
-%type <struct_definition> struct_defn
-%type <function_definition> function_defn
+%type <struct_defn> struct_defn
+%type <interface_defn> interface_defn
+%type <method_signature> method_signature
+%type <mode> mode
+%type <capability> capability
+%type <borrowed_ref> borrowed_ref
+%type <modifier> modifier
+%type <Capability_name.t> capability_name
+%type <Capability_name.t list> struct_capability_annotations
+%type <Capability_name.t list> param_capability_annotations
+%type <field_defn> field_defn
+%type <param list> params
+%type <param> param
+%type <function_defn> function_defn
+%type <type_expr> parameterised_type
+%type <type_expr> type_expr
+%type <type_expr> let_type_annot
+
 %type <block_expr> main_expr
 %type <block_expr> block_expr
+%type <expr list> args
+%type <constructor_arg> constructor_arg
+%type <identifier> identifier
+%type <expr> expr
+// %type <async_expr> async_expr
+
+%type <un_op> un_op
+%type <bin_op> bin_op
 
 %%
 
 program: 
-    | struct_defns=separated_list(SEMICOLON, struct_defn); interface_defns=separated_list(SEMICOLON, interface_defn); 
+    | struct_defns=list(struct_defn); interface_defns=list(interface_defn); 
     function_defns=list(function_defn); main=main_expr;  EOF 
     {Prog(struct_defns, interface_defns, function_defns, main)}
 
 // Productions related to struct and interface definitions
 struct_defn:
-    | TYPE; name=ID; maybe_generic=option(generic_type) STRUCT; LBRACE; capability=capability_defn; field_defns=nonempty_list(field_defn); RBRACE 
+    | STRUCT; name=ID; maybe_generic=option(generic_type); LBRACE; capability=capability_defn; field_defns=nonempty_list(field_defn); RBRACE 
     { Struct(Struct_name.of_string name, maybe_generic, capability, field_defns)}
 
 interface_defn: 
-    | TYPE; name=ID; INTERFACE; LBRACE; method_signatures=nonempty_list(method_signature); RBRACE
+    | INTERFACE; name=ID; LBRACE; method_signatures=nonempty_list(method_signature); RBRACE
     { Interface(Interface_name.of_string name, method_signatures)}
 
 method_signature:
-    | method_name=ID; method_params=params; DOUBLECOLON; return_type=type_expr;  SEMICOLON 
+    | method_name=ID; method_params=params; return_type=type_expr;  SEMICOLON 
     {MethodSignature( Method_name.of_string method_name, method_params, return_type)}
 
 generic_type:
@@ -137,8 +158,8 @@ param_capability_annotations:
 param:
     | maybeBorrowed=option(borrowed_ref); param_type=type_expr; capability_guards=option(param_capability_annotations); param_name=ID;  {Param(param_type, Var_name.of_string param_name, capability_guards, maybeBorrowed)}
 
-method_defn: 
-    | maybeBorrowed=option(borrowed_ref); return_type=type_expr; method_name=ID; method_params=params; capabilities_used=struct_capability_annotations body=block_expr {Method( Method_name.of_string method_name, maybeBorrowed, return_type, method_params,capabilities_used,body)}
+// method_defn: 
+//     | maybeBorrowed=option(borrowed_ref); return_type=type_expr; method_name=ID; method_params=params; capabilities_used=struct_capability_annotations body=block_expr {Method( Method_name.of_string method_name, maybeBorrowed, return_type, method_params,capabilities_used,body)}
 
 function_defn: 
     | FUNCTION; maybeBorrowed=option(borrowed_ref); return_type=type_expr; function_name=ID; function_params=params;  body=block_expr {Function(Function_name.of_string function_name, maybeBorrowed, return_type, function_params,body)}

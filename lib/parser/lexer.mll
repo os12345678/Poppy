@@ -35,7 +35,7 @@ rule read_tok =
   | "," { COMMA }
   | "." { DOT }
   | ":" { COLON }
-  | "::" { DOUBLECOLON }
+  (* | "::" { DOUBLECOLON } *)
   | ";" { SEMICOLON }
   | "=" { EQUAL }
   | "+" { PLUS }
@@ -54,7 +54,7 @@ rule read_tok =
   | "const" {CONST }
   | "var" { VAR }
   | "struct" { STRUCT }
-  | "type" { TYPE }
+  (* | "type" { TYPE } *)
   | "interface" { INTERFACE }
   | "fn" { FUNCTION }
   (* | "consume" { CONSUME } *)

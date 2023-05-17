@@ -34,12 +34,12 @@ and block_expr = Block of loc * expr list
 and constructor_arg = ConstructorArg of Field_name.t * expr
 [@@deriving sexp]
 
-type function_definition = 
+type function_defn = 
   | Function of
       Function_name.t * borrowed_ref option * type_expr * param list * block_expr
 [@@deriving sexp]
 
-type struct_definition = 
+type struct_defn = 
   | Struct of 
       Struct_name.t 
       * generic_type option 
@@ -47,7 +47,7 @@ type struct_definition =
       * field_defn list
       [@@deriving sexp]
 
-type interface_definition = 
+type interface_defn = 
   | Interface of 
       Interface_name.t 
       * method_signature list
@@ -62,18 +62,10 @@ and method_signature =
     * type_expr 
     [@@deriving sexp]
 
-
-(* type class_definition = 
-| Class of
-    Class_name.t 
-    * generic_type option 
-    * Class_name.t option 
-    * capability list 
-    * field_defn list 
-    * method_defn list
-    [@@deriving sexp] *)
-
-type program = Prog of struct_definition list * interface_definition list * function_definition list * block_expr
+type program = Prog of struct_defn list 
+                * interface_defn list 
+                * function_defn list 
+                * block_expr
 [@@deriving sexp]
 
 let sexp_of_expressions expr =
