@@ -50,7 +50,7 @@ rule read_tok =
   | "!" { EXCLAMATION_MARK }
   | ":=" { COLONEQ }
   | "let" { LET }
-  | "new" { NEW }
+  (* | "new" { NEW } *)
   | "const" {CONST }
   | "var" { VAR }
   | "struct" { STRUCT }
@@ -62,7 +62,7 @@ rule read_tok =
   (* | "async" { ASYNC } *)
   (* | "class" { CLASS } *)
   (* | "extends" {EXTENDS} *)
-  | generic_type_param { GENERIC_TYPE }
+  (* | generic_type_param { GENERIC_TYPE } *)
   | "capability" { CAPABILITY }
   | "linear" { LINEAR }
   | "local" { LOCAL }

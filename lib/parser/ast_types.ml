@@ -30,7 +30,6 @@ module String_id = struct
 end
 
 module Var_name : ID = String_id [@@deriving sexp]
-(* module Class_name : ID = String_id [@@deriving sexp] *)
 module Capability_name : ID = String_id [@@deriving sexp]
 module Field_name : ID = String_id [@@deriving sexp]
 module Method_name : ID = String_id [@@deriving sexp]
@@ -63,29 +62,20 @@ let string_of_modifier = function MConst -> "Const" | MVar -> "Var" [@@deriving 
 type borrowed_ref = Borrowed [@@deriving sexp]
 let string_of_maybe_borrowed_ref = function Some Borrowed -> "Borrowed " | None -> "" [@@deriving sexp]
 
-type generic_type = Generic [@@deriving sexp]
-let string_of_maybe_generic = function Some Generic -> "<T>" | None -> "" [@@deriving sexp]
-
 type type_expr =
   | TEInt
-  | TEStruct of Struct_name.t * type_expr option
+  | TEStruct of Struct_name.t 
+  | TEInterface of Interface_name.t
   | TEVoid
   | TEBool
-  | TEGeneric
   [@@deriving sexp]
-let rec string_of_type = function
-| TEInt -> "Int"
-| TEStruct (class_name, maybe_type_param) ->
-  let maybe_type_param_str =
-    match maybe_type_param with
-    | Some type_param -> sprintf "<%s>" (string_of_type type_param)
-    | None -> ""
-  in
-    sprintf "%s%s" (Struct_name.to_string class_name) maybe_type_param_str
-    | TEVoid -> "Void"
-    | TEBool -> "Bool"
-    | TEGeneric -> "T"
-    [@@deriving sexp]
+let string_of_type = function
+  | TEInt -> "Int"
+  | TEStruct struct_name -> Struct_name.to_string struct_name
+  | TEInterface interface_name -> Interface_name.to_string interface_name
+  | TEVoid -> "Void"
+  | TEBool -> "Bool"
+  [@@deriving sexp]
       
 type field_defn = TField of modifier * type_expr * Field_name.t * Capability_name.t list [@@deriving sexp]
 type capability = TCapability of mode * Capability_name.t [@@deriving sexp]  
