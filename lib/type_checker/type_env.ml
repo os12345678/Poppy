@@ -27,19 +27,20 @@ let pop_scope (ctx: context) : context = (* when exiting from a scope *)
 
 let add_to_context (ctx: context) (v: Var_name.t) (t: type_expr) loc : context =
   match ctx with 
-  | [] -> failwith (loc ^" ::: Cannot add variable " ^ (Var_name.to_string v) ^ " to empty context")
+  | [] -> failwith (loc ^ " ::: Cannot add variable " ^ (Var_name.to_string v) ^ " to empty context")
   | scope :: parent_ctx ->
     match VarNameMap.add ~key:v ~data:t scope with
     | `Ok new_scope -> new_scope :: parent_ctx
-    | `Duplicate -> failwith (loc ^" ::: Variable " ^ (Var_name.to_string v) ^ " already exists in context")
+    | `Duplicate -> failwith (loc ^ " ::: Variable " ^ (Var_name.to_string v) ^ " already exists in context")
 
 let get_var_type (ctx: context) (v: Var_name.t) loc : type_expr option =
   match ctx with 
-  | [] -> failwith (loc ^" ::: Cannot get variable " ^ (Var_name.to_string v) ^ " from empty context")
+  | [] -> failwith (loc ^ " ::: Cannot get variable " ^ (Var_name.to_string v) ^ " from empty context")
   | scope :: parent_ctx ->
     match VarNameMap.find scope v with 
     | Some t -> Some t
     | None -> 
       match parent_ctx with (* if not in current scope, check ancestors *)
-      | [] -> failwith (loc ^" ::: Variable " ^ (Var_name.to_string v) ^ " does not exist in context")
+      | [] -> failwith (loc ^ " ::: Variable " ^ (Var_name.to_string v) ^ " does not exist in context")
       | parent_scope :: _ -> VarNameMap.find parent_scope v
+
