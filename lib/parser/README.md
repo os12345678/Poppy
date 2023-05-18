@@ -1,5 +1,2 @@
 Parser TODO:  
-- Add support for;  
-- [x] generics  
-- [x] borrowed references  
-- [x] capabilities  
+- [x] confirm the role of structs/interfaces.  
