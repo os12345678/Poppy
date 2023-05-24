@@ -1,15 +1,6 @@
-open Core
-(* open Poppy_parser.Ast *)
 open Poppy_parser.Ast_types
-
-(** 
-    [module VarNameMap = Map.Make(Var_name)] creates a new map module [VarNameMap] 
-    using [Var_name] as the key. [Map.Make] is a functor that generates a map module
-    for a given key type
-
-    [type context = type_expr VarNameMap.t] Define the context as a map from 
-    variable names to type expressions 
-*)
+(* open Poppy_parser *)
+open Core
 
 module VarNameMap = Map.Make(Var_name)
 type scope = type_expr VarNameMap.t
@@ -25,22 +16,28 @@ let pop_scope (ctx: context) : context = (* when exiting from a scope *)
   | _ :: parent_ctx -> parent_ctx
   | [] -> failwith "Cannot pop scope from empty context"
 
-let add_to_context (ctx: context) (v: Var_name.t) (t: type_expr) loc : context =
-  match ctx with 
-  | [] -> failwith (loc ^ " ::: Cannot add variable " ^ (Var_name.to_string v) ^ " to empty context")
+let rec get_var_type (ctx: context) (var: Var_name.t) loc =
+  match ctx with
+  | [] -> Error (Error.of_string 
+                (Fmt.str "%d:%d Type error - Variable %s not defined in environment" (loc.lnum) (loc.cnum) (Var_name.to_string var)))
   | scope :: parent_ctx ->
-    match VarNameMap.add ~key:v ~data:t scope with
-    | `Ok new_scope -> new_scope :: parent_ctx
-    | `Duplicate -> failwith (loc ^ " ::: Variable " ^ (Var_name.to_string v) ^ " already exists in context")
+    match VarNameMap.find scope var with
+    | Some t -> Ok t
+    | None -> get_var_type parent_ctx var loc
 
-let get_var_type (ctx: context) (v: Var_name.t) loc : type_expr option =
-  match ctx with 
-  | [] -> failwith (loc ^ " ::: Cannot get variable " ^ (Var_name.to_string v) ^ " from empty context")
+let add_variable (ctx: context) (var: Var_name.t) (t: type_expr) : (context, string) Result.t =
+  match ctx with
+  | [] -> Error "Cannot add variable to empty context"
   | scope :: parent_ctx ->
-    match VarNameMap.find scope v with 
-    | Some t -> Some t
-    | None -> 
-      match parent_ctx with (* if not in current scope, check ancestors *)
-      | [] -> failwith (loc ^ " ::: Variable " ^ (Var_name.to_string v) ^ " does not exist in context")
-      | parent_scope :: _ -> VarNameMap.find parent_scope v
-
+    match VarNameMap.add scope ~key:var ~data:t with
+    | `Ok new_scope -> Ok (new_scope :: parent_ctx)
+    | `Duplicate -> Error ("Variable " ^ Var_name.to_string var ^ " already declared in this scope")
+  
+(* let rec lookup_field_in_struct (struct_defn: Ast.struct_defn) (var: Var_name.t) (field: Var_name.t) : (type_expr, string) Result.t =
+  match List.find struct_defn ~f:(fun s -> s.s_name = var) with
+  | Some struct_type ->
+    (match List.find struct_type.fields ~f:(fun f -> f.f_name = field) with
+    | Some field -> Ok field.f_type
+    | None -> Error ("Field " ^ Var_name.to_string field ^ " not found in struct " ^ Var_name.to_string var))
+  | None -> Error ("Struct " ^ Var_name.to_string var ^ " not found")
+     *)
