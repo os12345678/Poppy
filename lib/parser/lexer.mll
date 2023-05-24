@@ -16,10 +16,8 @@
 let digit = ['0'-'9']
 let alpha = ['a'-'z' 'A'-'Z']
 
-(* Regexes for tokens *)
 let int = '-'? digit+
 let id = (alpha) (alpha|digit|'_')*
-let generic_type_param =  ['A' -'Z']
 
 let whitespace = [' ' '\t']+
 let newline = '\r' | '\n' | "\r\n"
@@ -35,7 +33,6 @@ rule read_tok =
   | "," { COMMA }
   | "." { DOT }
   | ":" { COLON }
-  (* | "::" { DOUBLECOLON } *)
   | ";" { SEMICOLON }
   | "=" { EQUAL }
   | "+" { PLUS }
@@ -50,19 +47,14 @@ rule read_tok =
   | "!" { EXCLAMATION_MARK }
   | ":=" { COLONEQ }
   | "let" { LET }
-  (* | "new" { NEW } *)
   | "const" {CONST }
   | "var" { VAR }
   | "struct" { STRUCT }
-  (* | "type" { TYPE } *)
   | "interface" { INTERFACE }
   | "fn" { FUNCTION }
   (* | "consume" { CONSUME } *)
   (* | "finish" { FINISH } *)
   (* | "async" { ASYNC } *)
-  (* | "class" { CLASS } *)
-  (* | "extends" {EXTENDS} *)
-  (* | generic_type_param { GENERIC_TYPE } *)
   | "capability" { CAPABILITY }
   | "linear" { LINEAR }
   | "local" { LOCAL }
@@ -85,7 +77,6 @@ rule read_tok =
   | "/*" { read_multi_line_comment 1 lexbuf } 
   | int { INT (int_of_string (Lexing.lexeme lexbuf))}
   | id { ID (Lexing.lexeme lexbuf) }
-    (* | '"'      { read_string (Buffer.create 17) lexbuf } *)
   | newline { advance_line lexbuf; read_tok lexbuf }
   | eof { EOF }
   | _ {raise (SyntaxError ("Lexer - Illegal character: " ^ Lexing.lexeme lexbuf)) }
