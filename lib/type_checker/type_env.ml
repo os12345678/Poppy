@@ -1,5 +1,5 @@
 open Poppy_parser.Ast_types
-(* open Poppy_parser *)
+open Poppy_parser
 open Core
 
 module VarNameMap = Map.Make(Var_name)
@@ -32,12 +32,33 @@ let add_variable (ctx: context) (var: Var_name.t) (t: type_expr) : (context, str
     match VarNameMap.add scope ~key:var ~data:t with
     | `Ok new_scope -> Ok (new_scope :: parent_ctx)
     | `Duplicate -> Error ("Variable " ^ Var_name.to_string var ^ " already declared in this scope")
-  
-(* let rec lookup_field_in_struct (struct_defn: Ast.struct_defn) (var: Var_name.t) (field: Var_name.t) : (type_expr, string) Result.t =
-  match List.find struct_defn ~f:(fun s -> s.s_name = var) with
-  | Some struct_type ->
-    (match List.find struct_type.fields ~f:(fun f -> f.f_name = field) with
-    | Some field -> Ok field.f_type
-    | None -> Error ("Field " ^ Var_name.to_string field ^ " not found in struct " ^ Var_name.to_string var))
-  | None -> Error ("Struct " ^ Var_name.to_string var ^ " not found")
-     *)
+
+let is_this var_name loc = 
+  if phys_equal var_name (Var_name.of_string "this") then 
+    Error (Error.of_string 
+            (Fmt.str "%d:%d Type error - Cannot use 'this' in this context" (loc.lnum) (loc.cnum)))
+  else Ok ()
+
+let identifier_assignable id loc = 
+  match id with 
+  | Ast.Variable var_name -> is_this var_name loc
+  | Ast.ObjField (_, _) -> Or_error.error_string "Identifier assignable for ObjField not implemented"
+
+  (* let check_no_duplicate_var_declarations_in_block (exprs: Ast.expr list) (loc: loc) : (unit, string) Result.t =
+    let open Result in
+    let var_set = VarNameMap.empty in
+    let rec check_duplicates exprs var_set =
+      match exprs with
+      | [] -> Ok ()
+      | expr :: rest ->
+        match expr with
+        | Ast.Let (_, var_name, _) ->
+          if VarNameMap.mem var_set var_name then
+            Error (Fmt.str "%d:%d Type error - Variable %s already declared in this block" loc.lnum loc.cnum (Var_name.to_string var_name))
+          else
+            let updated_set = VarNameMap.add var_set var_name in
+            check_duplicates rest updated_set
+        | _ -> check_duplicates rest var_set
+    in
+    check_duplicates exprs var_set
+   *)
