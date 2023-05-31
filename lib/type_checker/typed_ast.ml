@@ -37,6 +37,33 @@ and block_expr = Block of loc * type_expr * expr list [@@deriving sexp]
 
 and async_expr = AsyncExpr of block_expr [@@deriving sexp]
 
+(* Interface method defn only contains the method signature of method_defn *)
+type interface_method_defn =
+| TInterfaceMethod of
+    Method_name.t
+    * borrowed_ref option
+    * type_expr
+    * param list
+  [@@deriving sexp]
+
+(* Interface definitions consist of the interface name and its methods *)
+type interface_defn = 
+  | TInterface of 
+  Interface_name.t 
+  * interface_method_defn list  (* Include method names in the signature *)
+  [@@deriving sexp]
+
+(* Method defn consists of the method name, return type (and whether it returns a borrowed
+   ref), the list of params, and the capabilities used and the body expr of the function *)
+type method_defn =
+| TMethod of
+    Method_name.t
+    * borrowed_ref option
+    * type_expr
+    * param list
+    * block_expr
+  [@@deriving sexp]
+
 (* Struct definitions consist of the struct name, its fields, and its methods *)
 type struct_defn = 
   | TStruct of 
@@ -46,33 +73,6 @@ type struct_defn =
   * method_defn list  (* Method definitions associated with the struct *)
   [@@deriving sexp]
       
-(* Interface definitions consist of the interface name and its methods *)
-and interface_defn = 
-  | TInterface of 
-  Interface_name.t 
-  * interface_method_defn list  (* Include method names in the signature *)
-  [@@deriving sexp]
-      
-(* Method defn consists of the method name, return type (and whether it returns a borrowed
-   ref), the list of params, and the capabilities used and the body expr of the function *)
-and method_defn =
-| TMethod of
-    Method_name.t
-    * borrowed_ref option
-    * type_expr
-    * param list
-    * block_expr
-  [@@deriving sexp]
-
-(* Interface method defn only contains the method signature of method_defn *)
-and interface_method_defn =
-| TInterfaceMethod of
-    Method_name.t
-    * borrowed_ref option
-    * type_expr
-    * param list
-  [@@deriving sexp]
-
 (* Function defn consists of the function name, return type, the list of params, and the
    body expr of the function *)
 type function_defn =
@@ -84,5 +84,5 @@ type program = Prog of
                 struct_defn list 
                 * interface_defn list 
                 * function_defn list 
-                * block_expr
-[@@deriving sexp]
+                * block_expr 
+                [@@deriving sexp]
