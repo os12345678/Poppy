@@ -27,7 +27,7 @@
 %token  EXCLAMATION_MARK
 %token  COLONEQ
 %token  LET 
-// %token  NEW 
+%token  TYPE 
 %token  CONST 
 %token  VAR 
 %token  STRUCT
@@ -80,6 +80,8 @@
 %type <function_defn> function_defn
 %type <type_expr> type_expr
 %type <type_expr> let_type_annot
+%type <interface_method_defn> interface_method_defn
+
 
 %type <block_expr> main_expr
 %type <block_expr> block_expr
@@ -183,7 +185,7 @@ interface_expr:
         {{ loc=loc_of_position $startpos; node=AssignToInterface(Var_name.of_string var_name, struct_exprs) }} 
 
 struct_expr:
-    | struct_name=ID; LBRACE; field_inits=separated_list(COMMA, struct_field_init); RBRACE; 
+    | TYPE struct_name=ID; LBRACE; field_inits=separated_list(COMMA, struct_field_init); RBRACE; 
         {{ loc=loc_of_position $startpos; node=NewStruct(Struct_name.of_string struct_name, field_inits) }} 
 
 struct_field_init:

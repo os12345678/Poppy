@@ -52,6 +52,7 @@ rule read_tok =
   | "struct" { STRUCT }
   | "interface" { INTERFACE }
   | "fn" { FUNCTION }
+  | "type" { TYPE }
   (* | "consume" { CONSUME } *)
   (* | "finish" { FINISH } *)
   (* | "async" { ASYNC } *)
