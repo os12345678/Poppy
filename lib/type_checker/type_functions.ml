@@ -1,5 +1,5 @@
 open Poppy_parser
-open Type_env
+(* open Type_env *)
 open Core 
 
 let init_env_from_params params =
