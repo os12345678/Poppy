@@ -19,6 +19,8 @@ depends: [
   "menhir"
   "menhirLib"
   "llvm"
+  "ppx_deriving"
+  "ppx_deriving_sexp"
   "odoc" {with-doc}
 ]
 build: [

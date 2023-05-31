@@ -1,5 +1,5 @@
 (library
  (name poppy_type_checker)
  (libraries core fmt poppy_parser)
- (preprocess (pps ppx_expect ppx_inline_test))
+ (preprocess (pps ppx_expect ppx_inline_test ppx_jane))
  (modules typed_ast type_program type_env type_structs type_functions type_expr))
