@@ -5,15 +5,8 @@ let%expect_test "parse smallest program" =
   let lexbuf = Lexing.from_string "void main() {}" in
   let result = parse_program lexbuf in
   match result with
-  | Ok prog -> print_s [%sexp (print_program prog : string)]
-  | Error err -> print_s [%sexp (Error.to_string_hum err : string)];
-  [%expect.unreachable];
-  [%expect.unreachable];
-  [%expect.unreachable];
-  [%expect.unreachable];
-  [%expect.unreachable];
-  [%expect.unreachable];
-  [%expect {| "(Prog () () () (Block ((lnum 1) (cnum 13)) ()))" |}]
+  | Ok prog -> print_s [%sexp (print_program prog : string)]; [%expect {| "(Prog () () () (Block ((lnum 1) (cnum 13)) ()))" |}]
+  | Error err -> print_s [%sexp (Error.to_string_hum err : string)]; [%expect.unreachable]
 ;;
 
 let%expect_test "parse main with function" = 
@@ -28,20 +21,15 @@ let%expect_test "parse main with function" =
   in 
   let result = parse_program lexbuf in
   match result with
-  | Ok prog -> print_s [%sexp (print_program prog : string)]
-  | Error err -> print_s [%sexp (Error.to_string_hum err : string)];
-  [%expect.unreachable];
-  [%expect.unreachable];
-  [%expect.unreachable];
-  [%expect.unreachable];
-  [%expect.unreachable];
-  [%expect.unreachable];
-  [%expect {|
+  | Ok prog -> print_s [%sexp (print_program prog : string)]; [%expect {|
      "(Prog () ()\
     \n ((TFunction foo () TEInt ()\
     \n   (Block ((lnum 2) (cnum 16)) (((loc ((lnum 3) (cnum 5))) (node (Int 1)))))))\
-    \n (Block ((lnum 6) (cnum 15)) ()))" |}]
+    \n (Block ((lnum 6) (cnum 15)) ()))"
+      |}]
+  | Error err -> print_s [%sexp (Error.to_string_hum err : string)]; [%expect.unreachable]
 ;;
+
 
 let%expect_test "parse program with struct and interface" = 
   let lexbuf = Lexing.from_string
@@ -70,15 +58,7 @@ let%expect_test "parse program with struct and interface" =
   in
   let result = parse_program lexbuf in
   match result with
-  | Ok prog -> print_s [%sexp (print_program prog : string)]
-  | Error err -> print_s [%sexp (Error.to_string_hum err : string)];
-  [%expect.unreachable];
-  [%expect.unreachable];
-  [%expect.unreachable];
-  [%expect.unreachable];
-  [%expect.unreachable];
-  [%expect.unreachable];
-  [%expect {|
+  | Ok prog -> print_s [%sexp (print_program prog : string)]; [%expect {|
      "(Prog\
     \n ((TStruct Point ((TCapability Linear linearPoint))\
     \n   ((TField MVar TEInt x (linearPoint)) (TField MVar TEInt y (linearPoint)))\
@@ -112,4 +92,6 @@ let%expect_test "parse program with struct and interface" =
     \n        ((loc ((lnum 17) (cnum 28)))\
     \n         (node (MethodApp d distanceToOrigin ()))))))))))\
     \n (Block ((lnum 21) (cnum 17)) ()))" |}]
+  | Error err -> print_s [%sexp (Error.to_string_hum err : string)]; [%expect.unreachable]
+
 ;;

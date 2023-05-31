@@ -14,11 +14,7 @@ let%expect_test "parse function application" =
   " in
   let result = parse_program lexbuf in
   match result with
-  | Ok prog -> print_s [%sexp (print_program prog : string)]
-  | Error err -> print_s [%sexp (Error.to_string_hum err : string)];
-  [%expect.unreachable];
-  [%expect.unreachable];
-  [%expect {|
+  | Ok prog -> print_s [%sexp (print_program prog : string)]; [%expect {|
      "(Prog () ()\
     \n ((TFunction foo () TEInt ((Param TEInt x () ()))\
     \n   (Block ((lnum 2) (cnum 23))\
@@ -29,6 +25,7 @@ let%expect_test "parse function application" =
     \n        ((loc ((lnum 3) (cnum 12))) (node (Int 1))))))))))\
     \n (Block ((lnum 6) (cnum 17))\
     \n  (((loc ((lnum 7) (cnum 9)))\
-    \n    (node (FunctionApp foo (((loc ((lnum 7) (cnum 13))) (node (Int 1))))))))))" |}]
+    \n    (node (FunctionApp foo (((loc ((lnum 7) (cnum 13))) (node (Int 354))))))))))" |}]
+  | Error err -> print_s [%sexp (Error.to_string_hum err : string)]; [%expect.unreachable]
 ;;
 
