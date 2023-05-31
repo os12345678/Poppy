@@ -31,7 +31,6 @@
   menhir
   menhirLib
   llvm
-  ppx_deriving
-  ppx_deriving_sexp)
+  ppx_deriving)
  (tags
   (topics "to describe" your project)))
