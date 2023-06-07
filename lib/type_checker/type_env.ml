@@ -44,6 +44,15 @@ let identifier_assignable id loc =
   | Ast.Variable var_name -> is_this var_name loc
   | Ast.ObjField (_, _) -> Or_error.error_string "Identifier assignable for ObjField not implemented"
 
+let check_type_valid struct_defn_list type_expr = 
+  match type_expr with
+  | TEBool | TEInt | TEVoid -> Ok ()
+  | TEStruct struct_name -> 
+    let struct_names = List.map ~f:(function Ast.TStruct (name, _, _) -> name) struct_defn_list in
+    if List.mem struct_names struct_name ~equal:Struct_name.(=) then Ok ()
+    else Or_error.error_string "Type not defined"
+  | TETrait _trait_name -> Or_error.error_string "Trait type not implemented"
+  
   (* let check_no_duplicate_var_declarations_in_block (exprs: Ast.expr list) (loc: loc) : (unit, string) Result.t =
     let open Result in
     let var_set = VarNameMap.empty in
@@ -62,3 +71,16 @@ let identifier_assignable id loc =
     in
     check_duplicates exprs var_set
    *)
+
+let rec print_context (ctx: context) : unit =
+  match ctx with
+  | [] -> ()
+  | scope :: parent_ctx ->
+    print_scope scope;
+    print_context parent_ctx
+
+and print_scope (scope: scope) : unit =
+  VarNameMap.iteri ~f:(fun ~key:var ~data:t ->
+    let t_as_sexp = Sexplib.Sexp.to_string_hum (sexp_of_type_expr t) in
+    Printf.printf "%s: %s\n" (Var_name.to_string var) t_as_sexp) scope
+  
