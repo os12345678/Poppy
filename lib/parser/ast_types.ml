@@ -35,7 +35,7 @@ module Field_name : ID = String_id [@@deriving sexp]
 module Method_name : ID = String_id [@@deriving sexp]
 module Function_name : ID = String_id [@@deriving sexp]
 module Struct_name : ID = String_id [@@deriving sexp]
-module Interface_name : ID = String_id [@@deriving sexp]
+module Trait_name : ID = String_id [@@deriving sexp]
 
 type mode =
   | Linear
@@ -65,14 +65,14 @@ let string_of_maybe_borrowed_ref = function Some Borrowed -> "Borrowed " | None 
 type type_expr =
   | TEInt
   | TEStruct of Struct_name.t 
-  | TEInterface of Interface_name.t
+  | TETrait of Trait_name.t
   | TEVoid
   | TEBool
   [@@deriving sexp]
 let string_of_type = function
   | TEInt -> "Int"
   | TEStruct struct_name -> Struct_name.to_string struct_name
-  | TEInterface interface_name -> Interface_name.to_string interface_name
+  | TETrait interface_name -> Trait_name.to_string interface_name
   | TEVoid -> "Void"
   | TEBool -> "Bool"
   [@@deriving sexp]
