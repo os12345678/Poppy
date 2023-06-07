@@ -115,12 +115,9 @@ struct_defn:
 trait_defn: 
     | TRAIT; name=ID; 
     LBRACE; 
-    method_name=ID; 
-    maybeBorrowed=option(borrowed_ref);
-    method_params=params ARROW;
-    return_type=type_expr COMMA; 
+    method_signatures=list(method_signature);
     RBRACE
-    { TTrait(Trait_name.of_string name, Method_name.of_string method_name, maybeBorrowed, return_type, method_params)}
+    { TTrait(Trait_name.of_string name, method_signatures)}
 
 // Modes and capabilities
 mode:
@@ -137,6 +134,9 @@ capability_defn:
 capability:
     | mode=mode; cap_name=ID {TCapability(mode, Capability_name.of_string cap_name)}
 
+struct_capability_annotations:
+| COLON;  capability_names=separated_nonempty_list(COMMA,capability_name){capability_names}
+
 borrowed_ref:
     | BORROWED {Borrowed}
 
@@ -147,9 +147,6 @@ modifier:
 
 capability_name:
     | cap_name=ID {Capability_name.of_string cap_name}
-
-struct_capability_annotations:
-    | COLON; capability_names=separated_nonempty_list(COMMA,capability_name){capability_names}
 
 field_defn:
     | m=modifier; field_type=type_expr; field_name=ID; capability_names=struct_capability_annotations SEMICOLON {TField(m, field_type, Field_name.of_string field_name, capability_names)}
@@ -165,15 +162,21 @@ param:
     | maybeBorrowed=option(borrowed_ref); param_type=type_expr; capability_guards=option(param_capability_annotations); param_name=ID;  
     {Param(param_type, Var_name.of_string param_name, capability_guards, maybeBorrowed)}
 
+method_signature:
+    |  method_name=ID;
+    maybeBorrowed=option(borrowed_ref);  
+    capabilities_used = struct_capability_annotations;
+    method_params=params; ARROW;
+    return_type=type_expr;
+    {TMethodSignature(Method_name.of_string method_name, maybeBorrowed, capabilities_used, method_params, return_type)}
+
+
 method_defn: 
     | IMPL trait_name=ID;maybe_for_struct=option(for_struct); 
     LBRACE 
-    method_name=ID;
-    maybeBorrowed=option(borrowed_ref);  
-    method_params=params; ARROW;
-    return_type=type_expr;
+    method_signatures = method_signature;
     body=block_expr; RBRACE;
-    {TMethod(Trait_name.of_string trait_name, maybe_for_struct, Method_name.of_string method_name, maybeBorrowed, return_type, method_params, body)}
+    {TMethod(Trait_name.of_string trait_name, maybe_for_struct, method_signatures, body)}
 
 for_struct:
     | FOR; struct_name=ID; {Struct_name.of_string struct_name}

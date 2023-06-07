@@ -27,8 +27,6 @@ and expr_node =
 | For                 of expr * expr * expr * block_expr
 | BinOp               of bin_op * expr * expr
 | UnOp                of un_op * expr
-(* | NewStruct           of Struct_name.t * (Field_name.t * expr) list *)
-(* | AssignToInterface   of Var_name.t * expr *)
 [@@deriving sexp]
 
 and block_expr = Block of loc * expr list [@@deriving sexp]
@@ -46,13 +44,22 @@ struct struct_name {
 type struct_defn = 
   | TStruct of 
   Struct_name.t 
-  * capability list
-  * field_defn list
+  * capability list (* mode[linear|threadlocal|read|locked|threadsafe|subordinate|encapsulated] * Capability_name.t list *)
+  * field_defn list (* modifier[const|var] * type_expr[int|bool|void] * Field_name.t * Capability_name.t list *)
+  [@@deriving sexp]
+
+type method_signature = 
+  | TMethodSignature of
+    Method_name.t
+    * borrowed_ref option (* borrowed[borrowed|]*)
+    * Capability_name.t list
+    * param list (* type_expr[int|bool|void] * Var_name.t * Capability_name.t list option * borrowed_ref option *)
+    * type_expr (* ret type: int | bool | void *)
   [@@deriving sexp]
 
 (* 
 impl trait_name for struct_name {
-  method_name(param1: type_expr1, param2: type_expr2) -> type_expr3 {
+  method_name borrowed linearCap(int:x read, int:y subordinate) -> void {
     body_expr
   }
 } 
@@ -60,26 +67,21 @@ impl trait_name for struct_name {
 type method_defn =
 | TMethod of
     Trait_name.t
-    * Struct_name.t option (* impl trait_name for struct_name *)
-    * Method_name.t
-    * borrowed_ref option
-    * type_expr
-    * param list
+    * Struct_name.t option 
+    * method_signature
     * block_expr
   [@@deriving sexp]
       
 (*
 trait trait_name {
-  method_name(param1: type_expr1, param2: type_expr2) -> type_expr3;
+  method_name borrowed linearCap(int:x read, int:y subordinate) -> void,
+  method_name2 ...
 }
 *)
 type trait_defn =
 | TTrait of
     Trait_name.t
-    * Method_name.t
-    * borrowed_ref option
-    * type_expr
-    * param list
+    * method_signature list
   [@@deriving sexp]
 
 (*
