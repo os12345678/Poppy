@@ -50,9 +50,11 @@ rule read_tok =
   | "const" {CONST }
   | "var" { VAR }
   | "struct" { STRUCT }
-  | "interface" { INTERFACE }
+  | "trait" { TRAIT }
+  | "impl" { IMPL }
   | "fn" { FUNCTION }
-  | "type" { TYPE }
+  | "->" { ARROW }
+  | "new" { NEW }
   (* | "consume" { CONSUME } *)
   (* | "finish" { FINISH } *)
   (* | "async" { ASYNC } *)
