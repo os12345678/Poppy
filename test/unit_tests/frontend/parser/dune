@@ -2,5 +2,4 @@
  (name unit_tests)
  (inline_tests)
  (libraries poppy_parser poppy_codegen llvm llvm.linker llvm.irreader)
- (preprocess (pps ppx_jane))
- (ocamlopt_flags :standard -ccopt -L/opt/homebrew/Cellar/llvm@14/14.0.6/lib))
+ (preprocess (pps ppx_jane)))

@@ -1,160 +1,258 @@
 %{
   open Ast
-
-  exception Parse_error of string
+  open Ast_types
 %}
 
-%token <int> INT
-%token <string> ID
-%token <string> TYPE
-%token <string> STRING
-%token LET
-%token TRUE FALSE
-%token LPAREN RPAREN LBRACE RBRACE
-%token PLUS MINUS TIMES DIV
-%token LT LEQ GT GEQ EQ NEQ
-%token AND OR NOT XOR
-%token IF ELSE
-%token WHILE FOR
-%token ASSIGN
-%token COLON SEMICOLON
-%token FN CLASS DOT PUBLIC PRIVATE PROTECTED
-%token RETURN
-%token COMMA
-%token LAMBDA ARROW
-%token THREAD MUTEX LOCK UNLOCK
-%token THIS
-%token NEW
-%token EOF
+%token  <int> INT
+%token  <string> ID
+%token  LPAREN
+%token  RPAREN 
+%token  LBRACE 
+%token  RBRACE 
+%token  LANGLE
+%token  RANGLE
+%token  COMMA 
+%token  DOT 
+%token  COLON 
+// %token  DOUBLECOLON
+%token ARROW
+%token  SEMICOLON 
+%token  EQUAL 
+%token  PLUS
+%token  MINUS
+%token  MULT
+%token  DIV
+%token  REM
+%token  AND
+%token  OR
+%token  EXCLAMATION_MARK
+%token  COLONEQ
+%token  LET 
+%token  CONST 
+%token  VAR 
+%token  STRUCT
+%token  TRAIT
+%token  IMPL
+%token  NEW
+%token  FUNCTION 
+// %token  CONSUME
+// %token  FINISH 
+// %token  ASYNC 
+%token  CAPABILITY 
+%token  LINEAR 
+%token  LOCAL 
+%token  READ 
+%token  SUBORDINATE 
+%token  LOCKED 
+%token  TYPE_INT 
+%token  TYPE_BOOL
+%token  TYPE_VOID
+%token  BORROWED
+%token  TRUE
+%token  FALSE
+%token  IF
+%token  ELSE
+%token  FOR
+%token  WHILE
+%token  MAIN
+%token  EOF
 
-%type <Ast.expr> expr
-%type <Ast.statement> statement
-%type <Ast.statement list> statements
-%type <Ast.expr list> args
-%type <Ast.func_param list> params
-%type <Ast.expr> atom_expr
-%type <Ast.statement> expr_statement
-%type <Ast.incr_decr_op> increment
-%type <Ast.type_decl> typ_decl
+%right  COLONEQ   EQUAL              
+%left PLUS MINUS  LANGLE RANGLE
+%left MULT DIV REM
+%left AND OR  
+%nonassoc EXCLAMATION_MARK
 
+%start program 
+%type <program> program
+%type <struct_defn> struct_defn
+%type <trait_defn> trait_defn
+// %type <method_signature> method_signature
+%type <method_defn> method_defn
+%type <mode> mode
+%type <capability> capability
+%type <borrowed_ref> borrowed_ref
+%type <modifier> modifier
+%type <Capability_name.t> capability_name
+%type <Capability_name.t list> struct_capability_annotations
+%type <Capability_name.t list> param_capability_annotations
+%type <field_defn> field_defn
+%type <param list> params
+%type <param> param
+%type <function_defn> function_defn
+%type <type_expr> type_expr
+%type <type_expr> let_type_annot
 
-%nonassoc EQ NEQ
-%nonassoc LT LEQ GT GEQ
-%left PLUS MINUS
-%left TIMES DIV
-%left AND OR XOR
-%right NOT
+%type <block_expr> main_expr
+%type <block_expr> block_expr
+%type <expr list> args
+%type <identifier> identifier
+%type <expr> expr
+// %type <async_expr> async_expr
 
+%type <un_op> un_op
+%type <bin_op> bin_op
 
-%start main
-%type <Ast.statement list> main
 %%
 
-main:
-  | statements EOF
-    {
-      let main_found =
-        List.exists (function
-          | FuncDecl (Id "main",_,_,_) -> true
-          | _ -> false
-        ) $1
-      in
-      if main_found then $1
-      else raise (Parse_error "main function entrypoint not found!")
-    }
+program: 
+    | struct_defns=list(struct_defn); 
+    trait_defns=list(trait_defn);   
+    method_defns=list(method_defn);
+    function_defns=list(function_defn); 
+    main=main_expr;  EOF 
+    {Prog(struct_defns, trait_defns, method_defns, function_defns, main)}
 
-statement:
-  | LET ID COLON typ_decl ASSIGN expr SEMICOLON { Let((Id $2, $4), $6) }
-  | ID ASSIGN expr SEMICOLON { Assign($1, $3) }
-  | IF LPAREN expr RPAREN LBRACE statements RBRACE ELSE LBRACE statements RBRACE { If($3, Block $6, Block $10) }
-  | WHILE LPAREN expr RPAREN LBRACE statements RBRACE { While($3, Block($6)) }
-  | FOR LPAREN ID ASSIGN INT COMMA expr COMMA increment RPAREN LBRACE statements RBRACE { For($3, $5, $7, $9, Block $12) }
-  | FN ID LPAREN params RPAREN ARROW typ_decl LBRACE statements RBRACE { FuncDecl (Id $2, $4, $7, $9) }
-  | THREAD LBRACE statements RBRACE { Thread (Block $3) }
-  | CLASS ID LBRACE class_members RBRACE { ClassDecl (Id $2, $4) }
-  | expr DOT ID ASSIGN expr SEMICOLON { ClassMemberAssign ($1, $3, $5) }
-  | RETURN expr SEMICOLON { Return $2 }
-  | mutex_declaration SEMICOLON { $1 }
-  | mutex_lock SEMICOLON{ $1 }
-  | mutex_unlock SEMICOLON { $1 }
+// Productions related to struct and interface definitions
+struct_defn:
+    | STRUCT; name=ID; 
+    LBRACE; 
+    capability=capability_defn; 
+    field_defns=nonempty_list(field_defn); 
+    RBRACE 
+    { TStruct(Struct_name.of_string name, capability, field_defns)}
 
-mutex_declaration:
-  | LET ID COLON typ_decl ASSIGN MUTEX { MutexDeclaration(MutexId $2, $4) }
+trait_defn: 
+    | TRAIT; name=ID; 
+    LBRACE; 
+    method_signatures=list(method_signature);
+    RBRACE
+    { TTrait(Trait_name.of_string name, method_signatures)}
 
-mutex_lock:
-  | ID COLON COLON LOCK LPAREN RPAREN { MutexLock(MutexId $1) }
+// Modes and capabilities
+mode:
+    | LINEAR { Linear }
+    | LOCAL { ThreadLocal }
+    | READ  { Read }
+    | SUBORDINATE { Subordinate }
+    | LOCKED { Locked }
 
-mutex_unlock:
-  | ID COLON COLON UNLOCK LPAREN RPAREN { MutexUnlock(MutexId $1) }
+capability_defn:
+    | CAPABILITY; capabilities=separated_nonempty_list(COMMA,capability); SEMICOLON; {capabilities}
+    | {[]}
 
-expr_statement:
-  | expr SEMICOLON { Expr($1) }
+capability:
+    | mode=mode; cap_name=ID {TCapability(mode, Capability_name.of_string cap_name)}
 
-class_members:
-  | { [] }
-  | class_member class_members { $1 :: $2 }
+struct_capability_annotations:
+| COLON;  capability_names=separated_nonempty_list(COMMA,capability_name){capability_names}
 
-class_member:
-  | access_modifier ID COLON typ_decl SEMICOLON { ClassVar ($1, Id $2, $4) }
-  | access_modifier FN ID LPAREN params RPAREN ARROW typ_decl LBRACE statements RBRACE { ClassMethod ($1, Id $3, $5, $8, $10) }
+borrowed_ref:
+    | BORROWED {Borrowed}
 
-access_modifier:
-  | PRIVATE { Private }
-  | PROTECTED { Protected }
-  | PUBLIC { Public }
-  | { Public } // Default to public if no access modifier is specified
+// Field definitions
+modifier:
+    | CONST {MConst}
+    | VAR {MVar}
 
-params: 
-  | { [] }
-  | ID COLON typ_decl { [Param (Id $1, $3)] }
-  | ID COLON typ_decl COMMA params { Param(Id $1, $3) :: $5 }
+capability_name:
+    | cap_name=ID {Capability_name.of_string cap_name}
 
-increment:
-  | ID PLUS PLUS { Incr($1) }
-  | ID MINUS MINUS { Decr($1) }
+field_defn:
+    | m=modifier; field_type=type_expr; field_name=ID; capability_names=struct_capability_annotations SEMICOLON {TField(m, field_type, Field_name.of_string field_name, capability_names)}
 
-statements:
-  | statement statements { $1 :: $2 }
-  | expr_statement statements { $1 :: $2 }
-  | { [] }
+// Method and function definitions
+params:
+    | LPAREN; params=separated_list(COMMA,param); RPAREN {params}
 
-typ_decl:
-  | TYPE { Type (string_to_typ $1) }
+param_capability_annotations:
+    | LBRACE;  capability_names=separated_nonempty_list(COMMA,capability_name); RBRACE {capability_names}
+
+param:
+    | maybeBorrowed=option(borrowed_ref); param_type=type_expr; capability_guards=option(param_capability_annotations); param_name=ID;  
+    {Param(param_type, Var_name.of_string param_name, capability_guards, maybeBorrowed)}
+
+method_signature:
+    |  method_name=ID;
+    maybeBorrowed=option(borrowed_ref);  
+    capabilities_used = struct_capability_annotations;
+    method_params=params; ARROW;
+    return_type=type_expr;
+    {TMethodSignature(Method_name.of_string method_name, maybeBorrowed, capabilities_used, method_params, return_type)}
+
+
+method_defn: 
+    | IMPL trait_name=ID;maybe_for_struct=option(for_struct); 
+    LBRACE 
+    method_signatures = method_signature;
+    body=block_expr; RBRACE;
+    {TMethod(Trait_name.of_string trait_name, maybe_for_struct, method_signatures, body)}
+
+for_struct:
+    | FOR; struct_name=ID; {Struct_name.of_string struct_name}
+
+function_defn: 
+    | FUNCTION; 
+    function_name=ID; 
+    maybeBorrowed=option(borrowed_ref); 
+    function_params=params; ARROW;
+    return_type=type_expr; 
+    body=block_expr 
+    {TFunction(Function_name.of_string function_name, maybeBorrowed, return_type, function_params,body)}
+
+// Types
+type_expr : 
+    | struct_name=ID {TEStruct(Struct_name.of_string struct_name)}
+    // | TRAIT trait_name=ID {TETrait(Trait_name.of_string trait_name)}
+    | TYPE_INT  {TEInt} 
+    | TYPE_BOOL {TEBool}
+    | TYPE_VOID {TEVoid}
+
+let_type_annot:
+    | COLON ; type_annot=type_expr {type_annot}
+
+// Expressions
+main_expr:
+    | TYPE_VOID; MAIN; LPAREN; RPAREN; exprs=block_expr {exprs}
+
+block_expr:
+    | LBRACE; exprs=separated_list(SEMICOLON, expr); RBRACE { Block(loc_of_position $startpos, exprs) }
+
+// Method / function arguments
+args:
+    | LPAREN; args=separated_list(COMMA, expr); RPAREN {args}
+
+identifier:
+    | variable=ID {Variable(Var_name.of_string variable)}
+    | obj=ID DOT field=ID {ObjField(Var_name.of_string obj, Field_name.of_string field)}
+
+constructor_args:
+    | field_name=ID; COLON; assigned_expr=expr {ConstructorArg(Field_name.of_string field_name, assigned_expr)}
+    // | constructor_args COMMA LBRACE field_name=ID; COLON; assigned_expr=expr RBRACE {ConstructorArg(Field_name.of_string field_name, assigned_expr)}
 
 expr:
-  | atom_expr                 { $1 }
-  | class_instantiation       { $1 }
-  | expr PLUS expr            { BinOp (Plus, $1, $3) }
-  | expr MINUS expr           { BinOp (Minus, $1, $3) }
-  | expr TIMES expr           { BinOp (Times, $1, $3) }
-  | expr DIV expr             { BinOp (Div, $1, $3) }
-  | expr AND expr             { BinOp (And, $1, $3) }
-  | expr OR expr              { BinOp (Or, $1, $3) }
-  | expr XOR expr             { BinOp (Xor, $1, $3) }
-  | NOT expr                  { Not $2 }
-  | expr LT expr              { BinOp (Lt, $1, $3) }
-  | expr LEQ expr             { BinOp (Leq, $1, $3) }
-  | expr GT expr              { BinOp (Gt, $1, $3) }
-  | expr GEQ expr             { BinOp (Geq, $1, $3) }
-  | expr EQ expr              { BinOp (Eq, $1, $3) }
-  | expr NEQ expr             { BinOp (Neq, $1, $3) }
-  | LPAREN expr RPAREN        { $2 }
-  | ID LPAREN args RPAREN     { Call ($1, $3) }
-  | expr DOT ID LPAREN args RPAREN { InstanceMethodCall ($1, $3, $5) }
-  | LAMBDA LPAREN params RPAREN ARROW LPAREN expr RPAREN { Lambda ($3, $7) }
+    | i=INT {{ loc=loc_of_position $startpos; node=Int(i) }}
+    | TRUE {{ loc=loc_of_position $startpos; node=Boolean(true) }}
+    | FALSE {{ loc=loc_of_position $startpos; node=Boolean(false) }}
+    | LPAREN e=expr RPAREN {e}
+    | id=identifier {{ loc=loc_of_position $startpos; node=Identifier(id) }}
+    | op=un_op; e=expr {{ loc=loc_of_position $startpos; node=UnOp(op,e) }}
+    | e1=expr; op=bin_op; e2=expr {{ loc=loc_of_position $startpos; node=BinOp(op, e1, e2) }}
+    | NEW; var_name=ID; EQUAL; struct_name=ID; LBRACE constructor_args=separated_list(COMMA, constructor_args) RBRACE {{ loc=loc_of_position $startpos; node=Constructor(Var_name.of_string var_name, Struct_name.of_string struct_name, constructor_args) }}
+    | LET; var_name=ID; type_annot=option(let_type_annot);  EQUAL; bound_expr=expr  {{ loc=loc_of_position $startpos; node=Let(type_annot, Var_name.of_string var_name, bound_expr) }} 
+    | id=identifier; COLONEQ; assigned_expr=expr {{ loc=loc_of_position $startpos; node=Assign(id, assigned_expr) }}
+    | obj=ID; DOT; method_name=ID; method_args=args SEMICOLON{{ loc=loc_of_position $startpos; node=MethodApp(Var_name.of_string obj, Method_name.of_string method_name, method_args) }}
+    | fn=ID; fn_args=args SEMICOLON{{ loc=loc_of_position $startpos; node=FunctionApp(Function_name.of_string fn, fn_args) }} 
+    | IF; LPAREN cond_expr=expr; RPAREN then_expr=block_expr; ELSE; else_expr=block_expr {{ loc=loc_of_position $startpos; node=If(cond_expr, then_expr, else_expr) }}
+    | WHILE cond_expr=expr; loop_expr=block_expr {{ loc=loc_of_position $startpos; node=While(cond_expr, loop_expr) }}
+    | FOR; LPAREN; init_expr=expr; SEMICOLON; cond_expr=expr; SEMICOLON; step_expr=expr; RPAREN; loop_expr=block_expr 
+        {{ loc=loc_of_position $startpos; node=For(init_expr, cond_expr, step_expr, loop_expr) }}
 
-atom_expr:
-  | ID                          { Id $1 }
-  | INT                         { IntLiteral $1 }
-  | TRUE                        { BoolLiteral true }
-  | FALSE                       { BoolLiteral false }
-  | STRING                      { StringLiteral $1 }
-  | THIS                        { This }
-  | expr DOT ID { ClassMemberAccess ($1, $3) }
+%inline un_op:
+    | EXCLAMATION_MARK {UnOpNot}
+    | MINUS {UnOpNeg}
 
-class_instantiation: LET ID ASSIGN NEW ID LPAREN args RPAREN { ClassInstantiation ($2, $5, $7) } 
-
-args:
-  | { [] }
-  | expr { [$1] }
-  | expr COMMA args { $1 :: $3 }
+%inline bin_op:
+    | PLUS { BinOpPlus }
+    | MINUS { BinOpMinus }
+    | MULT { BinOpMult }
+    | DIV { BinOpIntDiv } 
+    | REM { BinOpRem }
+    | LANGLE { BinOpLessThan }
+    | LANGLE EQUAL { BinOpLessThanEq }
+    | RANGLE { BinOpGreaterThan }
+    | RANGLE EQUAL{ BinOpGreaterThanEq }
+    | AND {BinOpAnd}
+    | OR {BinOpOr}
+    | EQUAL EQUAL {BinOpEq}
+    | EXCLAMATION_MARK EQUAL {BinOpNotEq}

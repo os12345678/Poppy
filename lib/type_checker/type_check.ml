@@ -1,4 +1,4 @@
-open Poppy_parser.Ast
+(* open Poppy_parser.Ast
 open Scoping
 open Core
 
@@ -171,10 +171,10 @@ let rec type_check_expr class_scope (current_scope : scope) (expr: expr) (curren
     let t2 = type_check_expr class_scope current_scope e2 current_class_info current_method_ret_type in
     print_endline (Printf.sprintf "Binary operator types: %s %s" (typ_to_string t1) (typ_to_string t2));
     (match op with
-    | Plus | Minus | Times | Div when equal_typ t1 Int && equal_typ t2 Int -> Int
-    | Lt | Gt | Leq | Geq when equal_typ t1 Int && equal_typ t2 Int -> Bool
-    | Eq | Neq when equal_typ t1 t2 -> Bool
-    | And | Or when equal_typ t1 Bool && equal_typ t2 Bool -> Bool
+    | BinOpPlus | BinOpMinus | BinOpMult | BinOpIntDiv when equal_typ t1 Int && equal_typ t2 Int -> Int
+    | BinOpGreaterThanEq | BinOpGreaterThan | BinOpLessThan | BinOpLessThanEq when equal_typ t1 Int && equal_typ t2 Int -> Bool
+    | BinOpEq | BinOpNotEq when equal_typ t1 t2 -> Bool
+    | BinOpAnd | BinOpOr when equal_typ t1 Bool && equal_typ t2 Bool -> Bool
   | _ -> raise (Failure "Type error: binary operator types do not match"))
   
   | ClassInstantiation (var_name, class_name, exprs) ->
@@ -484,4 +484,4 @@ let type_check_program (statements : statement list) : unit =
     match stmt with
     | ClassDecl _ -> ()
     | _ -> type_check_statement global_scope global_scope stmt empty_class_info None
-  );
+  ); *)

@@ -1,103 +1,103 @@
 open! Core
+open Ast_types
 
-type bin_op =
-  | Plus
-  | Minus
-  | Times
-  | Div
-  | Lt
-  | Gt
-  | Leq
-  | Geq
-  | Eq
-  | Neq
-  | And
-  | Or
-  | Xor
-[@@deriving sexp_of]
+type identifier = 
+  | Variable of Var_name.t 
+  | ObjField of Var_name.t * Field_name.t
+  [@@deriving sexp]
 
-type incr_decr_op = 
-  | Incr of string
-  | Decr of string
-[@@deriving sexp_of]
+type expr = {
+  loc : loc;
+  node: expr_node
+}
+[@@deriving sexp]
 
-type id_decl = Id of string
-[@@deriving sexp_of]
+and expr_node =
+| Int                 of int
+| Boolean             of bool
+| Identifier          of identifier
+| Let                 of type_expr option * Var_name.t * expr
+| Assign              of identifier * expr  
+| Constructor         of Var_name.t * Struct_name.t * constructor_arg list
+| MethodApp           of Var_name.t * Method_name.t * expr list
+| FunctionApp         of Function_name.t * expr list 
+| FinishAsync         of loc * async_expr list * block_expr
+| If                  of expr * block_expr * block_expr
+| While               of expr * block_expr
+| For                 of expr * expr * expr * block_expr
+| BinOp               of bin_op * expr * expr
+| UnOp                of un_op * expr
+[@@deriving sexp]
 
-type typ = 
-| Int
-| Bool
-| Void
-| String
-| Function of typ list * typ
-| ClassInstance of string
-[@@deriving sexp_of, equal]
+and block_expr = Block of loc * expr list [@@deriving sexp]
 
+and async_expr = AsyncExpr of block_expr [@@deriving sexp]
 
-let string_to_typ s = match s with
-  | "int" -> Int
-  | "bool" -> Bool
-  | "void" -> Void
-  | "string" -> String
-  | _ -> raise (Printf.sprintf "Unknown type: %s" s |> Failure)
+and constructor_arg = ConstructorArg of Field_name.t * expr [@@deriving sexp]
 
-type type_decl = Type of typ
-[@@deriving sexp_of]
+(* 
+struct struct_name {
+  field_name1: type_expr1,
+  field_name2: type_expr2,
+} 
+*)
+type struct_defn = 
+  | TStruct of 
+  Struct_name.t 
+  * capability list (* mode[linear|threadlocal|read|locked|threadsafe|subordinate|encapsulated] * Capability_name.t list *)
+  * field_defn list (* modifier[const|var] * type_expr[int|bool|void] * Field_name.t * Capability_name.t list *)
+  [@@deriving sexp]
 
-type func_param = Param of id_decl * type_decl
-[@@deriving sexp_of]
+type method_signature = 
+  | TMethodSignature of
+    Method_name.t
+    * borrowed_ref option (* borrowed[borrowed|]*)
+    * Capability_name.t list
+    * param list (* type_expr[int|bool|void] * Var_name.t * Capability_name.t list option * borrowed_ref option *)
+    * type_expr (* ret type: int | bool | void *)
+  [@@deriving sexp]
 
-type expr =
-| Expr of expr
-| IntLiteral of int
-| BoolLiteral of bool
-| This
-| VoidType 
-| StringType of string
-| Id of string
-| BinOp of bin_op * expr * expr
-| Not of expr
-| ClassInstantiation of string * string * expr list
-| ClassMemberAccess of expr * string
-| Unit  
-| StringLiteral of string 
-| Lambda of func_param list * expr
-| Call of string * expr list
-| InstanceMethodCall of expr * string * expr list
-[@@deriving sexp_of]
+(* 
+impl trait_name for struct_name {
+  method_name borrowed linearCap(int:x read, int:y subordinate) -> void {
+    body_expr
+  }
+} 
+*)
+type method_defn =
+| TMethod of
+    Trait_name.t
+    * Struct_name.t option 
+    * method_signature
+    * block_expr
+  [@@deriving sexp]
+      
+(*
+trait trait_name {
+  method_name borrowed linearCap(int:x read, int:y subordinate) -> void,
+  method_name2 ...
+}
+*)
+type trait_defn =
+| TTrait of
+    Trait_name.t
+    * method_signature list
+  [@@deriving sexp]
 
-type mutexId = MutexId of string
-[@@deriving sexp_of]
+(*
+fn function_name(param1: type_expr1, param2: type_expr2) -> type_expr3 {
+  body_expr
+}   
+*)
+type function_defn =
+| TFunction of
+    Function_name.t * borrowed_ref option * type_expr * param list * block_expr
+    [@@deriving sexp]
 
-type statement =
-| Let of (id_decl * type_decl) * expr
-| Assign of string * expr
-| If of expr * statement * statement
-| While of expr * statement
-| IncrDecr of string * incr_decr_op
-| For of string * int * expr * incr_decr_op * statement
-| Block of statement list
-| FuncDecl of id_decl * func_param list * type_decl * statement list
-| ClassDecl of id_decl * class_member list
-| ClassMemberAssign of expr * string * expr
-| Thread of statement
-| Return of expr
-| Expr of expr
-| MutexDeclaration of mutexId * type_decl
-| MutexLock of mutexId
-| MutexUnlock of mutexId
-[@@deriving sexp_of]
-
-and class_member =
-  | ClassVar of access_modifier * id_decl * type_decl
-  | ClassMethod of access_modifier * id_decl * func_param list * type_decl * statement list
-[@@deriving sexp_of]
-
-and access_modifier =
-  | Public
-  | Private
-  | Protected
-[@@deriving sexp_of]
-
-let sexp_of_statements statements =
-  Sexp.List (List.map statements ~f:sexp_of_statement)
+type program = Prog of 
+                (struct_defn list) 
+                * (trait_defn list) 
+                * (method_defn list) 
+                * (function_defn list) 
+                * block_expr
+[@@deriving sexp]
