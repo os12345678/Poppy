@@ -45,5 +45,5 @@ let check_no_duplicate_method_names trait_defn =
       |> Result.all_unit *)
 
     
-let type_return_type (Ast.TTrait (_,_,_,type_expr,_))= 
-  check_type_valid trait_defn 
+(* let type_return_type (Ast.TTrait (_,_,_,type_expr,_))= 
+  check_type_valid trait_defn  *)
