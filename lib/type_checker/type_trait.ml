@@ -17,7 +17,7 @@ trait trait_name {
   [@@deriving sexp] *)
 
 let check_no_duplicate_trait_names trait_defn =
-  let trait_names = List.map ~f:(fun (Ast.TTrait (trait_name, _, _, _, _)) -> trait_name) trait_defn in
+  let trait_names = List.map ~f:(fun (Ast.TTrait (trait_name, _)) -> trait_name) trait_defn in
   let trait_names_as_strings = List.map ~f:Ast_types.Trait_name.to_string trait_names in
   if List.contains_dup ~compare:String.compare trait_names_as_strings
   then
@@ -25,14 +25,14 @@ let check_no_duplicate_trait_names trait_defn =
   else
     Ok ()
 
-let check_no_duplicate_method_names trait_defn =
-  let method_names = List.map ~f:(fun (Ast.TTrait (_, method_name, _, _, _)) -> method_name) trait_defn in
+(* let check_no_duplicate_method_names trait_defn =
+  let method_names = List.map ~f:(fun (Ast.TTrait (_, method_name)) -> method_name) trait_defn in
   let method_names_as_strings = List.map ~f:Ast_types.Method_name.to_string method_names in
   if List.contains_dup ~compare:String.compare method_names_as_strings
   then
     Or_error.errorf "Duplicate method signatures found"
   else
-    Ok ()
+    Ok () *)
 
     (* let type_field_defn struct_defn = 
       let check_field (Ast_types.TField (_modifier, type_expr, _field_name, _capability_list)) =
