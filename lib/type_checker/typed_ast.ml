@@ -16,6 +16,7 @@ and expr_node =
 | TIdentifier          of typed_identifier
 | TLet                 of type_expr option * Var_name.t * expr
 | TAssign              of typed_identifier * expr  
+| TConstructor         of Var_name.t * Struct_name.t * constructor_arg list
 | TMethodApp           of Var_name.t * Method_name.t * expr list
 | TFunctionApp         of Function_name.t * expr list 
 | TFinishAsync         of loc * async_expr list * block_expr
@@ -37,6 +38,8 @@ and block_expr = Block of loc * type_expr * expr list [@@deriving sexp]
 
 and async_expr = AsyncExpr of block_expr [@@deriving sexp]
 
+and constructor_arg = ConstructorArg of Field_name.t * expr [@@deriving sexp]
+
 (* 
 struct struct_name {
   field_name1: type_expr1,
@@ -46,13 +49,22 @@ struct struct_name {
 type struct_defn = 
   | TStruct of 
   Struct_name.t 
-  * capability list
-  * field_defn list
+  * capability list (* mode[linear|threadlocal|read|locked|threadsafe|subordinate|encapsulated] * Capability_name.t list *)
+  * field_defn list (* modifier[const|var] * type_expr[int|bool|void] * Field_name.t * Capability_name.t list *)
+  [@@deriving sexp]
+
+type method_signature = 
+  | TMethodSignature of
+    Method_name.t
+    * borrowed_ref option (* borrowed[borrowed|]*)
+    * Capability_name.t list
+    * param list (* type_expr[int|bool|void] * Var_name.t * Capability_name.t list option * borrowed_ref option *)
+    * type_expr (* ret type: int | bool | void *)
   [@@deriving sexp]
 
 (* 
 impl trait_name for struct_name {
-  fn method_name(param1: type_expr1, param2: type_expr2) -> type_expr3 {
+  method_name borrowed linearCap(int:x read, int:y subordinate) -> void {
     body_expr
   }
 } 
@@ -60,25 +72,21 @@ impl trait_name for struct_name {
 type method_defn =
 | TMethod of
     Trait_name.t
-    * Struct_name.t option (* impl trait_name for struct_name *)
-    * borrowed_ref option
-    * type_expr
-    * param list
+    * Struct_name.t option 
+    * method_signature
     * block_expr
   [@@deriving sexp]
       
 (*
 trait trait_name {
-  fn method_name(param1: type_expr1, param2: type_expr2) -> type_expr3;
+  method_name borrowed linearCap(int:x read, int:y subordinate) -> void,
+  method_name2 ...
 }
 *)
 type trait_defn =
-| TETrait of
+| TTrait of
     Trait_name.t
-    * Method_name.t
-    * borrowed_ref option
-    * type_expr
-    * param list
+    * method_signature list
   [@@deriving sexp]
 
 (*
@@ -92,9 +100,9 @@ type function_defn =
     [@@deriving sexp]
 
 type program = Prog of 
-                struct_defn list
-                * trait_defn list
-                * method_defn list
-                * function_defn list
+                (struct_defn list) 
+                * (trait_defn list) 
+                * (method_defn list) 
+                * (function_defn list) 
                 * block_expr
 [@@deriving sexp]
