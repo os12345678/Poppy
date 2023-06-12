@@ -5,19 +5,22 @@ open Core
 (* open Type_functions *)
 (* open Typed_ast *)
 
-let type_identifier (_struct_defn: Ast.struct_defn list) (_function_defn: Ast.function_defn list) 
-  (id: Ast.identifier) (ctx: context) (loc: loc) =
+let type_identifier struct_defns _function_defns
+  (id: Ast.identifier) context loc =
   let open Result in
   match id with
   | Ast.Variable var ->
-    get_var_type ctx var loc
+    get_var_type context var loc
       >>| fun var_type -> (Typed_ast.TVariable (var, var_type), var_type)
-  | Ast.ObjField (_var, _field_name) -> Or_error.error_string "ObjField not implemented"
+  | Ast.ObjField (var_name, field_name) -> 
+    get_obj_struct_defn var_name struct_defns context loc 
+    >>= fun struct_defn ->
+      get_struct_field field_name struct_defns struct_defn loc
+      >>| fun field_type -> 
+        (Typed_ast.TObjField (var_name, field_name, field_type), field_type)
 
 let type_args type_expr_fn args env =
-  let open Result in
   Result.all (List.map ~f:(fun expr -> type_expr_fn expr env) args)
-  >>| fun typed_args_exprs_and_types -> List.unzip typed_args_exprs_and_types
 
 let type_constructor_args struct_defn struct_name constructor_args 
 (type_expr_fn: Ast.expr -> context -> (Typed_ast.expr, Base.Error.t) Result.t) loc context =
@@ -71,20 +74,11 @@ let rec type_expr (struct_defns: Ast.struct_defn list) (trait_defns: Ast.trait_d
       Ok ({Typed_ast.loc = expr.loc; typ = var_type; node = TLet (type_annot_maybe, var_name, typed_expr)})
 
   | Ast.Constructor(var_name, struct_name, constructor_args) ->
-    begin match List.find struct_defns ~f:(fun sd -> 
-            match sd with
-            | TStruct (name, _, _) -> Struct_name.(=) name struct_name
-        ) with
-    | None -> 
-        Or_error.error_string 
-        (Fmt.str "%s Type error - No matching struct definition for struct name: %s" 
-            (string_of_loc expr.loc) (Struct_name.to_string struct_name))
-    | Some struct_defn ->
-        type_constructor_args struct_defn struct_name constructor_args type_with_defns expr.loc context
-        >>= fun typed_constructor_args ->
-          print_endline (Struct_name.to_string struct_name);
-        Ok ({Typed_ast.loc = expr.loc; typ = Ast_types.TEStruct (struct_name); node = TConstructor (var_name, struct_name, typed_constructor_args)})
-    end
+    get_struct_defn struct_name struct_defns expr.loc
+    >>= fun struct_defn ->
+      type_constructor_args struct_defn struct_name constructor_args type_with_defns expr.loc context
+      >>= fun typed_constructor_args ->
+      Ok ({Typed_ast.loc = expr.loc; typ = Ast_types.TEStruct (struct_name); node = TConstructor (var_name, struct_name, typed_constructor_args)})
     
   | Ast.Assign (id, assignable_expr) -> 
       identifier_assignable id expr.loc
@@ -100,20 +94,24 @@ let rec type_expr (struct_defns: Ast.struct_defn list) (trait_defns: Ast.trait_d
         (Fmt.str "%s Type error - Trying to assign type %s to a field of type %s" 
           (string_of_loc expr.loc) (string_of_type typed_expr.typ) (string_of_type id_type))
 
-  | Ast.MethodApp (_,_,_) -> Or_error.error_string "MethodApp Not implemented"
+  | Ast.MethodApp (_var_name,_method_name,_args_expr) -> Or_error.error_string "MethodApp not implemented"
+    (* get_obj_struct_defn var_name struct_defns context expr.loc
+    >>= fun ((Ast.TStruct (struct_name, _, _) as struct_defn)) ->
+      type_args type_with_defns args_expr context
+      >>= fun typed_args_exprs ->
+        get_matching_method_type struct_name struct_defn method_defns expr.loc
+        >>| fun (return_type) -> 
+          ({Typed_ast.loc = expr.loc; typ = return_type; node = TMethodApp (var_name, method_name, typed_args_exprs)}) *)
 
-  | Ast.FunctionApp(_,_) -> Or_error.error_string "MethodApp Not implemented"
-  (* | Ast.FunctionApp (func_name,arg_expr) -> 
-    type_args type_with_defns arg_expr context
-    >>= fun (typed_arg_exprs, arg_expr_types) ->
-    get_function_type function_defns func_name expr.loc
-    >>= fun (func_type, return_type) ->
-    if phys_equal arg_expr_types func_type then
-      Ok ({Typed_ast.loc = expr.loc; typ = return_type; node = TFunctionApp (func_name, typed_arg_exprs)}, return_type)
-    else
-      Or_error.error_string 
-      (Fmt.str "%s Type error - Function arguments do not match function type: %s" 
-        (string_of_loc expr.loc) (string_of_type func_type)) *)
+
+
+  | Ast.FunctionApp(func_name, args_expr) ->
+    type_args type_with_defns args_expr context
+    >>= fun typed_args_exprs ->
+    get_matching_function_type func_name function_defns expr.loc
+    >>| fun (return_type) -> 
+      ({Typed_ast.loc = expr.loc; typ = return_type; node = TFunctionApp (func_name, typed_args_exprs)})
+
   | Ast.FinishAsync (_,_,_) -> Or_error.error_string "FinishAsync Not implemented"
 
   | Ast.If (cond, then_expr, else_expr) ->
@@ -202,20 +200,20 @@ let rec type_expr (struct_defns: Ast.struct_defn list) (trait_defns: Ast.trait_d
         (string_of_loc expr.loc) (string_of_type typed_lhs.typ) (string_of_type typed_rhs.typ))
   (* | Ast.UnOp (unop, unop_expr) ->
     type_with_defns unop_expr context
-    >>= fun (typed_unop_expr, unop_expr_type) ->  
+    >>= fun typed_unop_expr ->  
     match unop with
-    | UnOpNeg -> if phys_equal unop_expr_type TEInt then 
+    | UnOpNeg -> if phys_equal typed_unop_expr.typ TEInt then 
       Ok ({Typed_ast.loc = expr.loc; typ = TEInt; node = TUnOp (unop, typed_unop_expr)}, TEInt)
       else
         Or_error.error_string 
         (Fmt.str "%s Type error - Unary operation operand must be an integer: %s" 
-          (string_of_loc expr.loc) (string_of_type unop_expr_type))
-    | UnOpNot -> if phys_equal unop_expr_type TEBool then 
+          (string_of_loc expr.loc) (string_of_type typed_unop_expr.typ))
+    | UnOpNot -> if phys_equal typed_unop_expr.typ TEBool then 
       Ok ({Typed_ast.loc = expr.loc; typ = TEBool; node = TUnOp (unop, typed_unop_expr)}, TEBool)
       else
         Or_error.error_string 
         (Fmt.str "%s Type error - Unary operation operand must be a boolean: %s" 
-          (string_of_loc expr.loc) (string_of_type unop_expr_type)) *)
+          (string_of_loc expr.loc) (string_of_type typed_unop_expr.typ)) *)
   | Ast.UnOp (_,_) -> Or_error.error_string "UnOp Not implemented"
 
 and type_block_expr (struct_defns: Ast.struct_defn list) (trait_defns: Ast.trait_defn list) (method_defns: Ast.method_defn list)
@@ -238,6 +236,12 @@ and type_block_expr (struct_defns: Ast.struct_defn list) (trait_defns: Ast.trait
     (let updated_env =
         match typed_expr1.node with
         | TLet (_, var_name, _) -> 
+        begin
+          match add_variable new_context var_name typed_expr1.typ with
+          | Ok updated_context -> updated_context
+          | Error err -> failwith err
+        end
+        | TConstructor (var_name, _, _) ->
         begin
           match add_variable new_context var_name typed_expr1.typ with
           | Ok updated_context -> updated_context
