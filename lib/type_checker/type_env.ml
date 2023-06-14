@@ -99,6 +99,59 @@ let get_matching_trait_defn var_name trait_defns context loc =
                   (Var_name.to_string var_name)
                   (string_of_type wrong_type)))
 
+(* This function retrieves the method definition for a given method name from a list of trait definitions *)
+let get_method_defn method_name trait_defns loc =
+  (* First, flatten the list of method signatures from all trait definitions *)
+  let all_method_signatures = List.concat_map ~f:(fun defn -> 
+    match defn with
+    | Ast.TTrait (_, signatures) -> signatures) trait_defns in
+  (* Then, find the method signature with the given method name *)
+  match List.find ~f:(fun (TMethodSignature (name, _, _, _, _)) -> Method_name.(=) name method_name) all_method_signatures with
+  | None -> Or_error.error_string 
+                (Fmt.str "Method %s not found at %s" (Method_name.to_string method_name) (string_of_loc loc))
+  | Some method_signature -> match method_signature with 
+    | TMethodSignature (_, _, _, _, method_ret_type) -> Ok method_ret_type
+    
+(* This function retrieves the trait definitions for a given struct *)
+let get_struct_trait_defns struct_defn method_defns trait_defns loc =
+  let struct_name = match struct_defn with
+    | Ast.TStruct (name, _, _) -> name in
+  (* First, find all the method definitions for the given struct *)
+  let methods_for_struct = List.filter ~f:(fun defn -> match defn with
+                                                      | Ast.TMethod (_, Some name, _, _) -> Struct_name.(=) name struct_name
+                                                      | _ -> false) method_defns in
+  (* Then, extract the trait names from these method definitions *)
+  let trait_names = List.map ~f:(fun (TMethod (trait_name, _, _, _)) -> trait_name) methods_for_struct in
+  (* Finally, find the trait definitions corresponding to these trait names *)
+  let trait_defns_for_struct = List.filter ~f:(fun (Ast.TTrait (trait_name, _)) -> List.mem trait_names trait_name ~equal:Trait_name.(=)) trait_defns in
+  if List.is_empty trait_defns_for_struct then
+    Or_error.error_string 
+        (Fmt.str "No traits found for struct %s at %s" (Struct_name.to_string struct_name) (string_of_loc loc))
+  else
+    Ok trait_defns_for_struct
+    
+
+(* let check_argument_types (Ast.TMethod (_, _, TMethodSignature (_, _, _, params, _), _)) typed_args loc =
+  let expected_types = List.map ~f:type_of_param params in
+  let arg_types = List.map ~f:(fun { Typed_ast.typ; _ } -> typ) typed_args in
+  if List.equal ~equal:Type.equal expected_types arg_types then
+    Ok ()
+  else
+    Or_error.error_string 
+        (Fmt.str "Type error at %s - Argument types do not match method signature" (string_of_loc loc))
+     *)
+
+
+(* let check_method_exists_for_struct struct_defn method_defn loc =
+  match struct_defn, method_defn with
+  | Ast.TStruct (struct_name, _, _), Ast.TMethod (trait_name, _, _, _) ->
+    if List.exists ~f:(fun trait -> Trait_name.(=) trait trait_name) struct_defn.traits then
+      Ok ()
+    else
+      Error (Error.of_string (Fmt.str "%s Method %s does not exist for struct %s" (string_of_loc loc) (Method_name.to_string method_defn.method_name) (Struct_name.to_string struct_name)))
+  | _ -> Error (Error.of_string (Fmt.str "%s Type error - check_method_exists_for_struct received wrong types" (string_of_loc loc)))
+                 *)
+
 (* find matching function return type *)
 let get_matching_function_type func_name function_defns loc = 
   let matching_func_name = 
@@ -132,26 +185,20 @@ let get_struct_field field_name _struct_defns
     | _ -> Error  (Core.Error.of_string 
                   (Fmt.str "%s Field %s has multiple definitions with same name" (string_of_loc loc) (Field_name.to_string field_name)))
 
-
-  (* let check_no_duplicate_var_declarations_in_block (exprs: Ast.expr list) (loc: loc) : (unit, string) Result.t =
-    let open Result in
-    let var_set = VarNameMap.empty in
-    let rec check_duplicates exprs var_set =
-      match exprs with
-      | [] -> Ok ()
-      | expr :: rest ->
-        match expr with
-        | Ast.Let (_, var_name, _) ->
-          if VarNameMap.mem var_set var_name then
-            Error (Fmt.str "%d:%d Type error - Variable %s already declared in this block" loc.lnum loc.cnum (Var_name.to_string var_name))
-          else
-            let updated_set = VarNameMap.add var_set var_name in
-            check_duplicates rest updated_set
-        | _ -> check_duplicates rest var_set
-    in
-    check_duplicates exprs var_set
-   *)
-
+  let check_no_duplicate_var_declarations_in_block (exprs: Ast.expr list) loc =
+    if List.contains_dup ~compare: (
+      fun expr1 expr2 ->
+        match expr1.node with 
+        | Ast.Let (_, var_name1, _) -> 
+          (match expr2.node with 
+          | Ast.Let (_, var_name2, _) -> 
+            if Var_name.(=) var_name1 var_name2 then 0 else 1 
+          | _ -> 1)
+        | _ -> 1) exprs then
+      Error (Error.of_string 
+              (Fmt.str "%s Type error - Duplicate variable declarations in same block" (string_of_loc loc)))
+    else Ok ()
+  
 let rec print_context (ctx: context) : unit =
   match ctx with
   | [] -> ()

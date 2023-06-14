@@ -49,6 +49,7 @@ match struct_defn with
 let rec type_expr (struct_defns: Ast.struct_defn list) (trait_defns: Ast.trait_defn list) (method_defns: Ast.method_defn list)
 (function_defns: Ast.function_defn list) (expr: Ast.expr) context : (Typed_ast.expr, Base.Error.t) Result.t =
   let open Result in 
+  let open Core.Result.Let_syntax in
   let type_with_defns = type_expr struct_defns trait_defns method_defns function_defns in
   let type_block_with_defns = type_block_expr struct_defns trait_defns method_defns function_defns in
   match expr.node with
@@ -57,14 +58,12 @@ let rec type_expr (struct_defns: Ast.struct_defn list) (trait_defns: Ast.trait_d
   | Ast.Boolean b -> Ok ({Typed_ast.loc = expr.loc; typ = TEBool; node = TBoolean b})
 
   | Ast.Identifier id ->
-    type_identifier struct_defns function_defns id context expr.loc
-    >>| fun (typed_id, id_type) -> ({Typed_ast.loc = expr.loc; typ = id_type; node = TIdentifier typed_id})
+    let%map (typed_id, id_type) = type_identifier struct_defns function_defns id context expr.loc in
+    ({Typed_ast.loc = expr.loc; typ = id_type; node = TIdentifier typed_id})
 
   | Ast.Let (type_annot_maybe, var_name, let_expr)-> 
-      is_this var_name expr.loc 
-    >>= fun () ->
-      type_with_defns let_expr context
-      >>= fun (typed_expr) -> 
+      let%bind () = is_this var_name expr.loc in
+      let%bind typed_expr = type_with_defns let_expr context in
       let var_type = match type_annot_maybe with
         | Some type_annot -> if phys_equal type_annot typed_expr.typ then type_annot
           else failwith (Fmt.str "%s Type error - Let expression type %s does not match type annotation %s" 
@@ -74,19 +73,14 @@ let rec type_expr (struct_defns: Ast.struct_defn list) (trait_defns: Ast.trait_d
       Ok ({Typed_ast.loc = expr.loc; typ = var_type; node = TLet (type_annot_maybe, var_name, typed_expr)})
 
   | Ast.Constructor(var_name, struct_name, constructor_args) ->
-    get_struct_defn struct_name struct_defns expr.loc
-    >>= fun struct_defn ->
-      type_constructor_args struct_defn struct_name constructor_args type_with_defns expr.loc context
-      >>= fun typed_constructor_args ->
+    let%bind struct_defn = get_struct_defn struct_name struct_defns expr.loc in
+    let%bind typed_constructor_args = type_constructor_args struct_defn struct_name constructor_args type_with_defns expr.loc context in
       Ok ({Typed_ast.loc = expr.loc; typ = Ast_types.TEStruct (struct_name); node = TConstructor (var_name, struct_name, typed_constructor_args)})
     
   | Ast.Assign (id, assignable_expr) -> 
-      identifier_assignable id expr.loc
-    >>= fun () ->
-      type_with_defns assignable_expr context
-    >>= fun (typed_expr) ->
-      type_identifier struct_defns function_defns id context expr.loc
-    >>= fun (typed_id, id_type) ->
+      let%bind () = identifier_assignable id expr.loc in
+      let%bind typed_expr = type_with_defns assignable_expr context in
+      let%bind (typed_id, id_type) = type_identifier struct_defns function_defns id context expr.loc in 
       if phys_equal id_type typed_expr.typ then
         Ok ({Typed_ast.loc = expr.loc; typ = id_type; node = TAssign (typed_id, typed_expr)})
       else
@@ -94,33 +88,24 @@ let rec type_expr (struct_defns: Ast.struct_defn list) (trait_defns: Ast.trait_d
         (Fmt.str "%s Type error - Trying to assign type %s to a field of type %s" 
           (string_of_loc expr.loc) (string_of_type typed_expr.typ) (string_of_type id_type))
 
-  | Ast.MethodApp (_var_name,_method_name,_args_expr) -> Or_error.error_string "MethodApp not implemented"
-    (* get_obj_struct_defn var_name struct_defns context expr.loc
-    >>= fun ((Ast.TStruct (struct_name, _, _) as struct_defn)) ->
-      type_args type_with_defns args_expr context
-      >>= fun typed_args_exprs ->
-        get_matching_method_type struct_name struct_defn method_defns expr.loc
-        >>| fun (return_type) -> 
-          ({Typed_ast.loc = expr.loc; typ = return_type; node = TMethodApp (var_name, method_name, typed_args_exprs)}) *)
-
-
+  | Ast.MethodApp (obj_name, method_name, args) ->
+    let%bind struct_defn = get_obj_struct_defn obj_name struct_defns context expr.loc in
+    let%bind trait_defns = get_struct_trait_defns struct_defn method_defns trait_defns expr.loc in
+    let%bind method_defn_type = get_method_defn method_name trait_defns expr.loc in
+    let%bind typed_args = type_args type_with_defns args context in
+    Ok ({Typed_ast.loc = expr.loc; typ = method_defn_type; node = TMethodApp (obj_name, method_name, typed_args)})
 
   | Ast.FunctionApp(func_name, args_expr) ->
-    type_args type_with_defns args_expr context
-    >>= fun typed_args_exprs ->
-    get_matching_function_type func_name function_defns expr.loc
-    >>| fun (return_type) -> 
+    let%bind typed_args_exprs = type_args type_with_defns args_expr context in
+    let%map return_type = get_matching_function_type func_name function_defns expr.loc in
       ({Typed_ast.loc = expr.loc; typ = return_type; node = TFunctionApp (func_name, typed_args_exprs)})
 
   | Ast.FinishAsync (_,_,_) -> Or_error.error_string "FinishAsync Not implemented"
 
   | Ast.If (cond, then_expr, else_expr) ->
-    type_with_defns cond context
-    >>= fun (typed_cond) ->
-    type_block_with_defns then_expr context
-    >>= fun (typed_then_expr) ->
-    type_block_with_defns else_expr context
-    >>= fun (typed_else_expr) ->
+    let%bind typed_cond = type_with_defns cond context in
+    let%bind typed_then_expr = type_block_with_defns then_expr context in
+    let%bind typed_else_expr = type_block_with_defns else_expr context in
     if phys_equal typed_cond.typ TEBool then
       if phys_equal typed_then_expr typed_else_expr then
         Ok ({Typed_ast.loc = expr.loc; typ = typed_cond.typ; node = TIf (typed_cond, typed_then_expr, typed_else_expr)})
@@ -134,10 +119,8 @@ let rec type_expr (struct_defns: Ast.struct_defn list) (trait_defns: Ast.trait_d
         (string_of_loc expr.loc) (string_of_type typed_cond.typ))
 
   | Ast.While (cond_expr, block_expr) ->
-    type_with_defns cond_expr context
-    >>= fun (typed_cond_expr) ->
-    type_block_with_defns block_expr context
-    >>= fun (typed_block_expr) ->
+    let%bind typed_cond_expr = type_with_defns cond_expr context in
+    let%bind typed_block_expr = type_block_with_defns block_expr context in
     if phys_equal typed_cond_expr.typ TEBool then
       Ok ({Typed_ast.loc = expr.loc; typ = TEVoid; node = TWhile (typed_cond_expr, typed_block_expr)})
     else
@@ -146,14 +129,10 @@ let rec type_expr (struct_defns: Ast.struct_defn list) (trait_defns: Ast.trait_d
         (string_of_loc expr.loc) (string_of_type typed_cond_expr.typ))
 
   | Ast.For (start_expr, cond_expr, step_expr, block_expr) ->
-    type_with_defns start_expr context
-    >>= fun (typed_start_expr) ->
-    type_with_defns cond_expr context
-    >>= fun (typed_cond_expr) ->
-    type_with_defns step_expr context
-    >>= fun (typed_step_expr) ->
-    type_block_with_defns block_expr context
-    >>= fun (typed_block_expr) ->
+    let%bind typed_start_expr = type_with_defns start_expr context in
+    let%bind typed_cond_expr = type_with_defns cond_expr context in
+    let%bind typed_step_expr = type_with_defns step_expr context in
+    let%bind typed_block_expr = type_block_with_defns block_expr context in
     if phys_equal typed_cond_expr.typ TEBool then 
       if phys_equal typed_start_expr.typ TEInt && phys_equal typed_step_expr.typ TEInt then
         Ok ({Typed_ast.loc = expr.loc; typ = TEVoid; node = TFor (typed_start_expr, typed_cond_expr, typed_step_expr, typed_block_expr)})
@@ -167,10 +146,8 @@ let rec type_expr (struct_defns: Ast.struct_defn list) (trait_defns: Ast.trait_d
         (string_of_loc expr.loc) (string_of_type typed_cond_expr.typ))
 
   | Ast.BinOp (binop, lhs, rhs) ->
-    type_with_defns lhs context
-    >>= fun (typed_lhs) ->
-    type_with_defns rhs context
-    >>= fun (typed_rhs) ->
+    let%bind typed_lhs = type_with_defns lhs context in
+    let%bind typed_rhs = type_with_defns rhs context in
     if phys_equal typed_lhs.typ typed_rhs.typ then 
       match binop with
       | BinOpPlus | BinOpMinus | BinOpMult | BinOpIntDiv | BinOpRem ->
@@ -222,8 +199,8 @@ and type_block_expr (struct_defns: Ast.struct_defn list) (trait_defns: Ast.trait
   let type_with_defns = type_expr struct_defns trait_defns method_defns function_defns in
   let type_block_with_defns = type_block_expr struct_defns trait_defns method_defns function_defns in
   let new_context = Type_env.push_scope context in
-  (* check_no_duplicate_var_declarations_in_block exprs loc
->>= fun () -> *)
+  check_no_duplicate_var_declarations_in_block exprs loc
+>>= fun () ->
   match exprs with 
   | [] -> Ok (Typed_ast.Block (loc, TEVoid, []))
   | [expr] ->
