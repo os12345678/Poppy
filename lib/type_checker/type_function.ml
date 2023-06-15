@@ -1,6 +1,8 @@
 open Poppy_parser
 open Type_env
 open Core 
+open Core.Result
+open Core.Result.Let_syntax
 
 let equal_type_expr t1 t2 =
   match t1, t2 with
@@ -43,8 +45,6 @@ let check_valid_return_type function_defn struct_defns =
   let type_function_defn 
   struct_defns trait_defns method_defns function_defns
   (Ast.TFunction (function_name, borrowed_ref, return_type, params, block_expr) as current_function_defn) = 
-  let open Result in
-  let open Core.Result.Let_syntax in
   let%bind () = check_no_duplicate_function_names [current_function_defn] in
   let%bind () = check_valid_function_parameters [current_function_defn] struct_defns in
   let%bind () = check_valid_return_type [current_function_defn] struct_defns in

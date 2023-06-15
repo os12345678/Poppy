@@ -1,6 +1,8 @@
 open Poppy_parser
 open Type_env
-open Core 
+open Core
+open Core.Result
+open Core.Result.Let_syntax
 
 (* Check struct invariances *)
 
@@ -38,8 +40,6 @@ let init_env_from_params params =
   | `Ok map -> Ok [map]
 
 let type_struct_defn (Ast.TStruct (struct_name, capability_list, field_defn_list) as current_struct_defn) = 
-  let open Result in
-  let open Core.Result.Let_syntax in
   let%bind () = check_no_duplicate_struct_names [current_struct_defn] in
     let%bind () = check_no_duplicate_fields [current_struct_defn] in
       let%bind () = type_field_defn [current_struct_defn] in
@@ -47,7 +47,6 @@ let type_struct_defn (Ast.TStruct (struct_name, capability_list, field_defn_list
   Ok typed_struct_defn
   
 let type_struct_defns struct_defns = 
-  let open Core.Result.Let_syntax in
   let%bind () = check_no_duplicate_struct_names struct_defns in
     let%bind () = check_no_duplicate_fields struct_defns in
   Result.all (List.map ~f:type_struct_defn struct_defns)

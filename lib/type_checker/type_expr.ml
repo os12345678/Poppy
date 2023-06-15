@@ -2,12 +2,13 @@ open Poppy_parser.Ast_types
 open Poppy_parser
 open Type_env
 open Core  
+open Core.Result
+open Core.Result.Let_syntax
 (* open Type_functions *)
 (* open Typed_ast *)
 
 let type_identifier struct_defns _function_defns
   (id: Ast.identifier) context loc =
-  let open Result in
   match id with
   | Ast.Variable var ->
     get_var_type context var loc
@@ -24,7 +25,6 @@ let type_args type_expr_fn args env =
 
 let type_constructor_args struct_defn struct_name constructor_args 
 (type_expr_fn: Ast.expr -> context -> (Typed_ast.expr, Base.Error.t) Result.t) loc context =
-let open Result in
 match struct_defn with
 | Ast.TStruct (_, _, fields) ->
   let rec check_args args field_defs =
@@ -48,8 +48,6 @@ match struct_defn with
 
 let rec type_expr (struct_defns: Ast.struct_defn list) (trait_defns: Ast.trait_defn list) (method_defns: Ast.method_defn list)
 (function_defns: Ast.function_defn list) (expr: Ast.expr) context : (Typed_ast.expr, Base.Error.t) Result.t =
-  let open Result in 
-  let open Core.Result.Let_syntax in
   let type_with_defns = type_expr struct_defns trait_defns method_defns function_defns in
   let type_block_with_defns = type_block_expr struct_defns trait_defns method_defns function_defns in
   match expr.node with
@@ -195,7 +193,6 @@ let rec type_expr (struct_defns: Ast.struct_defn list) (trait_defns: Ast.trait_d
 
 and type_block_expr (struct_defns: Ast.struct_defn list) (trait_defns: Ast.trait_defn list) (method_defns: Ast.method_defn list)
 (function_defns: Ast.function_defn list) (Ast.Block (loc, exprs)) context =
-  let open Result in 
   let type_with_defns = type_expr struct_defns trait_defns method_defns function_defns in
   let type_block_with_defns = type_block_expr struct_defns trait_defns method_defns function_defns in
   let new_context = Type_env.push_scope context in
