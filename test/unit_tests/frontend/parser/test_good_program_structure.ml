@@ -36,8 +36,8 @@ fn add(int a, int b) -> int {
 
 void main() {
     new p = Point { x: 1, y: 2};
-    //p.move(3, 4)
-    let sum = add(p.x, p.y); //not working
+    p.move(3, 4);
+    let sum = add(p.x, p.y) //not working
 }
   "
   in 
@@ -88,6 +88,11 @@ void main() {
     \n     (Constructor p Point\
     \n      ((ConstructorArg x ((loc ((lnum 25) (cnum 24))) (node (Int 1))))\
     \n       (ConstructorArg y ((loc ((lnum 25) (cnum 30))) (node (Int 2))))))))\
+    \n   ((loc ((lnum 26) (cnum 5)))\
+    \n    (node\
+    \n     (MethodApp p move\
+    \n      (((loc ((lnum 26) (cnum 12))) (node (Int 3)))\
+    \n       ((loc ((lnum 26) (cnum 15))) (node (Int 4)))))))\
     \n   ((loc ((lnum 27) (cnum 5)))\
     \n    (node\
     \n     (Let () sum\
