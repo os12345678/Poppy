@@ -25,6 +25,13 @@ let rec get_var_type (ctx: context) (var: Var_name.t) loc =
     | Some t -> Ok t
     | None -> get_var_type parent_ctx var loc
 
+let has_duplicates l ~equal =
+  let rec aux seen = function
+    | [] -> false
+    | h :: t -> if List.exists ~f:(equal h) seen then true else aux (h :: seen) t
+  in
+  aux [] l
+
 let get_struct_defn struct_name struct_defns loc = 
   let matching_struct_name = 
     List.filter ~f: (fun (Ast.TStruct (name, _, _)) -> Struct_name.(=) name struct_name) struct_defns in
@@ -71,7 +78,7 @@ let check_type_valid struct_defn_list type_expr =
     let struct_names = List.map ~f:(function Ast.TStruct (name, _, _) -> name) struct_defn_list in
     if List.mem struct_names struct_name ~equal:Struct_name.(=) then Ok ()
     else Or_error.error_string "Type not defined"
-  | TETrait _trait_name -> Or_error.error_string "Trait type not implemented"
+  | TETrait _trait_name -> Or_error.error_string "check_type_valid: Trait type not implemented"
 
 let get_obj_struct_defn var_name struct_names context loc = 
   let open Result in 
