@@ -18,6 +18,7 @@ module type ID = sig
   val to_string : t -> string
   val ( = ) : t -> t -> bool
   val compare: t -> t -> int
+  val hash : t -> int
 end
 
 module String_id = struct
@@ -27,6 +28,7 @@ module String_id = struct
   let to_string x = x
   let ( = ) = String.( = )
   let compare = String.compare
+  let hash = Hashtbl.hash
 end
 
 module Var_name : ID = String_id [@@deriving sexp]
@@ -84,8 +86,7 @@ let string_of_cap (TCapability (mode, cap_name)) =
   [@@deriving sexp]
         
   type param =
-  | Param of type_expr * Var_name.t * Capability_name.t list option * borrowed_ref option
-[@@deriving sexp]
+  | Param of type_expr * Var_name.t * Capability_name.t list option * borrowed_ref option [@@deriving sexp]
 let get_params_types params =
   List.map ~f:(fun (Param (param_type, _,_,_)) -> param_type) params
   [@@deriving sexp]
