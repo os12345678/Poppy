@@ -66,15 +66,20 @@ let string_of_maybe_borrowed_ref = function Some Borrowed -> "Borrowed " | None 
 
 type type_expr =
   | TEInt
-  | TEStruct of Struct_name.t 
-  | TETrait of Trait_name.t
+  | TEStruct of Struct_name.t
+  | TETrait of Trait_name.t * type_expr option
   | TEVoid
   | TEBool
   [@@deriving sexp]
-let string_of_type = function
+let rec string_of_type = function
   | TEInt -> "Int"
   | TEStruct struct_name -> Struct_name.to_string struct_name
-  | TETrait interface_name -> Trait_name.to_string interface_name
+  | TETrait (trait_name, maybe_type_param) ->
+    let maybe_type_param_str =
+      match maybe_type_param with
+      | Some type_param -> Fmt.str "<%s>" (string_of_type type_param)
+      | None            -> "" in
+    Fmt.str "%s%s" (Trait_name.to_string trait_name) maybe_type_param_str
   | TEVoid -> "Void"
   | TEBool -> "Bool"
   [@@deriving sexp]
