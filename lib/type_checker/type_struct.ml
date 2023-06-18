@@ -21,7 +21,7 @@ let check_no_duplicate_fields struct_defn =
   else
     Ok ()
 
-let type_field_defn struct_defn = 
+(* let type_field_defn struct_defn = 
   let check_field (Ast_types.TField (_modifier, type_expr, _field_name, _capability_list)) =
     check_type_valid struct_defn type_expr
   in
@@ -29,7 +29,7 @@ let type_field_defn struct_defn =
     List.map ~f:check_field field_defn_list
   in
   List.concat_map ~f:check_struct struct_defn
-  |> Result.all_unit
+  |> Result.all_unit *)
 
 let init_env_from_params params =
   let param_pairs = List.map
@@ -42,7 +42,7 @@ let init_env_from_params params =
 let type_struct_defn (Ast.TStruct (struct_name, capability_list, field_defn_list) as current_struct_defn) = 
   let%bind () = check_no_duplicate_struct_names [current_struct_defn] in
     let%bind () = check_no_duplicate_fields [current_struct_defn] in
-      let%bind () = type_field_defn [current_struct_defn] in
+      (* let%bind () = type_field_defn [current_struct_defn] in *)
   let typed_struct_defn = Typed_ast.TStruct (struct_name, capability_list, field_defn_list) in
   Ok typed_struct_defn
   

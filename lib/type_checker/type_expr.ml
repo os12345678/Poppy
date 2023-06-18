@@ -76,7 +76,7 @@ let rec type_expr (struct_defns: Ast.struct_defn list) (trait_defns: Ast.trait_d
       Ok ({Typed_ast.loc = expr.loc; typ = Ast_types.TEStruct (struct_name); node = TConstructor (var_name, struct_name, typed_constructor_args)})
     
   | Ast.Assign (id, assignable_expr) -> 
-      let%bind () = identifier_assignable id expr.loc in
+      let%bind () = identifier_assignable id struct_defns context expr.loc in
       let%bind typed_expr = type_with_defns assignable_expr context in
       let%bind (typed_id, id_type) = type_identifier struct_defns function_defns id context expr.loc in 
       if phys_equal id_type typed_expr.typ then
