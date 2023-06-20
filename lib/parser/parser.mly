@@ -172,7 +172,7 @@ method_signature:
 
 
 method_defn: 
-    | IMPL trait_name=ID;maybe_for_struct=option(for_struct); 
+    | IMPL trait_name=ID;maybe_for_struct=for_struct; 
     LBRACE 
     method_signatures = method_signature;
     body=block_expr; RBRACE;
