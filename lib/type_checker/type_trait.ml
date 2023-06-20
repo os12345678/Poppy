@@ -1,35 +1,30 @@
-open Poppy_parser
+(* open Poppy_parser
 open Type_env
 open Core
 open Core.Result
 open Core.Result.Let_syntax
 
-(* Check for trait invariances *)
+(* 
+1. No duplicate trait names
+2. No duplicate method names within a trait
+3. Valid method signatures
+4. No circular dependencies   
+*)
 
-let check_no_duplicate_trait_names trait_defn =
-  let trait_names = List.map ~f:(fun (Ast.TTrait (trait_name, _)) -> trait_name) trait_defn in
+let check_no_duplicate_trait_names trait_defns =
+  let trait_names = List.map ~f:(fun (Ast.TTrait (trait_name, _)) -> trait_name) trait_defns in
   if has_duplicates trait_names ~equal:Ast_types.Trait_name.(=)  then
-    Or_error.errorf "Duplicate struct names found"
+    Or_error.errorf "%s Duplicate trait names found" (Ast_types.Trait_name.to_string (List.hd_exn trait_names))
   else
     Ok ()
 
-let check_no_duplicate_method_signatures trait_defn =
-  let method_signature = List.map ~f:(fun (Ast.TTrait (_, method_signatures)) -> method_signatures) trait_defn in
+let check_no_duplicate_method_signatures trait_defns =
+  let method_signature = List.map ~f:(fun (Ast.TTrait (_, method_signatures)) -> method_signatures) trait_defns in
   let method_signature_names = List.concat_map ~f:(List.map ~f:(function Ast.TMethodSignature (method_name, _, _, _, _) -> method_name)) method_signature in
   if has_duplicates method_signature_names ~equal:Ast_types.Method_name.(=)  then
-    Or_error.errorf "Duplicate field names found"
+    Or_error.errorf "%s Duplicate method names found" (Ast_types.Method_name.to_string (List.hd_exn method_signature_names))
   else
     Ok ()
-
-(* Type check trait body *)
-
-let init_env_from_params params =
-  let param_pairs = List.map
-    ~f:(function Ast_types.Param (type_expr, param_name, _, _) -> (param_name, type_expr))
-    params in
-  match VarNameMap.of_alist param_pairs with
-  | `Duplicate_key _ -> Error (Base.Error.of_string "Duplicate parameter names found")
-  | `Ok map -> Ok [map]
 
 let type_method_type_sig trait_defns method_name params return_type = 
   let method_error_prefix =
@@ -48,25 +43,14 @@ let type_method_type_sig trait_defns method_name params return_type =
 let type_method_signature (Ast.TMethodSignature(method_name, borrowed_ref, capabilities, params, ret_type)) =
   Typed_ast.TMethodSignature(method_name, borrowed_ref, capabilities, params, ret_type)
 
-  (* let type_method_defn 
-  struct_defns trait_defns method_defns function_defns
-  (Ast.TMethod (trait_name, struct_name, (Ast.TMethodSignature(method_name, _, _, params, ret_type) as method_sig), method_body)) = 
-  let%bind () = type_method_type_sig trait_defns method_name params ret_type in
-  let typed_method_sig = type_method_signature method_sig in
-  let error_message = 
-    Fmt.str
-      "Type Error for method %s: expected return type of %s but got %s instead"
-      (Ast_types.Method_name.to_string method_name)
-      (Ast_types.string_of_type ret_type)
-      (match typed_body_expr with
-      | Typed_ast.Block (_,typed_exprs, _) -> 
-        match typed_exprs with
-        | _ -> Ast_types.string_of_type (typed_exprs)
-      )
-  in
-  Ok (Typed_ast.TMethod (trait_name, struct_name, typed_method_sig, typed_body_expr))
-  |> Result.map_error ~f:(fun _ -> Base.Error.of_string error_message) *)
-
-  (* let type_method_defns struct_defns trait_defns method_defns function_defns method_defn=
-    Result.all (List.map ~f:(type_method_defn struct_defns trait_defns method_defns function_defns) method_defn) *)
-
+let type_trait_defn (Ast.TTrait (trait_name, method_sigs) as current_trait_defn) = 
+  let%bind () = check_no_duplicate_trait_names [current_trait_defn] in
+  let%bind () = check_no_duplicate_method_signatures [current_trait_defn] in
+  let typed_method_sigs = List.map ~f:type_method_signature method_sigs in
+  let typed_trait_defn = Typed_ast.TTrait (trait_name, typed_method_sigs) in
+  Ok typed_trait_defn
+   
+let type_trait_defns trait_defns  = 
+  let%bind () = check_no_duplicate_trait_names trait_defns in
+  let%bind () = check_no_duplicate_method_signatures trait_defns in
+  Result.all (List.map ~f:type_trait_defn trait_defns) *)

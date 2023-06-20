@@ -72,7 +72,7 @@ impl trait_name for struct_name {
 type method_defn =
 | TMethod of
     Trait_name.t
-    * Struct_name.t option 
+    * Struct_name.t 
     * method_signature
     * block_expr
   [@@deriving sexp]

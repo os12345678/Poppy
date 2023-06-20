@@ -1,68 +1,61 @@
-open Poppy_parser
+(* open Poppy_parser
 open Type_env
 open Core
 open Core.Result
 open Core.Result.Let_syntax
 
-(* Check for trait invariances *)
-
-let check_no_duplicate_method_names method_sigs =
-  let method_names = List.map ~f:(fun (Ast.TMethodSignature (method_name, _, _, _, _)) -> method_name) method_sigs in
-  if has_duplicates method_names ~equal:Ast_types.Method_name.(=) then
-    Or_error.errorf "Duplicate method names found"
+let check_no_duplicate_method_signatures method_defns =
+  let method_signatures = List.map ~f:(fun (Ast.TMethod (_, _, method_signatures, _)) -> method_signatures) method_defns in
+  let method_signature_names = List.map ~f:(function Ast.TMethodSignature (method_name, _, _, _, _) -> method_name) method_signatures in
+  if has_duplicates method_signature_names ~equal:Ast_types.Method_name.(=) then
+    Or_error.errorf "%s Duplicate method names found" (Ast_types.Method_name.to_string (List.hd_exn method_signature_names))
   else
-    Ok ()
-
-(* Type check trait body *)
-
-let init_env_from_params params =
-  let param_pairs = List.map
-    ~f:(function Ast_types.Param (type_expr, param_name, _, _) -> (param_name, type_expr))
-    params in
-  match VarNameMap.of_alist param_pairs with
-  | `Duplicate_key _ -> Error (Base.Error.of_string "Duplicate parameter names found")
-  | `Ok map -> Ok [map]
-
-let type_method_type_sig trait_defns method_name params return_type = 
-  let method_error_prefix =
-    Fmt.str "Type error for method %s" (Ast_types.Method_name.to_string method_name) in
-  let return_type_error_prefix = Fmt.str "%s return type" method_error_prefix in
-  let%bind () = check_type_valid trait_defns return_type return_type_error_prefix in
-  Result.all_unit  
-  (List.map
-  ~f:(fun (Ast_types.Param (param_type, param_name, _, _)) ->
-    let param_error_prefix = 
-      Fmt.str "%s param %s" return_type_error_prefix (Ast_types.Var_name.to_string param_name)
-    in
-    check_type_valid trait_defns param_type param_error_prefix)
-  params)
+    Ok () 
 
 let type_method_signature (Ast.TMethodSignature(method_name, borrowed_ref, capabilities, params, ret_type)) =
   Typed_ast.TMethodSignature(method_name, borrowed_ref, capabilities, params, ret_type)
+    
+let check_method_impl env trait_name struct_name =
+  match env with
+  | Global (struct_map, trait_map, _, _) ->
+    let _ = StructNameMap.find struct_map struct_name in
+    let _ = TraitNameMap.find trait_map trait_name in
+    Ok ()
+    (* check_method_impl_valid method_impl struct_defn trait_defn *)
+  | _ -> Error (Base.Error.of_string "Method implementations should be checked in the global environment")
+    
 
-let type_method_defn 
-  struct_defns trait_defns method_defns function_defns
-  (Ast.TMethod (trait_name, struct_name, (Ast.TMethodSignature(method_name, _, _, params, ret_type) as method_sig), method_body)) = 
-  let%bind () = check_no_duplicate_method_names [method_sig] in
-  let%bind () = type_method_type_sig trait_defns method_name params ret_type in
-  let typed_method_sig = type_method_signature method_sig in
-  let%bind initial_context = init_env_from_params params in
-  let%bind typed_body_expr = Type_expr.type_block_expr struct_defns trait_defns 
-    method_defns function_defns method_body initial_context in
-  let error_message = 
-    Fmt.str
-      "Type Error for method %s: expected return type of %s but got %s instead"
-      (Ast_types.Method_name.to_string method_name)
-      (Ast_types.string_of_type ret_type)
-      (match typed_body_expr with
-      | Typed_ast.Block (_,typed_exprs, _) -> 
-        match typed_exprs with
-        | _ -> Ast_types.string_of_type (typed_exprs)
-      )
-  in
-  Ok (Typed_ast.TMethod (trait_name, struct_name, typed_method_sig, typed_body_expr))
-  |> Result.map_error ~f:(fun _ -> Base.Error.of_string error_message)
+let check_method_signature_valid trait_defns (Ast.TMethodSignature(method_name, _, _, params, ret_type)) =
+  let error_prefix = Fmt.str "Type error for method %s" (Ast_types.Method_name.to_string method_name) in
+  (* Check that the return type is valid *)
+  let%bind () = Type_env.check_type_valid trait_defns ret_type error_prefix in
+  (* Check that the types of the parameters are valid *)
+  let%bind () = Result.all_unit (List.map ~f:(fun (Ast_types.Param (param_type, _, _, _)) -> Type_env.check_type_valid trait_defns param_type error_prefix) params) in
+  (* Check that the method signature matches the expected signature based on the trait and struct definitions *)
+  (* let%bind () = check_signature_matches_trait_and_struct struct_defns trait_defns method_name params ret_type in *)
+  Ok ()
 
-  let type_method_defns struct_defns trait_defns method_defns function_defns =
-    Result.all (List.map ~f:(type_method_defn struct_defns trait_defns method_defns function_defns) method_defns)
+  let init_env_from_method_params params env  =
+    match env with
+    | Global _ -> 
+      let param_map = List.fold params ~init:VarNameMap.empty ~f:(fun map param ->
+        let Ast_types.Param (_, param_name, _, _) = param in
+        VarNameMap.add_exn map ~key:param_name ~data:param) in
+      Ok (Function (env, param_map))
+    | _ -> Error (Base.Error.of_string "Method parameters should be added in the global environment")
 
+let type_method_defn struct_defns trait_defns (Ast.TMethod (trait_name, struct_name, method_signature, method_body) as method_defn) 
+  function_defns env =
+  let%bind () = check_method_signature_valid trait_defns method_signature in
+  let%bind () = check_method_impl env trait_name struct_name in
+  let typed_method_signature = type_method_signature method_signature in
+  (* extract the params from the methods method_signature *)
+  let params = match method_signature with 
+    | Ast.TMethodSignature (_, _, _, params, _) -> params in
+  let%bind new_env = init_env_from_method_params params env in
+  let%bind typed_body_expr = Type_expr.type_block_expr struct_defns trait_defns [method_defn] 
+    function_defns method_body new_env in
+  Ok (Typed_ast.TMethod (trait_name, struct_name, typed_method_signature, typed_body_expr))
+  
+let type_method_defns struct_defns trait_defns method_defns function_defns env=
+  Result.all (List.map ~f:(type_method_defn struct_defns trait_defns method_defns function_defns env) method_defns) *)

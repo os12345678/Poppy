@@ -1,4 +1,4 @@
-open Poppy_parser
+(* open Poppy_parser
 open Type_env
 open Core 
 open Core.Result
@@ -48,4 +48,4 @@ let type_function_type_sig trait_defns func_name params return_type =
   |> Result.map_error ~f:(fun _ -> Base.Error.of_string error_message)
 
   let type_function_defns struct_defns trait_defns method_defns function_defns =
-    Result.all (List.map ~f:(type_function_defn struct_defns trait_defns method_defns function_defns) function_defns)
+    Result.all (List.map ~f:(type_function_defn struct_defns trait_defns method_defns function_defns) function_defns) *)
