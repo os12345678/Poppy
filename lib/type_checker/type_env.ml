@@ -10,57 +10,89 @@ module StructNameMap = Map.Make(Struct_name)
 module FunctionNameMap = Map.Make(Function_name)
 module MethodNameMap = Map.Make(Method_name)
 module TraitNameMap = Map.Make(Trait_name)
+module StructTraitMap = Map.Make(Struct_name)
 
 type env = 
   | Global of Ast.struct_defn StructNameMap.t * Ast.trait_defn TraitNameMap.t 
     * Ast.method_defn MethodNameMap.t * Ast.function_defn FunctionNameMap.t
+    * Trait_name.t list StructTraitMap.t (* method implementations *)
   | Function of env * type_expr VarNameMap.t
   | Block of env * type_expr VarNameMap.t
   [@@deriving sexp]
 
 let init_global_scope () =
-  Global (StructNameMap.empty, TraitNameMap.empty, MethodNameMap.empty, FunctionNameMap.empty)
+  Global (StructNameMap.empty, TraitNameMap.empty, MethodNameMap.empty, FunctionNameMap.empty, StructTraitMap.empty)
+
+let rec equal_type_expr_list list1 list2 =
+  match list1, list2 with
+  | [], [] -> true
+  | te1 :: rest1, te2 :: rest2 when equal_type_expr te1 te2 -> equal_type_expr_list rest1 rest2
+  | _ -> false
+
+and equal_type_expr te1 te2 =
+  match te1, te2 with
+  | TEInt, TEInt -> true
+  | TEBool, TEBool -> true
+  | TEStruct name1 , TEStruct name2 -> Struct_name.(=) name1 name2
+  | TETrait (name1, _), TETrait (name2, _) -> Trait_name.(=) name1 name2
+  | _ -> false
+  
 
 (* Lookup functions *)
-let lookup_struct env struct_name =
+let rec find_global env =
   match env with
-  | Global (struct_map, _, _, _) -> 
+  | Global _ -> env
+  | Function (parent_env, _) | Block (parent_env, _) -> find_global parent_env
+
+let rec lookup_struct env struct_name =
+  match env with
+  | Global (struct_map, _, _, _, _) -> 
     begin
       match StructNameMap.find struct_map struct_name with
       | Some struct_defn -> Ok struct_defn
       | None -> Error (Core.Error.of_string (Fmt.str "Struct %s not found" (Struct_name.to_string struct_name)))
     end
-  | _ -> Error (Core.Error.of_string (Fmt.str "%s not in global scope" (Struct_name.to_string struct_name)))
+  | Function (parent_env, _) | Block (parent_env, _) -> lookup_struct parent_env struct_name
 
-let lookup_trait env trait_name =
+let rec lookup_trait env trait_name =
   match env with
-  | Global (_, trait_map, _, _) -> 
+  | Global (_, trait_map, _, _, _) -> 
     begin
       match TraitNameMap.find trait_map trait_name with
       | Some trait_defn -> Ok trait_defn
       | None -> Error (Core.Error.of_string (Fmt.str "Trait %s not found" (Trait_name.to_string trait_name)))
     end
-  | _ -> Error (Core.Error.of_string "Not in global scope")
+  | Function (parent_env, _) | Block (parent_env, _) -> lookup_trait parent_env trait_name
 
-let lookup_method env method_name =
+let rec lookup_method env method_name =
   match env with
-  | Global (_, _, method_map, _) -> 
+  | Global (_, _, method_map, _, _) -> 
     begin
       match MethodNameMap.find method_map method_name with
       | Some method_defn -> Ok method_defn
       | None -> Error (Core.Error.of_string (Fmt.str "Method %s not found" (Method_name.to_string method_name)))
     end
-  | _ -> Error (Core.Error.of_string "Not in global scope")
+  | Function (parent_env, _) | Block (parent_env, _) -> lookup_method parent_env method_name
 
-let lookup_function env function_name =
+let rec lookup_function env function_name =
   match env with
-  | Global (_, _, _, function_map) -> 
+  | Global (_, _, _, function_map, _) -> 
     begin
       match FunctionNameMap.find function_map function_name with
       | Some function_defn -> Ok function_defn
       | None -> Error (Core.Error.of_string (Fmt.str "Function %s not found" (Function_name.to_string function_name)))
     end
-  | _ -> Error (Core.Error.of_string "Not in global scope")
+  | Function (parent_env, _) | Block (parent_env, _) -> lookup_function parent_env function_name
+
+let rec lookup_impl env struct_name =
+  match env with
+  | Global (_, _, _, _, struct_trait_map) ->
+    begin 
+    match StructTraitMap.find struct_trait_map struct_name with 
+    | Some trait_names -> Ok trait_names
+    | None -> Error (Core.Error.of_string "Impl lookup should be done in the global environment")
+    end 
+  | Function (parent_env, _) | Block (parent_env, _) -> lookup_impl parent_env struct_name
 
 let rec lookup_var env var_name =
   match env with
@@ -72,51 +104,105 @@ let rec lookup_var env var_name =
       | None -> lookup_var parent_env var_name
     end
 
-let rec find_global env =
+let lookup_method_signature trait_defn method_name = 
+  match trait_defn with
+  | Ast.TTrait (_, method_signatures) ->
+    begin
+      match List.find method_signatures ~f:(fun (TMethodSignature (name, _, _, _, _)) -> Method_name.(=) name method_name) with
+      | Some method_signature -> Ok method_signature
+      | None -> Error (Core.Error.of_string (Fmt.str "Method %s not found" (Method_name.to_string method_name)))
+    end
+
+let lookup_method_in_impl env struct_name method_name =
+  (* let%bind trait_names = lookup_impl env struct_name in *)
+  let glob_env = find_global env in
+  match glob_env with
+  | Global (_, _, method_map, _, _) ->
+    let method_defn_option = MethodNameMap.find method_map method_name in
+    begin match method_defn_option with
+    | Some method_defn -> Ok method_defn
+    | None -> Error (Core.Error.of_string (Fmt.str "Method %s not found in impl for struct %s" (Method_name.to_string method_name) (Struct_name.to_string struct_name)))
+    end
+  | _ -> Error (Core.Error.of_string "Method lookup in impl should be done in the global environment")
+
+let get_method_map method_defns =
+  List.fold method_defns ~init:MethodNameMap.empty ~f:(fun map method_defn ->
+    match method_defn with
+    | Ast.TMethod (TMethodSignature (method_name, _, _, _, _), _) ->
+      MethodNameMap.add_exn map ~key:method_name ~data:method_defn
+  )
+  
+let get_struct_trait_map env =
   match env with
-  | Global _ -> env
-  | Function (parent_env, _) | Block (parent_env, _) -> find_global parent_env
-    
+  | Global (_, _, _, _, struct_trait_map) -> struct_trait_map
+  | _ -> failwith "get_struct_trait_map should only be called on a global environment"
+  
+let update_env_with_maps env ~method_map ~struct_trait_map =
+  match env with
+  | Global (struct_map, trait_map, _, function_map, _) ->
+    Global (struct_map, trait_map, method_map, function_map, struct_trait_map)
+  | _ -> failwith "update_env_with_maps should only be called on a global environment"
+   
 
 (* Add Functions *)
 let add_struct_to_global env struct_defn =
   match env, struct_defn with
-  | Global (struct_map, trait_map, method_map, function_map), Ast.TStruct (name, _, _) ->
+  | Global (struct_map, trait_map, method_map, function_map, structtrait_map), Ast.TStruct (name, _, _) ->
       let new_struct_map = StructNameMap.add_exn struct_map ~key:name ~data:struct_defn in
-      Global (new_struct_map, trait_map, method_map, function_map)
+      print_endline (Fmt.str "Added struct %s to global env" (Struct_name.to_string name));
+      Global (new_struct_map, trait_map, method_map, function_map, structtrait_map)
   | _ -> env
 
 let add_trait_to_global env trait_defn =
   match env, trait_defn with
-  | Global (struct_map, trait_map, method_map, function_map), Ast.TTrait (name, _) ->
+  | Global (struct_map, trait_map, method_map, function_map, structtrait_map), Ast.TTrait (name, _) ->
       let new_trait_map = TraitNameMap.add_exn trait_map ~key:name ~data:trait_defn in
-      Global (struct_map, new_trait_map, method_map, function_map)
+      print_endline (Fmt.str "Added trait %s to global env" (Trait_name.to_string name));
+      Global (struct_map, new_trait_map, method_map, function_map, structtrait_map)
   | _ -> env
 
 let add_method_to_global env method_defn =
   match env, method_defn with
-  | Global (struct_map, trait_map, method_map, function_map), Ast.TMethod (_, _, TMethodSignature (method_name, _, _, _, _), _) ->
+  | Global (struct_map, trait_map, method_map, function_map, structtrait_map), Ast.TMethod (TMethodSignature (method_name, _, _, _, _), _) ->
       let new_method_map = MethodNameMap.add_exn method_map ~key:method_name ~data:method_defn in
-      Global (struct_map, trait_map, new_method_map, function_map)
+      print_endline (Fmt.str "Added method %s to global env" (Method_name.to_string method_name));
+      Global (struct_map, trait_map, new_method_map, function_map, structtrait_map)
   | _ -> env
 
 let add_function_to_global env function_defn =
   match env, function_defn with
-  | Global (struct_map, trait_map, method_map, function_map), Ast.TFunction (function_name, _, _, _, _) ->
+  | Global (struct_map, trait_map, method_map, function_map, structtrait_map), Ast.TFunction (function_name, _, _, _, _) ->
       let new_function_map = FunctionNameMap.add_exn function_map ~key:function_name ~data:function_defn in
-      Global (struct_map, trait_map, method_map, new_function_map)
+      print_endline (Fmt.str "Added function %s to global env" (Function_name.to_string function_name));
+      Global (struct_map, trait_map, method_map, new_function_map, structtrait_map)
   | _ -> env
 
+  let add_impl_to_global env (Ast.TImpl (trait_name, struct_name, method_defns)) =
+    (* Add the method definitions to the MethodNameMap *)
+    let method_map = get_method_map method_defns in
+    (* Add the trait to the list of traits implemented by the struct in the StructTraitMap *)
+    let global_env = find_global env in
+    let struct_trait_map = get_struct_trait_map global_env in
+    let existing_traits = match StructTraitMap.find struct_trait_map struct_name with
+      | Some traits -> traits
+      | None -> []
+    in
+    let updated_traits = trait_name :: existing_traits in
+    let _updated_struct_trait_map = StructTraitMap.add_exn struct_trait_map ~key:struct_name ~data:updated_traits in
+    (* Return the updated environment *)
+    print_endline (Fmt.str "Adding impl for trait %s to struct %s" (Trait_name.to_string trait_name) (Struct_name.to_string struct_name));
+    update_env_with_maps global_env ~method_map ~struct_trait_map
+  
 let add_function_scope env params =
   Function (env, params)
 
 let add_block_scope env var_map = Block (find_global env, var_map)
 
-
 let add_var_to_block_scope env var_name var_type =
   match env with
   | Block (parent, params) ->
     let new_params = VarNameMap.add_exn params ~key:var_name ~data:var_type in
+    print_endline (Fmt.str "Adding %s to block scope" (Var_name.to_string var_name));
     Block (parent, new_params)
   | _ -> env
 
@@ -128,6 +214,7 @@ let remove_scope = function
 
 (* Getter Functions *)
 let get_obj_struct_defn var_name env loc = 
+  print_endline "Getting struct defn";
   lookup_var env var_name
   >>= function
   | Ast_types.TEStruct (struct_name) ->
@@ -163,6 +250,7 @@ let check_variable_declarable var_name loc =
   else Ok ()
 
 let check_identifier_assignable id env loc = 
+  print_endline "Checking identifier assignable";
   match id with 
   | Ast.Variable var_name -> check_variable_declarable var_name loc
   | Ast.ObjField (obj_name, field_name) -> 
@@ -176,53 +264,7 @@ let check_identifier_assignable id env loc =
     | None -> Error (Core.Error.of_string 
                 (Fmt.str "%d:%d Type error - Field %s not found in struct" (loc.lnum) (loc.cnum) (Field_name.to_string field_name)))
               
-(* Print Functions *)
-let struct_defn_to_string struct_defn = 
-  match struct_defn with
-  | Ast.TStruct (name, _, fields) -> 
-    let field_strs = List.map ~f:(fun (Ast_types.TField (modifier, typ, name, _)) -> 
-      (Field_name.to_string name) ^ ": " ^ (string_of_type typ) ^ " " ^ (string_of_modifier modifier)) fields in
-    "struct " ^ (Struct_name.to_string name) ^ " {" ^ (String.concat ~sep:", " field_strs) ^ "}"
 
-let trait_defn_to_string trait_defn =
-  match trait_defn with
-  | Ast.TTrait (name, methods) ->
-    let method_strs = List.map ~f:(fun (Ast.TMethodSignature (name, _, _, _, _)) -> 
-      (Method_name.to_string name)) methods in
-    "trait " ^ (Trait_name.to_string name) ^ " {" ^ (String.concat ~sep:", " method_strs) ^ "}"
-
-let method_defn_to_string method_defn =
-  match method_defn with
-  | Ast.TMethod (_, _, (Ast.TMethodSignature(name, _, _, _, _)), _) ->
-    "method " ^ (Method_name.to_string name)
-
-let function_defn_to_string function_defn =
-  match function_defn with
-  | Ast.TFunction (name, _, _, _, _) ->
-    "function " ^ (Function_name.to_string name)
-
-let rec print_global_env env =
-  match env with
-  | Global (struct_map, trait_map, method_map, function_map) ->
-    let struct_strs = StructNameMap.to_alist struct_map |> List.map ~f:(fun (name, defn) -> Struct_name.to_string name ^ ": " ^ struct_defn_to_string defn) in
-    let trait_strs = TraitNameMap.to_alist trait_map |> List.map ~f:(fun (name, defn) -> Trait_name.to_string name ^ ": " ^ trait_defn_to_string defn) in
-    let method_strs = MethodNameMap.to_alist method_map |> List.map ~f:(fun (name, defn) -> Method_name.to_string name ^ ": " ^ method_defn_to_string defn) in
-    let function_strs = FunctionNameMap.to_alist function_map |> List.map ~f:(fun (name, defn) -> Function_name.to_string name ^ ": " ^ function_defn_to_string defn) in
-    print_endline "\nGlobal Environment:";
-    print_endline "~~~~~Structs~~~~~";
-    List.iter ~f:print_endline struct_strs;
-    print_endline "~~~~~Traits~~~~~";
-    List.iter ~f:print_endline trait_strs;
-    print_endline "~~~~~Methods~~~~~";
-    List.iter ~f:print_endline method_strs;
-    print_endline "~~~~~Functions~~~~~";
-    List.iter ~f:print_endline function_strs;
-  | Function (env, _) -> 
-    print_endline "\nFunction Environment:";
-    print_global_env env
-  | Block (env, _) -> 
-    print_endline "\nBlock Environment:";
-    print_global_env env
 
 
                   
@@ -400,7 +442,7 @@ let get_struct_trait_defns struct_defn method_defns trait_defns loc =
     Ok trait_defns_for_struct
     
 
-(* let check_argument_types (Ast.TMethod (_, _, TMethodSignature (_, _, _, params, _), _)) typed_args loc =
+let check_argument_types (Ast.TMethod (_, _, TMethodSignature (_, _, _, params, _), _)) typed_args loc =
   let expected_types = List.map ~f:type_of_param params in
   let arg_types = List.map ~f:(fun { Typed_ast.typ; _ } -> typ) typed_args in
   if List.equal ~equal:Type.equal expected_types arg_types then
@@ -408,7 +450,7 @@ let get_struct_trait_defns struct_defn method_defns trait_defns loc =
   else
     Or_error.error_string 
         (Fmt.str "Type error at %s - Argument types do not match method signature" (string_of_loc loc))
-     *)
+
 
 
 (* let check_method_exists_for_struct struct_defn method_defn loc =

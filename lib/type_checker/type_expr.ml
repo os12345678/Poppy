@@ -5,6 +5,11 @@ open Core
 open Core.Result
 open Core.Result.Let_syntax
 
+let string_of_type_list type_list =
+  type_list
+  |> List.map ~f:string_of_type
+  |> String.concat ~sep:", "
+
 let type_identifier id env loc =
   match id with
   | Ast.Variable var ->
@@ -50,10 +55,11 @@ match struct_defn with
   in
   check_args constructor_args fields
 
-let rec type_expr (struct_defns: Ast.struct_defn list) (trait_defns: Ast.trait_defn list) (method_defns: Ast.method_defn list)
+let rec type_expr (struct_defns: Ast.struct_defn list) (trait_defns: Ast.trait_defn list) (impl_defns: Ast.impl_defn list)
 (function_defns: Ast.function_defn list) (expr: Ast.expr) env : (Typed_ast.expr, Base.Error.t) Result.t =
-  let type_with_defns = type_expr struct_defns trait_defns method_defns function_defns in
-  let type_block_with_defns = type_block_expr struct_defns trait_defns method_defns function_defns in
+  (* print_global_env env; *)
+  let type_with_defns = type_expr struct_defns trait_defns impl_defns function_defns in
+  let type_block_with_defns = type_block_expr struct_defns trait_defns impl_defns function_defns in
   match expr.node with
   | Ast.Int i -> Ok ({Typed_ast.loc = expr.loc; typ = TEInt; node = TInt i})
 
@@ -75,6 +81,7 @@ let rec type_expr (struct_defns: Ast.struct_defn list) (trait_defns: Ast.trait_d
     Ok ({Typed_ast.loc = expr.loc; typ = var_type; node = TLet (type_annot_maybe, var_name, typed_expr)})
 
   | Ast.Constructor(var_name, struct_name, constructor_args) ->
+    print_endline "in CONSTRUCTOR";
     let%bind struct_defn = lookup_struct env struct_name in
     let%bind typed_constructor_args = type_constructor_args struct_defn struct_name constructor_args type_with_defns expr.loc env in
       Ok ({Typed_ast.loc = expr.loc; typ = Ast_types.TEStruct (struct_name); node = TConstructor (var_name, struct_name, typed_constructor_args)})
@@ -90,21 +97,37 @@ let rec type_expr (struct_defns: Ast.struct_defn list) (trait_defns: Ast.trait_d
         (Fmt.str "%s Type error - Trying to assign type %s to a field of type %s" 
           (string_of_loc expr.loc) (string_of_type typed_expr.typ) (string_of_type id_type))
 
-  (* | Ast.MethodApp (obj_name, method_name, args) ->
-    let%bind struct_defn = get_obj_struct_defn obj_name env expr.loc in
-    let%bind trait_defns = get_struct_trait_defns struct_defn method_defns trait_defns expr.loc in
-    let%bind method_defn_type = get_method_defn method_name trait_defns expr.loc in
-    let%bind typed_args = type_args type_with_defns args env in
-    Ok ({Typed_ast.loc = expr.loc; typ = method_defn_type; node = TMethodApp (obj_name, method_name, typed_args)}) *)
+  | Ast.MethodApp(receiver_var, method_name, args_expr) ->
+    print_endline "in METHODAPP";
+    let%bind receiver_type = lookup_var env receiver_var in
+    begin match receiver_type with
+    | Ast_types.TEStruct (receiver_struct_name) ->
+      (* let%bind _implemented_traits = lookup_impl env receiver_struct_name in *)
+      let%bind method_defn = lookup_method_in_impl env receiver_struct_name method_name in
+      begin match method_defn with
+      | Ast.TMethod (TMethodSignature (method_name, _borrowed, _capabilities, param_list, return_type), _) ->
+        let param_types = List.map ~f:(function Param (param_type, _, _, _) -> param_type) param_list in
+        let%bind typed_args = type_args type_with_defns args_expr env in
+        if not (equal_type_expr_list param_types (List.map typed_args ~f:(fun arg -> arg.typ))) then
+          Error (Core.Error.of_string (Fmt.str "%s Type error - Method %s expected arguments of type %s but got %s" 
+            (string_of_loc expr.loc) (Method_name.to_string method_name) (string_of_type_list param_types) (string_of_type_list (List.map typed_args ~f:(fun arg -> arg.typ)))))
+        else
+          Ok ({Typed_ast.loc = expr.loc; typ = return_type; node = TMethodApp (receiver_var, method_name, typed_args)})
+      end
+    | _ -> Error (Core.Error.of_string (Fmt.str "%s Type error - Method %s can only be called on objects of type struct, but receiver is of type %s" 
+          (string_of_loc expr.loc) (Method_name.to_string method_name) (string_of_type receiver_type)))
+    end          
 
   | Ast.FunctionApp(func_name, args_expr) ->
+    print_endline "in FUNCTIONAPP";
     let%bind typed_args_exprs = type_args type_with_defns args_expr env in
     let%bind func_defn = lookup_function env func_name in 
     begin match func_defn with
     | Ast.TFunction (_, _, return_type, params, _) ->
       let param_types = List.map params ~f:(fun (Ast_types.Param (param_type, _, _, _)) -> param_type) in
       let arg_types = List.map typed_args_exprs ~f:(fun arg -> arg.typ) in
-      if phys_equal param_types arg_types then        
+      if equal_type_expr_list param_types arg_types then
+      (* if phys_equal param_types arg_types then         *)
         Ok ({Typed_ast.loc = expr.loc; typ = return_type; node = TFunctionApp (func_name, typed_args_exprs)})
       else
         Or_error.error_string 
@@ -203,27 +226,32 @@ let rec type_expr (struct_defns: Ast.struct_defn list) (trait_defns: Ast.trait_d
         Or_error.error_string 
         (Fmt.str "%s Type error - Unary operation operand must be a boolean: %s" 
           (string_of_loc expr.loc) (string_of_type typed_unop_expr.typ)) *)
-  | Ast.UnOp (_,_) -> Or_error.error_string "UnOp Not implemented"
+  (* | Ast.UnOp (_,_) -> Or_error.error_string "UnOp Not implemented" *)
 
-  | _ -> Or_error.error_string "Not implemented"
+    
+  | unimplemented_expression ->
+    let sexp = Ast.sexp_of_expr_node unimplemented_expression in
+    Or_error.error_string (Fmt.str "Type checking not implemented for this expression: %s" (Sexp.to_string_hum sexp))
 
-and type_block_expr struct_defns trait_defns method_defns function_defns (Ast.Block (loc, exprs)) env =
-  let new_env = add_block_scope env VarNameMap.empty in
-  print_global_env new_env;
-  let type_with_defns = type_expr struct_defns trait_defns method_defns function_defns in
-  let type_block_with_defns = type_block_expr struct_defns trait_defns method_defns function_defns in
-  let%bind () = check_no_duplicate_var_declarations_in_block exprs loc in
-  match exprs with 
-  | [] -> Ok (Typed_ast.Block (loc, TEVoid, []))
-  | [expr] ->
-    let%map typed_expr = type_with_defns expr new_env in
+and type_block_expr struct_defns trait_defns impl_defns function_defns (Ast.Block (loc, exprs)) env =
+  (* let env = add_block_scope env VarNameMap.empty in *)
+  let type_with_defns = type_expr struct_defns trait_defns impl_defns function_defns in
+  let type_block_with_defns = type_block_expr struct_defns trait_defns impl_defns function_defns in
+  check_no_duplicate_var_declarations_in_block exprs loc
+  >>= fun () ->
+    match exprs with 
+    | [] -> Ok (Typed_ast.Block (loc, TEVoid, []))
+    | [expr] ->
+      let%map typed_expr = type_with_defns expr env in
       (Typed_ast.Block (loc, typed_expr.typ, [typed_expr]))
-  | expr1 :: expr2 :: exprs ->
-    let%bind typed_expr1 = type_with_defns expr1 new_env in
+      | expr1 :: expr2 :: exprs ->
+        type_with_defns expr1 env 
+    >>= fun typed_expr1 ->
     (let updated_env =
         match typed_expr1.node with
-        | TLet (_, var_name, _) -> (add_var_to_block_scope new_env var_name typed_expr1.typ)
-        | _ -> new_env in
-      type_block_with_defns (Ast.Block (loc, expr2 :: exprs)) updated_env)
+        | TLet (_, var_name, _) -> (add_var_to_block_scope env var_name typed_expr1.typ)
+        | TConstructor (var_name, _, _) -> (add_var_to_block_scope env var_name typed_expr1.typ)
+        | _ -> env in
+        type_block_with_defns (Ast.Block (loc, expr2 :: exprs)) updated_env)
     >>| fun (Typed_ast.Block (_, _, typed_exprs)) -> 
       (Typed_ast.Block (loc, typed_expr1.typ, typed_expr1 :: typed_exprs))

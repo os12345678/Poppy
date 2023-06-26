@@ -40,6 +40,7 @@ let check_field_types_are_valid struct_defns fields =
 
 let type_struct_defn struct_defns (Ast.TStruct (struct_name, capability_list, field_defn_list)) = 
   let%bind () = check_field_types_are_valid struct_defns field_defn_list in
+  (* let env = add_struct_to_global env struct_defns in *)
   let typed_struct_defn = Typed_ast.TStruct (struct_name, capability_list, field_defn_list) in
   Ok typed_struct_defn
   

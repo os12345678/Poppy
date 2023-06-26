@@ -2,9 +2,10 @@
 open Type_env
 open Core 
 open Core.Result
-open Core.Result.Let_syntax
+open Core.Result.Let_syntax *)
 
-let init_env_from_params params =
+
+(* let init_env_from_params params =
   let param_pairs = List.map
     ~f:(function Ast_types.Param (type_expr, param_name, _, _) -> (param_name, type_expr))
     params in

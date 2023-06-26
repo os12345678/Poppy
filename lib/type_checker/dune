@@ -3,4 +3,4 @@
  (libraries core fmt poppy_parser)
  (preprocess (pps ppx_expect ppx_inline_test ppx_jane ppx_let))
  (modules typed_ast type_program type_env type_function type_expr 
-          type_struct type_trait type_method))
+          type_struct type_trait type_method print_helper))
