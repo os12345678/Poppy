@@ -68,7 +68,7 @@
 %type <struct_defn> struct_defn
 %type <trait_defn> trait_defn
 // %type <method_signature> method_signature
-%type <method_defn> method_defn
+%type <impl_defn> impl_defn
 %type <mode> mode
 %type <capability> capability
 %type <borrowed_ref> borrowed_ref
@@ -98,10 +98,10 @@
 program: 
     | struct_defns=list(struct_defn); 
     trait_defns=list(trait_defn);   
-    method_defns=list(method_defn);
+    impl_defns=list(impl_defn);
     function_defns=list(function_defn); 
     main=main_expr;  EOF 
-    {Prog(struct_defns, trait_defns, method_defns, function_defns, main)}
+    {Prog(struct_defns, trait_defns, impl_defns, function_defns, main)}
 
 // Productions related to struct and interface definitions
 struct_defn:
@@ -162,6 +162,9 @@ param:
     | maybeBorrowed=option(borrowed_ref); param_type=type_expr; capability_guards=option(param_capability_annotations); param_name=ID;  
     {Param(param_type, Var_name.of_string param_name, capability_guards, maybeBorrowed)}
 
+impl_defn: 
+    | IMPL trait_name=ID; FOR; struct_name=ID; method_defns=list(method_defn); {TImpl(Trait_name.of_string trait_name, Struct_name.of_string struct_name, method_defns)}
+
 method_signature:
     |  method_name=ID;
     maybeBorrowed=option(borrowed_ref);  
@@ -172,14 +175,11 @@ method_signature:
 
 
 method_defn: 
-    | IMPL trait_name=ID;maybe_for_struct=for_struct; 
-    LBRACE 
+    | LBRACE 
     method_signatures = method_signature;
     body=block_expr; RBRACE;
-    {TMethod(Trait_name.of_string trait_name, maybe_for_struct, method_signatures, body)}
+    {TMethod(method_signatures, body)}
 
-for_struct:
-    | FOR; struct_name=ID; {Struct_name.of_string struct_name}
 
 function_defn: 
     | FUNCTION; 
