@@ -98,6 +98,7 @@ let rec lookup_var env var_name =
   match env with
   | Global _ -> Error (Core.Error.of_string (Fmt.str "Variable %s not found" (Var_name.to_string var_name)))
   | Function (parent_env, var_map) | Block (parent_env, var_map) ->
+    print_endline (Fmt.str "in lookup_var: %s" (Var_name.to_string var_name));
     begin 
       match VarNameMap.find var_map var_name with
       | Some var_type -> Ok var_type
@@ -188,10 +189,10 @@ let add_function_to_global env function_defn =
       | None -> []
     in
     let updated_traits = trait_name :: existing_traits in
-    let _updated_struct_trait_map = StructTraitMap.add_exn struct_trait_map ~key:struct_name ~data:updated_traits in
+    let updated_struct_trait_map = StructTraitMap.add_exn struct_trait_map ~key:struct_name ~data:updated_traits in
     (* Return the updated environment *)
     print_endline (Fmt.str "Adding impl for trait %s to struct %s" (Trait_name.to_string trait_name) (Struct_name.to_string struct_name));
-    update_env_with_maps global_env ~method_map ~struct_trait_map
+    update_env_with_maps global_env ~method_map ~struct_trait_map:updated_struct_trait_map
   
 let add_function_scope env params =
   Function (env, params)
@@ -205,6 +206,10 @@ let add_var_to_block_scope env var_name var_type =
     print_endline (Fmt.str "Adding %s to block scope" (Var_name.to_string var_name));
     Block (parent, new_params)
   | _ -> env
+
+let add_this_to_block_scope env struct_name =
+  let this_type = TEStruct struct_name in
+  add_var_to_block_scope env (Var_name.of_string "this") this_type
 
 (* Remove Functions *)
 let remove_scope = function
@@ -244,6 +249,7 @@ let check_no_duplicate_var_declarations_in_block exprs loc =
 
 (* Assignability *)
 let check_variable_declarable var_name loc = 
+  print_endline "Checking variable declarable";
   if phys_equal var_name (Var_name.of_string "this") then 
     Error (Core.Error.of_string 
             (Fmt.str "%d:%d Type error - Cannot use 'this' in this context" (loc.lnum) (loc.cnum)))

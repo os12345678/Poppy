@@ -1,4 +1,5 @@
 open Poppy_parser
+(* open Poppy_parser.Ast_types *)
 open Type_env
 open Core
 open Core.Result
@@ -14,14 +15,15 @@ let rec add_params_to_scope env params =
 let check_method_signature_matches param_list return_type method_signature =
   match method_signature with
   | Ast.TMethodSignature (_, _, _, trait_param_list, trait_return_type) ->
-    if not (phys_equal param_list trait_param_list) then
-      Error (Core.Error.of_string "Parameter list does not match trait method signature")
-    else if not (phys_equal return_type trait_return_type) then
-      Error (Core.Error.of_string "Return type does not match trait method signature")
-    else
+    let trait_param_types = List.map trait_param_list ~f:(fun (Ast_types.Param (param_type, _, _, _)) -> param_type) in
+    let param_types = List.map param_list ~f:(fun (Ast_types.Param (param_type, _, _, _)) -> param_type) in
+    if equal_type_expr_list trait_param_types param_types && equal_type_expr return_type trait_return_type then
       Ok ()
+    else
+      Error (Core.Error.of_string "Method signature does not match")
 
 let type_method_defn env struct_defns trait_defns method_defns function_defns (Ast.TImpl (trait_name, struct_name, methods)) =
+  let env = add_block_scope env VarNameMap.empty in
   let%bind struct_defn = lookup_struct env struct_name in
   let%bind implemented_traits = lookup_impl env struct_name in
   if not (List.mem implemented_traits trait_name ~equal:Ast_types.Trait_name.(=)) then
@@ -33,13 +35,22 @@ let type_method_defn env struct_defns trait_defns method_defns function_defns (A
       Error (Core.Error.of_string (Fmt.str "Methods are not defined for struct %s" (Ast_types.Struct_name.to_string struct_name)))
     else
       let%bind trait_defn = lookup_trait env trait_name in
-      Result.all (List.map methods ~f:(fun (Ast.TMethod (TMethodSignature (method_name, borrowed, capabilities, param_list, return_type), body)) ->
+      let typed_methods_result = Result.all (List.map methods ~f:(fun (Ast.TMethod (TMethodSignature (method_name, borrowed, capabilities, param_list, return_type), body)) ->
         let%bind method_signature = lookup_method_signature trait_defn method_name in
         let%bind () = check_method_signature_matches param_list return_type method_signature in
-        let%bind updated_env = add_params_to_scope env param_list in
+        let env_with_this = add_this_to_block_scope env struct_name in
+        let%bind updated_env = add_params_to_scope env_with_this param_list in
+        Print_helper.print_env updated_env;
         let%map typed_body = Type_expr.type_block_expr struct_defns trait_defns method_defns function_defns body updated_env in
-        Ok (Typed_ast.TMethod (trait_name, struct_name, TMethodSignature (method_name, borrowed, capabilities, param_list, return_type), typed_body))
-      ))
-  end
+        Typed_ast.TMethod(TMethodSignature (method_name, borrowed, capabilities, param_list, return_type), typed_body)
+      )) in
+      match typed_methods_result with
+      | Ok typed_methods -> Ok (Typed_ast.TImpl (trait_name, struct_name, typed_methods))
+      | Error e -> Error e
+    end
+    
+    let type_method_defns env struct_defns trait_defns method_defns function_defns = 
+      Result.all (List.map ~f: (type_method_defn env struct_defns trait_defns method_defns function_defns) method_defns)
       
-  
+      
+      

@@ -87,10 +87,11 @@ let rec type_expr (struct_defns: Ast.struct_defn list) (trait_defns: Ast.trait_d
       Ok ({Typed_ast.loc = expr.loc; typ = Ast_types.TEStruct (struct_name); node = TConstructor (var_name, struct_name, typed_constructor_args)})
     
   | Ast.Assign (id, assignable_expr) -> 
+      print_endline "in ASSIGN";
       let%bind () = check_identifier_assignable id env expr.loc in
       let%bind typed_expr = type_with_defns assignable_expr env in
       let%bind (typed_id, id_type) = type_identifier id env expr.loc in 
-      if phys_equal id_type typed_expr.typ then
+      if equal_type_expr id_type typed_expr.typ then
         Ok ({Typed_ast.loc = expr.loc; typ = id_type; node = TAssign (typed_id, typed_expr)})
       else
         Or_error.error_string 
@@ -234,6 +235,7 @@ let rec type_expr (struct_defns: Ast.struct_defn list) (trait_defns: Ast.trait_d
     Or_error.error_string (Fmt.str "Type checking not implemented for this expression: %s" (Sexp.to_string_hum sexp))
 
 and type_block_expr struct_defns trait_defns impl_defns function_defns (Ast.Block (loc, exprs)) env =
+  (* Print_helper.print_env env; *)
   (* let env = add_block_scope env VarNameMap.empty in *)
   let type_with_defns = type_expr struct_defns trait_defns impl_defns function_defns in
   let type_block_with_defns = type_block_expr struct_defns trait_defns impl_defns function_defns in
@@ -242,12 +244,15 @@ and type_block_expr struct_defns trait_defns impl_defns function_defns (Ast.Bloc
     match exprs with 
     | [] -> Ok (Typed_ast.Block (loc, TEVoid, []))
     | [expr] ->
+      print_endline "type_block_expr: exprs length is 1";
       let%map typed_expr = type_with_defns expr env in
       (Typed_ast.Block (loc, typed_expr.typ, [typed_expr]))
       | expr1 :: expr2 :: exprs ->
+    print_endline "type_block_expr: exprs length is > 1";
         type_with_defns expr1 env 
     >>= fun typed_expr1 ->
     (let updated_env =
+      print_endline "in match case";
         match typed_expr1.node with
         | TLet (_, var_name, _) -> (add_var_to_block_scope env var_name typed_expr1.typ)
         | TConstructor (var_name, _, _) -> (add_var_to_block_scope env var_name typed_expr1.typ)

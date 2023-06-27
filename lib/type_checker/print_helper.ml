@@ -1,6 +1,7 @@
-(* open Poppy_parser.Ast_types
+open Poppy_parser.Ast_types
 open Poppy_parser
 open Core
+open Type_env
 (* open Core.Result
 open Core.Result.Let_syntax *)
 
@@ -21,10 +22,50 @@ let trait_defn_to_string trait_defn =
 
 let method_defn_to_string method_defn =
   match method_defn with
-  | Ast.TMethod (_, _, (Ast.TMethodSignature(name, _, _, _, _)), _) ->
+  | Ast.TMethod ((Ast.TMethodSignature(name, _, _, _, _)), _) ->
     "method " ^ (Method_name.to_string name)
 
 let function_defn_to_string function_defn =
   match function_defn with
   | Ast.TFunction (name, _, _, _, _) ->
-    "function " ^ (Function_name.to_string name) *)
+    "function " ^ (Function_name.to_string name)
+
+let rec print_env env =
+  match env with
+  | Global (struct_map, trait_map, method_map, function_map, struct_trait_map) ->
+    print_endline "Global scope:";
+    print_endline "Structs:";
+    StructNameMap.iteri struct_map ~f:(fun ~key ~data->
+      print_endline (Struct_name.to_string key);
+      print_endline (struct_defn_to_string data));
+    print_endline "Traits:";
+    TraitNameMap.iteri trait_map ~f:(fun ~key ~data ->
+      print_endline (Trait_name.to_string key);
+      print_endline (trait_defn_to_string data));
+    print_endline "Methods:";
+    MethodNameMap.iteri method_map ~f:(fun ~key ~data ->
+      print_endline (Method_name.to_string key);
+      print_endline (method_defn_to_string data));
+    print_endline "Functions:";
+    FunctionNameMap.iteri function_map ~f:(fun ~key ~data ->
+      print_endline (Function_name.to_string key);
+      print_endline (function_defn_to_string data));
+    print_endline "Struct-Trait Map:";
+    StructTraitMap.iteri struct_trait_map ~f:(fun ~key ~data ->
+      print_endline (Struct_name.to_string key ^ ": " ^ (String.concat ~sep:", " (List.map ~f:Trait_name.to_string data))));
+  | Function (parent_env, var_map) ->
+    print_endline "Function scope:";
+    print_env parent_env;
+    print_endline "Variables:";
+    VarNameMap.iteri var_map ~f:(fun ~key ~data ->
+      print_endline (Var_name.to_string key);
+      print_endline (Ast_types.string_of_type data));
+  | Block (parent_env, var_map) ->
+    print_endline "Block scope:";
+    print_env parent_env;
+    print_endline "Variables:";
+    VarNameMap.iteri var_map ~f:(fun ~key ~data ->
+      print_endline (Var_name.to_string key);
+      print_endline (Ast_types.string_of_type data));
+  
+
