@@ -53,28 +53,29 @@ void main() {
     \n     ((Param TEInt dx () ()) (Param TEInt dy () ())) TEVoid)\
     \n    (TMethodSignature move2 () (subCap)\
     \n     ((Param TEInt dx () ()) (Param TEInt dy () ())) TEVoid))))\
-    \n ((TMethod Movable (Point)\
-    \n   (TMethodSignature move (Borrowed) (linearCap subCap)\
-    \n    ((Param TEInt dx () ()) (Param TEInt dy () ())) TEVoid)\
-    \n   (Block ((lnum 14) (cnum 63))\
-    \n    (((loc ((lnum 15) (cnum 9)))\
-    \n      (node\
-    \n       (Assign (ObjField this x)\
-    \n        ((loc ((lnum 15) (cnum 19)))\
-    \n         (node\
-    \n          (BinOp BinOpPlus\
-    \n           ((loc ((lnum 15) (cnum 19)))\
-    \n            (node (Identifier (ObjField this x))))\
-    \n           ((loc ((lnum 15) (cnum 28))) (node (Identifier (Variable dx))))))))))\
-    \n     ((loc ((lnum 16) (cnum 9)))\
-    \n      (node\
-    \n       (Assign (ObjField this y)\
-    \n        ((loc ((lnum 16) (cnum 19)))\
-    \n         (node\
-    \n          (BinOp BinOpPlus\
-    \n           ((loc ((lnum 16) (cnum 19)))\
-    \n            (node (Identifier (ObjField this y))))\
-    \n           ((loc ((lnum 16) (cnum 28))) (node (Identifier (Variable dy))))))))))))))\
+    \n ((TImpl Movable Point\
+    \n   ((TMethod\
+    \n     (TMethodSignature move (Borrowed) (linearCap subCap)\
+    \n      ((Param TEInt dx () ()) (Param TEInt dy () ())) TEVoid)\
+    \n     (Block ((lnum 14) (cnum 63))\
+    \n      (((loc ((lnum 15) (cnum 9)))\
+    \n        (node\
+    \n         (Assign (ObjField this x)\
+    \n          ((loc ((lnum 15) (cnum 19)))\
+    \n           (node\
+    \n            (BinOp BinOpPlus\
+    \n             ((loc ((lnum 15) (cnum 19)))\
+    \n              (node (Identifier (ObjField this x))))\
+    \n             ((loc ((lnum 15) (cnum 28))) (node (Identifier (Variable dx))))))))))\
+    \n       ((loc ((lnum 16) (cnum 9)))\
+    \n        (node\
+    \n         (Assign (ObjField this y)\
+    \n          ((loc ((lnum 16) (cnum 19)))\
+    \n           (node\
+    \n            (BinOp BinOpPlus\
+    \n             ((loc ((lnum 16) (cnum 19)))\
+    \n              (node (Identifier (ObjField this y))))\
+    \n             ((loc ((lnum 16) (cnum 28))) (node (Identifier (Variable dy))))))))))))))))\
     \n ((TFunction add () TEInt ((Param TEInt a () ()) (Param TEInt b () ()))\
     \n   (Block ((lnum 20) (cnum 29))\
     \n    (((loc ((lnum 21) (cnum 5)))\
