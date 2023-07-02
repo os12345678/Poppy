@@ -28,6 +28,7 @@
   ppx_jane
   ppx_expect
   ppx_inline_test
+  ppx_let
   menhir
   menhirLib
   llvm

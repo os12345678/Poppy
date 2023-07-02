@@ -18,6 +18,7 @@ module type ID = sig
   val to_string : t -> string
   val ( = ) : t -> t -> bool
   val compare: t -> t -> int
+  val hash : t -> int
 end
 
 module String_id = struct
@@ -27,6 +28,7 @@ module String_id = struct
   let to_string x = x
   let ( = ) = String.( = )
   let compare = String.compare
+  let hash = Hashtbl.hash
 end
 
 module Var_name : ID = String_id [@@deriving sexp]
@@ -64,15 +66,20 @@ let string_of_maybe_borrowed_ref = function Some Borrowed -> "Borrowed " | None 
 
 type type_expr =
   | TEInt
-  | TEStruct of Struct_name.t 
-  | TETrait of Trait_name.t
+  | TEStruct of Struct_name.t
+  | TETrait of Trait_name.t * type_expr option
   | TEVoid
   | TEBool
   [@@deriving sexp]
-let string_of_type = function
+let rec string_of_type = function
   | TEInt -> "Int"
   | TEStruct struct_name -> Struct_name.to_string struct_name
-  | TETrait interface_name -> Trait_name.to_string interface_name
+  | TETrait (trait_name, maybe_type_param) ->
+    let maybe_type_param_str =
+      match maybe_type_param with
+      | Some type_param -> Fmt.str "<%s>" (string_of_type type_param)
+      | None            -> "" in
+    Fmt.str "%s%s" (Trait_name.to_string trait_name) maybe_type_param_str
   | TEVoid -> "Void"
   | TEBool -> "Bool"
   [@@deriving sexp]
@@ -84,8 +91,7 @@ let string_of_cap (TCapability (mode, cap_name)) =
   [@@deriving sexp]
         
   type param =
-  | Param of type_expr * Var_name.t * Capability_name.t list option * borrowed_ref option
-[@@deriving sexp]
+  | Param of type_expr * Var_name.t * Capability_name.t list option * borrowed_ref option [@@deriving sexp]
 let get_params_types params =
   List.map ~f:(fun (Param (param_type, _,_,_)) -> param_type) params
   [@@deriving sexp]

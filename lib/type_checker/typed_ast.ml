@@ -16,6 +16,7 @@ and expr_node =
 | TIdentifier          of typed_identifier
 | TLet                 of type_expr option * Var_name.t * expr
 | TAssign              of typed_identifier * expr  
+| TConstructor         of Var_name.t * Struct_name.t * constructor_arg list
 | TMethodApp           of Var_name.t * Method_name.t * expr list
 | TFunctionApp         of Function_name.t * expr list 
 | TFinishAsync         of loc * async_expr list * block_expr
@@ -37,12 +38,8 @@ and block_expr = Block of loc * type_expr * expr list [@@deriving sexp]
 
 and async_expr = AsyncExpr of block_expr [@@deriving sexp]
 
-(* 
-struct struct_name {
-  field_name1: type_expr1,
-  field_name2: type_expr2,
-} 
-*)
+and constructor_arg = ConstructorArg of Field_name.t * expr [@@deriving sexp]
+
 type struct_defn = 
   | TStruct of 
   Struct_name.t 
@@ -50,51 +47,43 @@ type struct_defn =
   * field_defn list
   [@@deriving sexp]
 
-(* 
-impl trait_name for struct_name {
-  fn method_name(param1: type_expr1, param2: type_expr2) -> type_expr3 {
-    body_expr
-  }
-} 
-*)
-type method_defn =
-| TMethod of
-    Trait_name.t
-    * Struct_name.t option (* impl trait_name for struct_name *)
-    * borrowed_ref option
-    * type_expr
-    * param list
-    * block_expr
-  [@@deriving sexp]
-      
-(*
-trait trait_name {
-  fn method_name(param1: type_expr1, param2: type_expr2) -> type_expr3;
-}
-*)
-type trait_defn =
-| TETrait of
-    Trait_name.t
-    * Method_name.t
-    * borrowed_ref option
-    * type_expr
-    * param list
+type method_signature = 
+  | TMethodSignature of
+    Method_name.t
+    * borrowed_ref option 
+    * Capability_name.t list
+    * param list 
+    * type_expr 
   [@@deriving sexp]
 
-(*
-fn function_name(param1: type_expr1, param2: type_expr2) -> type_expr3 {
-  body_expr
-}   
-*)
+type method_defn =
+  | TMethod of
+    method_signature
+    * block_expr
+  [@@deriving sexp]
+
+type impl_defn = 
+  | TImpl of
+    Trait_name.t
+    * Struct_name.t
+    * method_defn list
+  [@@deriving sexp]
+      
+type trait_defn =
+| TTrait of
+    Trait_name.t
+    * method_signature list
+  [@@deriving sexp]
+
 type function_defn =
 | TFunction of
     Function_name.t * borrowed_ref option * type_expr * param list * block_expr
     [@@deriving sexp]
 
 type program = Prog of 
-                struct_defn list
-                * trait_defn list
-                * method_defn list
-                * function_defn list
+                (struct_defn list) 
+                * (trait_defn list) 
+                * (impl_defn list) 
+                * (function_defn list) 
                 * block_expr
 [@@deriving sexp]
