@@ -35,6 +35,10 @@
 %token  IMPL
 %token  NEW
 %token  FUNCTION 
+%token  MUTEX
+%token  LOCK
+%token  UNLOCK
+%token  CREATE_THREAD
 // %token  CONSUME
 // %token  FINISH 
 // %token  ASYNC 
@@ -193,6 +197,7 @@ function_defn:
 // Types
 type_expr : 
     | struct_name=ID {TEStruct(Struct_name.of_string struct_name)}
+    | MUTEX; type_expr=type_expr {TEMutex(type_expr)}
     // | TRAIT trait_name=ID {TETrait(Trait_name.of_string trait_name)}
     | TYPE_INT  {TEInt} 
     | TYPE_BOOL {TEBool}
@@ -207,6 +212,9 @@ main_expr:
 
 block_expr:
     | LBRACE; exprs=separated_list(SEMICOLON, expr); RBRACE { Block(loc_of_position $startpos, exprs) }
+
+thread_expr:
+    CREATE_THREAD; LPAREN exprs=expr; RPAREN {Thread(exprs)}
 
 // Method / function arguments
 args:
@@ -229,6 +237,7 @@ expr:
     | op=un_op; e=expr {{ loc=loc_of_position $startpos; node=UnOp(op,e) }}
     | e1=expr; op=bin_op; e2=expr {{ loc=loc_of_position $startpos; node=BinOp(op, e1, e2) }}
     | NEW; var_name=ID; EQUAL; struct_name=ID; LBRACE constructor_args=separated_list(COMMA, constructor_args) RBRACE {{ loc=loc_of_position $startpos; node=Constructor(Var_name.of_string var_name, Struct_name.of_string struct_name, constructor_args) }}
+    | NEW; MUTEX; type_expr=type_expr; EQUAL; expr=expr {{ loc=loc_of_position $startpos; node=MutexConstructor(type_expr, expr) }}
     | LET; var_name=ID; type_annot=option(let_type_annot);  EQUAL; bound_expr=expr {{ loc=loc_of_position $startpos; node=Let(type_annot, Var_name.of_string var_name, bound_expr) }} 
     | id=identifier; COLONEQ; assigned_expr=expr {{ loc=loc_of_position $startpos; node=Assign(id, assigned_expr) }}
     | obj=ID; DOT; method_name=ID; method_args=args {{ loc=loc_of_position $startpos; node=MethodApp(Var_name.of_string obj, Method_name.of_string method_name, method_args) }}
@@ -237,6 +246,8 @@ expr:
     | WHILE cond_expr=expr; loop_expr=block_expr {{ loc=loc_of_position $startpos; node=While(cond_expr, loop_expr) }}
     | FOR; LPAREN; init_expr=expr; SEMICOLON; cond_expr=expr; SEMICOLON; step_expr=expr; RPAREN; loop_expr=block_expr 
         {{ loc=loc_of_position $startpos; node=For(init_expr, cond_expr, step_expr, loop_expr) }}
+    | LOCK; expr=expr {{ loc=loc_of_position $startpos; node=Lock(expr) }}
+    | UNLOCK; expr=expr {{ loc=loc_of_position $startpos; node=Unlock(expr) }}
 
 %inline un_op:
     | EXCLAMATION_MARK {UnOpNot}

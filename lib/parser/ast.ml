@@ -19,6 +19,8 @@ and expr_node =
 | Let                 of type_expr option * Var_name.t * expr
 | Assign              of identifier * expr  
 | Constructor         of Var_name.t * Struct_name.t * constructor_arg list
+| MutexConstructor    of type_expr * expr
+| Thread              of expr
 | MethodApp           of Var_name.t * Method_name.t * expr list
 | FunctionApp         of Function_name.t * expr list 
 | FinishAsync         of loc * async_expr list * block_expr
@@ -27,6 +29,8 @@ and expr_node =
 | For                 of expr * expr * expr * block_expr
 | BinOp               of bin_op * expr * expr
 | UnOp                of un_op * expr
+| Lock                of expr
+| Unlock              of expr
 [@@deriving sexp]
 
 and block_expr = Block of loc * expr list [@@deriving sexp]
