@@ -3,6 +3,10 @@ source_filename = "core_lib/bindings.c"
 target datalayout = "e-m:o-i64:64-i128:128-n32:64-S128"
 target triple = "arm64-apple-macosx13.0.0"
 
+%struct._opaque_pthread_t = type { i64, %struct.__darwin_pthread_handler_rec*, [8176 x i8] }
+%struct.__darwin_pthread_handler_rec = type { void (i8*)*, i8*, %struct.__darwin_pthread_handler_rec* }
+%struct._opaque_pthread_attr_t = type { i64, [56 x i8] }
+
 ; Function Attrs: noinline nounwind optnone ssp uwtable
 define void @print(i8* %0, i64* %1) #0 {
   %3 = alloca i8*, align 8
@@ -17,6 +21,21 @@ define void @print(i8* %0, i64* %1) #0 {
 }
 
 declare i32 @printf(i8*, ...) #1
+
+; Function Attrs: noinline nounwind optnone ssp uwtable
+define i32 @create_thread(i8* (i8*)* %0, i8* %1) #0 {
+  %3 = alloca i8* (i8*)*, align 8
+  %4 = alloca i8*, align 8
+  %5 = alloca %struct._opaque_pthread_t*, align 8
+  store i8* (i8*)* %0, i8* (i8*)** %3, align 8
+  store i8* %1, i8** %4, align 8
+  %6 = load i8* (i8*)*, i8* (i8*)** %3, align 8
+  %7 = load i8*, i8** %4, align 8
+  %8 = call i32 @pthread_create(%struct._opaque_pthread_t** %5, %struct._opaque_pthread_attr_t* null, i8* (i8*)* %6, i8* %7)
+  ret i32 %8
+}
+
+declare i32 @pthread_create(%struct._opaque_pthread_t**, %struct._opaque_pthread_attr_t*, i8* (i8*)*, i8*) #1
 
 attributes #0 = { noinline nounwind optnone ssp uwtable "frame-pointer"="non-leaf" "min-legal-vector-width"="0" "no-trapping-math"="true" "probe-stack"="__chkstk_darwin" "stack-protector-buffer-size"="8" "target-cpu"="apple-m1" "target-features"="+aes,+crc,+crypto,+dotprod,+fp-armv8,+fp16fml,+fullfp16,+lse,+neon,+ras,+rcpc,+rdm,+sha2,+sha3,+sm4,+v8.5a,+zcm,+zcz" }
 attributes #1 = { "frame-pointer"="non-leaf" "no-trapping-math"="true" "probe-stack"="__chkstk_darwin" "stack-protector-buffer-size"="8" "target-cpu"="apple-m1" "target-features"="+aes,+crc,+crypto,+dotprod,+fp-armv8,+fp16fml,+fullfp16,+lse,+neon,+ras,+rcpc,+rdm,+sha2,+sha3,+sm4,+v8.5a,+zcm,+zcz" }
