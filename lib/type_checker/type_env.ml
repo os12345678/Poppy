@@ -34,7 +34,7 @@ and equal_type_expr te1 te2 =
   | TEInt, TEInt -> true
   | TEBool, TEBool -> true
   | TEStruct name1 , TEStruct name2 -> Struct_name.(=) name1 name2
-  | TETrait (name1, _), TETrait (name2, _) -> Trait_name.(=) name1 name2
+  (* | TETrait (name1, _), TETrait (name2, _) -> Trait_name.(=) name1 name2 *)
   | _ -> false
   
 

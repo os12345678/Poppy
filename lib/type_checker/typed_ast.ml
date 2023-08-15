@@ -19,6 +19,8 @@ and expr_node =
 | TConstructor         of Var_name.t * Struct_name.t * constructor_arg list
 | TMethodApp           of Var_name.t * Method_name.t * expr list
 | TFunctionApp         of Function_name.t * expr list 
+| TMutexConstructor    of type_expr * expr
+| TThread              of expr
 | TFinishAsync         of loc * async_expr list * block_expr
 | TIf                  of expr * block_expr * block_expr
 | TWhile               of expr * block_expr
@@ -27,6 +29,8 @@ and expr_node =
 | TUnOp                of un_op * expr
 | TNewStruct           of Struct_name.t * (Field_name.t * expr) list
 | TAssignToInterface   of Var_name.t * expr
+| TLock                 of expr
+| TUnlock               of expr
 [@@deriving sexp]
 
 and typed_identifier = 

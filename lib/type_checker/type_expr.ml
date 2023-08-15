@@ -128,6 +128,39 @@ let rec type_expr (struct_defns: Ast.struct_defn list) (trait_defns: Ast.trait_d
           (string_of_loc expr.loc) (Function_name.to_string func_name) (List.map param_types ~f:string_of_type |> String.concat ~sep:", ") (List.map arg_types ~f:string_of_type |> String.concat ~sep:", "))
     end
 
+  | MutexConstructor (expr_type, expr) -> 
+    let%bind typed_expr = type_with_defns expr env in
+    if equal_type_expr typed_expr.typ TEInt then
+      Ok ({Typed_ast.loc = expr.loc; typ = TEMutex expr_type; node = TMutexConstructor (expr_type, typed_expr)})
+    else
+      Or_error.error_string 
+      (Fmt.str "%s Type error - Mutex constructor argument must be an integer: %s" 
+        (string_of_loc expr.loc) (string_of_type typed_expr.typ))
+
+  | Lock (expr) -> 
+    let%bind typed_expr = type_with_defns expr env in
+    begin match typed_expr.typ with
+    | TEMutex (expr_type) -> Ok ({Typed_ast.loc = expr.loc; typ = expr_type; node = TLock (typed_expr)})
+    | _ -> Or_error.error_string 
+      (Fmt.str "%s Type error - Lock argument must be a mutex: %s" 
+        (string_of_loc expr.loc) (string_of_type typed_expr.typ))
+    end
+
+  | Unlock (expr) ->
+    let%bind typed_expr = type_with_defns expr env in
+    begin match typed_expr.typ with
+    | TEMutex (expr_type) -> Ok ({Typed_ast.loc = expr.loc; typ = expr_type; node = TUnlock (typed_expr)})
+    | _ -> Or_error.error_string 
+      (Fmt.str "%s Type error - Unlock argument must be a mutex: %s" 
+        (string_of_loc expr.loc) (string_of_type typed_expr.typ))
+    end
+
+  | Thread expr -> 
+    (* Defer type checking of the overall thread expr to llvm codegen - as 
+    checked then for free *)
+    let%bind typed_expr = type_with_defns expr env in
+    Ok ({Typed_ast.loc = expr.loc; typ = TEVoid; node = TThread typed_expr})
+
   | Ast.FinishAsync (_,_,_) -> Or_error.error_string "FinishAsync Not implemented"
 
   | Ast.If (cond, then_expr, else_expr) ->
