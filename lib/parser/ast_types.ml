@@ -64,26 +64,32 @@ let string_of_modifier = function MConst -> "Const" | MVar -> "Var" [@@deriving 
 type borrowed_ref = Borrowed [@@deriving sexp]
 let string_of_maybe_borrowed_ref = function Some Borrowed -> "Borrowed " | None -> "" [@@deriving sexp]
 
+type mutex_state = 
+  | MSLocked
+  | MSUnlocked
+  [@@deriving sexp]
+let string_of_mutex_state = function
+  | MSLocked -> "Locked"
+  | MSUnlocked -> "Unlocked"
+  [@@deriving sexp]
+
 type type_expr =
   | TEInt
   | TEStruct of Struct_name.t
-  (* | TETrait of Trait_name.t * type_expr option *)
   | TEMutex of type_expr
   | TEVoid
   | TEBool
+  | TELocked of Var_name.t
+  | TEUnlocked
   [@@deriving sexp]
 let rec string_of_type = function
   | TEInt -> "Int"
   | TEStruct struct_name -> Struct_name.to_string struct_name
-  (* | TETrait (trait_name, maybe_type_param) ->
-    let maybe_type_param_str =
-      match maybe_type_param with
-      | Some type_param -> Fmt.str "<%s>" (string_of_type type_param)
-      | None            -> "" in
-    Fmt.str "%s%s" (Trait_name.to_string trait_name) maybe_type_param_str *)
   | TEMutex type_expr -> Fmt.str "Mutex<%s>" (string_of_type type_expr)
   | TEVoid -> "Void"
   | TEBool -> "Bool"
+  | TELocked t -> Fmt.str "%s: Locked" (Var_name.to_string t)
+  | TEUnlocked -> "Unlocked"
   [@@deriving sexp]
       
 type field_defn = TField of modifier * type_expr * Field_name.t * Capability_name.t list [@@deriving sexp]
@@ -132,4 +138,19 @@ let string_of_bin_op = function
 type un_op = UnOpNot | UnOpNeg [@@deriving sexp]
           
 let string_of_un_op = function UnOpNot -> "!" | UnOpNeg -> "-"
-[@@deriving sexp]          
+[@@deriving sexp]       
+
+type function_signature = {
+  name: Function_name.t;
+  borrowed: borrowed_ref option;
+  return_type: type_expr;
+  params: param list;
+} [@@deriving sexp]
+
+type method_signature = {
+  name: Method_name.t;
+  borrowed: borrowed_ref option;
+  capability: Capability_name.t list;
+  params: param list;
+  return_type: type_expr;
+} [@@deriving sexp]
