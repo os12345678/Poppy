@@ -29,9 +29,9 @@ let check_no_duplicate_trait_names trait_defns =
     Ok ()
 
 let check_no_duplicate_method_signatures trait_defns =
-  let method_signature = List.map ~f:(fun (Ast.TTrait (_, method_signatures)) -> method_signatures) trait_defns in
-  let method_signature_names = List.concat_map ~f:(List.map ~f:(function Ast.TMethodSignature (method_name, _, _, _, _) -> method_name)) method_signature in
-  if has_duplicates method_signature_names ~equal:Method_name.(=)  then
+  let method_signatures = List.concat_map ~f:(fun (Ast.TTrait (_, method_signatures)) -> method_signatures) trait_defns in
+  let method_signature_names = List.map ~f:(fun method_signature -> method_signature.name) method_signatures in
+  if has_duplicates method_signature_names ~equal:Method_name.(=) then
     Or_error.errorf "%s Duplicate method names found" (Method_name.to_string (List.hd_exn method_signature_names))
   else
     Ok ()
@@ -50,14 +50,15 @@ let check_no_duplicate_method_signatures trait_defns =
     check_type_valid trait_defns param_type param_error_prefix)
   params) *)
 
-let type_method_signature (Ast.TMethodSignature(method_name, borrowed_ref, capabilities, params, ret_type)) =
-  Typed_ast.TMethodSignature(method_name, borrowed_ref, capabilities, params, ret_type)
+(* let type_method_signature (Ast.TMethodSignature(method_name, borrowed_ref, capabilities, params, ret_type)) =
+  Typed_ast.TMethodSignature(method_name, borrowed_ref, capabilities, params, ret_type) *)
+  
 
 let type_trait_defn (Ast.TTrait (trait_name, method_sigs) as current_trait_defn) = 
   let%bind () = check_no_duplicate_trait_names [current_trait_defn] in
   let%bind () = check_no_duplicate_method_signatures [current_trait_defn] in
-  let typed_method_sigs = List.map ~f:type_method_signature method_sigs in
-  let typed_trait_defn = Typed_ast.TTrait (trait_name, typed_method_sigs) in
+  (* let typed_method_sigs = List.map ~f:type_method_signature method_sigs in *)
+  let typed_trait_defn = Typed_ast.TTrait (trait_name, method_sigs) in
   Ok typed_trait_defn
    
 let type_trait_defns trait_defns  = 

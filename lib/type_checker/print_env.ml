@@ -16,19 +16,19 @@ let struct_defn_to_string struct_defn =
 let trait_defn_to_string trait_defn =
   match trait_defn with
   | Ast.TTrait (name, methods) ->
-    let method_strs = List.map ~f:(fun (Ast.TMethodSignature (name, _, _, _, _)) -> 
-      (Method_name.to_string name)) methods in
+    let method_strs = List.map ~f:(fun method_signature -> 
+      (Method_name.to_string method_signature.name)) methods in
     "trait " ^ (Trait_name.to_string name) ^ " {" ^ (String.concat ~sep:", " method_strs) ^ "}"
-
+    
 let method_defn_to_string method_defn =
   match method_defn with
-  | Ast.TMethod ((Ast.TMethodSignature(name, _, _, _, _)), _) ->
-    "method " ^ (Method_name.to_string name)
+  | Ast.TMethod (method_signature, _) ->
+    "method " ^ (Method_name.to_string method_signature.name)
 
 let function_defn_to_string function_defn =
   match function_defn with
-  | Ast.TFunction (name, _, _, _, _) ->
-    "function " ^ (Function_name.to_string name)
+  | Ast.TFunction (function_signature, _) ->
+    "function " ^ (Function_name.to_string function_signature.name)
 
 let rec print_env env =
   match env with
@@ -66,6 +66,14 @@ let rec print_env env =
     print_endline "Variables:";
     VarNameMap.iteri var_map ~f:(fun ~key ~data ->
       print_endline (Var_name.to_string key);
-      print_endline (Ast_types.string_of_type data));
-  
+      print_endline (Ast_types.string_of_type data));;
 
+let print_block_scope env =
+  match env with
+  | Block (_, var_map) ->
+    print_endline "Block scope:";
+    VarNameMap.iteri var_map ~f:(fun ~key ~data ->
+      print_endline ("\t"^Var_name.to_string key);
+      print_endline ("\t"^Ast_types.string_of_type data));
+  | _ -> print_endline "Nothing to show"
+      

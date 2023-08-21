@@ -19,28 +19,29 @@ and expr_node =
 | TConstructor         of Var_name.t * Struct_name.t * constructor_arg list
 | TMethodApp           of Var_name.t * Method_name.t * expr list
 | TFunctionApp         of Function_name.t * expr list 
-| TMutexConstructor    of type_expr * expr
-| TThread              of expr
-| TFinishAsync         of loc * async_expr list * block_expr
+| TMutexConstructor    of Var_name.t * type_expr * expr
 | TIf                  of expr * block_expr * block_expr
 | TWhile               of expr * block_expr
 | TFor                 of expr * expr * expr * block_expr
+| TPrintf              of string * expr list 
 | TBinOp               of bin_op * expr * expr
 | TUnOp                of un_op * expr
 | TNewStruct           of Struct_name.t * (Field_name.t * expr) list
 | TAssignToInterface   of Var_name.t * expr
-| TLock                 of expr
-| TUnlock               of expr
+| TLock                of Var_name.t
+| TUnlock              of Var_name.t
+| TThread               of Var_name.t * block_expr
 [@@deriving sexp]
 
 and typed_identifier = 
   | TVariable of Var_name.t * type_expr
   | TObjField of Var_name.t * Field_name.t * type_expr
+  | TMutex of Var_name.t * type_expr
   [@@deriving sexp]
 
 and block_expr = Block of loc * type_expr * expr list [@@deriving sexp]
 
-and async_expr = AsyncExpr of block_expr [@@deriving sexp]
+(* and thread_expr = ThreadExpr of block_expr [@@deriving sexp] *)
 
 and constructor_arg = ConstructorArg of Field_name.t * expr [@@deriving sexp]
 
@@ -49,15 +50,6 @@ type struct_defn =
   Struct_name.t 
   * capability list
   * field_defn list
-  [@@deriving sexp]
-
-type method_signature = 
-  | TMethodSignature of
-    Method_name.t
-    * borrowed_ref option 
-    * Capability_name.t list
-    * param list 
-    * type_expr 
   [@@deriving sexp]
 
 type method_defn =
@@ -81,7 +73,7 @@ type trait_defn =
 
 type function_defn =
 | TFunction of
-    Function_name.t * borrowed_ref option * type_expr * param list * block_expr
+    function_signature * block_expr
     [@@deriving sexp]
 
 type program = Prog of 
