@@ -76,16 +76,16 @@ let string_of_mutex_state = function
 type type_expr =
   | TEInt
   | TEStruct of Struct_name.t
-  | TEMutex of type_expr
+  (* | TEMutex of type_expr *)
   | TEVoid
   | TEBool
   | TELocked of Var_name.t
   | TEUnlocked
   [@@deriving sexp]
-let rec string_of_type = function
+let string_of_type = function
   | TEInt -> "Int"
   | TEStruct struct_name -> Struct_name.to_string struct_name
-  | TEMutex type_expr -> Fmt.str "Mutex<%s>" (string_of_type type_expr)
+  (* | TEMutex type_expr -> Fmt.str "Mutex<%s>" (string_of_type type_expr) *)
   | TEVoid -> "Void"
   | TEBool -> "Bool"
   | TELocked t -> Fmt.str "%s: Locked" (Var_name.to_string t)

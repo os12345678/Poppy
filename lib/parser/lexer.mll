@@ -18,6 +18,7 @@ let alpha = ['a'-'z' 'A'-'Z']
 
 let int = '-'? digit+
 let id = (alpha) (alpha|digit|'_')*
+let mut_id = ("mut_") (id)
 
 let whitespace = [' ' '\t']+
 let newline = '\r' | '\n' | "\r\n"
@@ -56,6 +57,7 @@ rule read_tok =
   | "->" { ARROW }
   | "new" { NEW }
   | "mutex" { MUTEX }
+  | mut_id as v { MUTEX_ID v}
   | "lock" { LOCK }
   | "unlock" { UNLOCK }
   | "create_thread" { CREATE_THREAD }
