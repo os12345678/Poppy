@@ -5,13 +5,6 @@ open Core
 open Core.Result
 open Core.Result.Let_syntax
 
-let rec add_params_to_scope env params =
-  match params with
-  | [] -> Ok env
-  | Param (param_type, var_name, _, _) :: rest ->
-    let updated_env = add_var_to_block_scope env var_name param_type in
-    add_params_to_scope updated_env rest
-
 let check_method_signature_matches param_list return_type method_signature =
   let trait_param_types = List.map method_signature.params ~f:(fun (Param (param_type, _, _, _)) -> param_type) in
   if equal_type_expr_list trait_param_types (List.map param_list ~f:(fun (Param (param_type, _, _, _)) -> param_type)) &&

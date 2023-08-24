@@ -3,6 +3,7 @@ open Poppy_parser
 open Core
 open Core.Result
 open Core.Result.Let_syntax
+open Stdlib.String
 
 exception Deadlock 
 exception AlreadyLocked
@@ -42,11 +43,8 @@ and equal_type_expr te1 te2 =
   | TEInt, TEInt -> true
   | TEBool, TEBool -> true
   | TEStruct name1 , TEStruct name2 -> Struct_name.(=) name1 name2
-  | TEMutex te1, TEMutex te2 -> equal_type_expr te1 te2 
+  (* | TEMutex te1, TEMutex te2 -> equal_type_expr te1 te2  *)
   | _ -> false
-  
-  
-
 
 
 (* Lookup functions *)
@@ -107,7 +105,7 @@ let rec lookup_impl env struct_name =
 
 let rec lookup_var env var_name loc =
   match env with
-  | Global _ -> Error (Core.Error.of_string (Fmt.str "%s :: Variable %s not found" (string_of_loc loc) (Var_name.to_string var_name)))
+  | Global _ -> Error (Core.Error.of_string (Fmt.str "%s :: Mutex/Var/ObjField %s not found" (string_of_loc loc) (Var_name.to_string var_name)))
   | Function (parent_env, var_map) | Block (parent_env, var_map) ->
     begin 
       match VarNameMap.find var_map var_name with
@@ -219,6 +217,13 @@ let add_var_to_function_scope env var_name var_type = (* only for mutexes *)
     Function (parent, new_params)
   | _ -> env
 
+let rec add_params_to_scope env params =
+  match params with
+  | [] -> Ok env
+  | Ast_types.Param (param_type, var_name, _, _) :: rest ->
+    let updated_env = add_var_to_block_scope env var_name param_type in
+    add_params_to_scope updated_env rest
+
 (* Remove Functions *)
 let remove_scope = function
 | Global _ -> Error (Base.Error.of_string "Cannot remove global scope")
@@ -292,7 +297,10 @@ let check_identifier_assignable id env loc =
 (* Locking/Unlocking *)
 let create_mutex analysis mutex_name =
   print_endline (Fmt.str "creating mutex %s" (Var_name.to_string mutex_name));
-  Hashtbl.add_exn analysis ~key:mutex_name ~data:(Ast_types.MSUnlocked)
+  if starts_with ~prefix:"mut_" (Var_name.to_string mutex_name) then
+    Hashtbl.add_exn analysis ~key:mutex_name ~data:(Ast_types.MSUnlocked)
+  else 
+    raise (Invalid_argument "Mutex name should start with mut_")
 
 let lock_mutex analysis mutex_name =
   print_endline "\t locking mutex";

@@ -73,7 +73,6 @@ let print_block_scope env =
   | Block (_, var_map) ->
     print_endline "Block scope:";
     VarNameMap.iteri var_map ~f:(fun ~key ~data ->
-      print_endline ("\t"^Var_name.to_string key);
-      print_endline ("\t"^Ast_types.string_of_type data));
+      print_endline ("\t"^Var_name.to_string key^": "^Ast_types.string_of_type data));
   | _ -> print_endline "Nothing to show"
       
