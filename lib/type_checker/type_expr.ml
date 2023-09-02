@@ -34,10 +34,6 @@ let type_identifier id env loc =
       end
     | _ -> Error (Core.Error.of_string (Fmt.str "%d:%d Type error - Variable %s is not a struct" (loc.lnum) (loc.cnum) (Var_name.to_string var_name)))
     end
-    | Ast.Mutex (var_name) ->
-      print_endline "\t typing mutex id";
-      let%bind var_type = lookup_var env var_name loc in
-      Ok (Typed_ast.TMutex (var_name, var_type), var_type)
 
 let type_args type_expr_fn args env =
   Result.all (List.map ~f:(fun expr -> type_expr_fn expr env) args)
@@ -145,7 +141,7 @@ let rec type_expr (struct_defns: Ast.struct_defn list) (trait_defns: Ast.trait_d
 
   | MutexConstructor (mut_name, expr_type, expr) -> 
     print_endline "Mutex constructor";
-    let _ = create_mutex analysis mut_name in
+    let _ = create_mutex analysis mut_name expr_type in
     let%bind typed_expr = type_with_defns expr env in
     if equal_type_expr expr_type typed_expr.typ then 
       Ok ({Typed_ast.loc = expr.loc; typ = typed_expr.typ; node = TMutexConstructor (mut_name, expr_type, typed_expr)})
@@ -156,17 +152,19 @@ let rec type_expr (struct_defns: Ast.struct_defn list) (trait_defns: Ast.trait_d
 
   | Lock (mutex_name_to_lock) -> 
     print_endline "mutex lock";
+    (* let%bind typed_expr = type_with_defns expr env in *)
     let _ = lock_mutex analysis mutex_name_to_lock in
-    Ok ({Typed_ast.loc = expr.loc; typ = TEUnlocked; node = TLock (mutex_name_to_lock)})
+    Ok ({Typed_ast.loc = expr.loc; typ = TELocked TEInt; node = TLock (mutex_name_to_lock)})
 
   | Unlock (mutex_name_to_unlock) ->
     print_endline "mutex unlock";
+    (* let%bind typed_expr = type_with_defns expr env in *)
     let _ = unlock_mutex analysis mutex_name_to_unlock in 
-    Ok ({Typed_ast.loc = expr.loc; typ = TEUnlocked; node = TUnlock (mutex_name_to_unlock)})
+    Ok ({Typed_ast.loc = expr.loc; typ = TEUnlocked TEInt; node = TUnlock (mutex_name_to_unlock)})
 
   | Thread (thread_id, expr_block) -> 
     let%bind typed_block_expr = type_block_with_defns expr_block env in
-    Ok ({Typed_ast.loc = expr.loc; typ = TEUnlocked; node = TThread (thread_id, typed_block_expr)})
+    Ok ({Typed_ast.loc = expr.loc; typ = TEVoid; node = TThread (thread_id, typed_block_expr)})
 
   | Printf (format_str, args) ->
     let%bind typed_args = type_args type_with_defns args env in

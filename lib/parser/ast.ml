@@ -4,7 +4,6 @@ open Ast_types
 type identifier = 
   | Variable of Var_name.t 
   | ObjField of Var_name.t * Field_name.t
-  | Mutex of Var_name.t
   [@@deriving sexp]
 
 type expr = {
@@ -36,8 +35,6 @@ and expr_node =
 
 and block_expr = Block of loc * expr list [@@deriving sexp]
 
-(* and thread_expr = ThreadExpr of block_expr [@@deriving sexp] *)
-
 and constructor_arg = ConstructorArg of Field_name.t * expr [@@deriving sexp]
 
 type struct_defn = 
@@ -46,15 +43,6 @@ type struct_defn =
   * capability list
   * field_defn list
   [@@deriving sexp]
-
-(* type method_signature = 
-  | TMethodSignature of
-    Method_name.t
-    * borrowed_ref option 
-    * Capability_name.t list
-    * param list 
-    * type_expr 
-  [@@deriving sexp] *)
 
 type method_defn =
   | TMethod of

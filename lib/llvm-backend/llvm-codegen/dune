@@ -1,5 +1,5 @@
 (library
- (name ir_gen)
+ (name poppy_codegen)
  (libraries poppy_parser poppy_type_checker llvm llvm.analysis)
  (preprocess (pps ppx_expect ppx_inline_test))
- (modules frontend_ir desugar_expr desugar_methods desugar_functions desugar_env))
+ (modules codegen_expr codegen_util))

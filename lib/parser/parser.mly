@@ -5,7 +5,7 @@
 
 %token  <int> INT
 %token  <string> ID
-%token  <string> MUTEX_ID
+// %token  <string> MUTEX_ID
 %token  LPAREN
 %token  RPAREN 
 %token  LBRACE 
@@ -209,13 +209,19 @@ function_defn:
     body=block_expr 
     {TFunction(function_signatures, body)}
 
+// mutex_state:
+//     | LOCK; locked_typ=type_expr { MSLocked(locked_typ) }
+//     | UNLOCK; unlocked_typ=type_expr { MSUnlocked(unlocked_typ) }
+
 // Types
 type_expr : 
     | struct_name=ID {TEStruct(Struct_name.of_string struct_name)}
-    // | MUTEX; type_expr=type_expr {TEMutex(type_expr)}
     | TYPE_INT  {TEInt} 
     | TYPE_BOOL {TEBool}
     | TYPE_VOID {TEVoid}
+    // | LOCK locked_typ=type_expr { TELocked(locked_typ) }
+    // | UNLOCKED unlocked_typ=type_expr { TEUnlocked(unlocked_typ) }
+
 
 let_type_annot:
     | COLON ; type_annot=type_expr {type_annot}
@@ -235,7 +241,7 @@ args:
     | LPAREN; args=separated_list(COMMA, expr); RPAREN {args}
 
 identifier:
-    | name=MUTEX_ID  {Mutex(Var_name.of_string name)}
+    // | name=MUTEX_ID  {Mutex(Var_name.of_string name)}
     | variable=ID {Variable(Var_name.of_string variable)}
     | obj=ID DOT field=ID {ObjField(Var_name.of_string obj, Field_name.of_string field)}
 
@@ -253,7 +259,7 @@ expr:
     | op=un_op; e=expr {{ loc=loc_of_position $startpos; node=UnOp(op,e) }}
     | e1=expr; op=bin_op; e2=expr {{ loc=loc_of_position $startpos; node=BinOp(op, e1, e2) }}
     | NEW; var_name=ID; EQUAL; struct_name=ID; LBRACE constructor_args=separated_list(COMMA, constructor_args) RBRACE {{ loc=loc_of_position $startpos; node=Constructor(Var_name.of_string var_name, Struct_name.of_string struct_name, constructor_args) }}
-    | MUTEX; type_expr=type_expr; mut_name=MUTEX_ID; EQUAL; expr=expr { 
+    | MUTEX; type_expr=type_expr; mut_name=ID; EQUAL; expr=expr { 
         { loc=loc_of_position $startpos; node=MutexConstructor(Var_name.of_string mut_name, type_expr, expr) }}
     | LET; var_name=ID; type_annot=option(let_type_annot);  EQUAL; bound_expr=expr {{ loc=loc_of_position $startpos; node=Let(type_annot, Var_name.of_string var_name, bound_expr) }} 
     | id=identifier; COLONEQ; assigned_expr=expr {{ loc=loc_of_position $startpos; node=Assign(id, assigned_expr) }}
@@ -264,8 +270,8 @@ expr:
     | FOR; LPAREN; init_expr=expr; SEMICOLON; cond_expr=expr; SEMICOLON; step_expr=expr; RPAREN; loop_expr=block_expr 
         {{ loc=loc_of_position $startpos; node=For(init_expr, cond_expr, step_expr, loop_expr) }}
     | PRINTF; LPAREN; format_str=STRING; option(COMMA); args=separated_list(COMMA, expr); RPAREN {{ loc=loc_of_position $startpos; node=Printf(format_str,args) }}
-    | LOCK; thread_name=MUTEX_ID {{ loc=loc_of_position $startpos; node=Lock(Var_name.of_string thread_name) }}
-    | UNLOCK; thread_name=MUTEX_ID {{ loc=loc_of_position $startpos; node=Unlock(Var_name.of_string thread_name) }}
+    | LOCK; thread_name=ID {{ loc=loc_of_position $startpos; node=Lock(Var_name.of_string thread_name) }}
+    | UNLOCK; thread_name=ID {{ loc=loc_of_position $startpos; node=Unlock(Var_name.of_string thread_name) }}
 
 %inline un_op:
     | EXCLAMATION_MARK {UnOpNot}

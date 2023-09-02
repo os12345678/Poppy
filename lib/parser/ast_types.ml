@@ -64,14 +64,14 @@ let string_of_modifier = function MConst -> "Const" | MVar -> "Var" [@@deriving 
 type borrowed_ref = Borrowed [@@deriving sexp]
 let string_of_maybe_borrowed_ref = function Some Borrowed -> "Borrowed " | None -> "" [@@deriving sexp]
 
-type mutex_state = 
-  | MSLocked
+(* type mutex_state = 
+  | MSLocked 
   | MSUnlocked
   [@@deriving sexp]
 let string_of_mutex_state = function
   | MSLocked -> "Locked"
   | MSUnlocked -> "Unlocked"
-  [@@deriving sexp]
+  [@@deriving sexp] *)
 
 type type_expr =
   | TEInt
@@ -79,17 +79,17 @@ type type_expr =
   (* | TEMutex of type_expr *)
   | TEVoid
   | TEBool
-  | TELocked of Var_name.t
-  | TEUnlocked
+  | TELocked of type_expr
+  | TEUnlocked of type_expr
   [@@deriving sexp]
-let string_of_type = function
+let rec string_of_type = function
   | TEInt -> "Int"
   | TEStruct struct_name -> Struct_name.to_string struct_name
   (* | TEMutex type_expr -> Fmt.str "Mutex<%s>" (string_of_type type_expr) *)
   | TEVoid -> "Void"
   | TEBool -> "Bool"
-  | TELocked t -> Fmt.str "%s: Locked" (Var_name.to_string t)
-  | TEUnlocked -> "Unlocked"
+  | TELocked t -> Fmt.str "Mutex<%s>: Locked" (string_of_type t)
+  | TEUnlocked t -> Fmt.str "Mutex<%s>: Unlocked" (string_of_type t)
   [@@deriving sexp]
       
 type field_defn = TField of modifier * type_expr * Field_name.t * Capability_name.t list [@@deriving sexp]

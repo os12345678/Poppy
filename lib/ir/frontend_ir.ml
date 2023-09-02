@@ -1,129 +1,75 @@
-(* This AST is serialised to Protobuf, to be converted to LLVM IR in the middle/backend of
-   the compiler. Therefore we simplify the types used to make it easier to deserialise.
+(* Original AST simplified and contains LLVM IR specific constructs i.e load, 
+store, call, etc.
 
-   We drop:
+Key Changes
+-----------
+Identifier Types: Reduced to simple variables and fields. Complex types like 
+methods and traits are not directly representable in LLVM IR.
 
-   - type information about the expressions (only keeping function / method types) - the
-   position (loc) since these were used for type error debugging. - modes / capabilities
-   (as these are only used in the data-race type checker) - Const / Var modifiers for
-   fields (again, these are used in Type Checking) - field names - fields are now just
-   indices into a class struct.
+Expressions: Removed high-level constructs like Let, Assign, Constructor, 
+MethodApp, etc. These will be lowered into simpler constructs like LLVMLoad, 
+LLVMStore, and LLVMCall.
 
-   We also use strings for identifiers rather than the abstract ID signatures,
+Function Definitions: Simplified to only include the function name, parameter 
+types and names, and the block expression.
 
-   Methods are converted to functions, with the first argument being "this"
+Program Structure: Removed structs, traits, and impls. These are high-level 
+constructs that need to be lowered into simpler constructs before generating LLVM IR.
 
-   We copy across un_op / bin_op type information, as although these are the only AST
-   types that remain unchanged, it makes sense to keep the AST interface in one file. *)
+Locks and Threads: Kept these as they can be directly mapped to LLVM's atomic 
+instructions.
 
-   type un_op = UnOpNot [@key 1] | UnOpNeg [@key 2]
-   [@@deriving protobuf {protoc= "../../frontend_ir.proto"}]
-   
-   let string_of_un_op = function UnOpNot -> "!" | UnOpNeg -> "-"
-   
-   type bin_op =
-     | BinOpPlus [@key 1]
-     | BinOpMinus [@key 2]
-     | BinOpMult [@key 3]
-     | BinOpIntDiv [@key 4]
-     | BinOpRem [@key 5]
-     | BinOpLessThan [@key 6]
-     | BinOpLessThanEq [@key 7]
-     | BinOpGreaterThan [@key 8]
-     | BinOpGreaterThanEq [@key 9]
-     | BinOpAnd [@key 10]
-     | BinOpOr [@key 11]
-     | BinOpEq [@key 12]
-     | BinOpNotEq [@key 13]
-   [@@deriving protobuf {protoc= "../../frontend_ir.proto"}]
-   
-   let string_of_bin_op = function
-     | BinOpPlus          -> "+"
-     | BinOpMinus         -> "-"
-     | BinOpMult          -> "*"
-     | BinOpIntDiv        -> "/"
-     | BinOpRem           -> "%"
-     | BinOpLessThan      -> "<"
-     | BinOpLessThanEq    -> "<="
-     | BinOpGreaterThan   -> ">"
-     | BinOpGreaterThanEq -> ">="
-     | BinOpAnd           -> "&&"
-     | BinOpOr            -> "||"
-     | BinOpEq            -> "=="
-     | BinOpNotEq         -> "!="
-   
-   type type_expr =
-     | TEInt [@key 1]
-     | TEClass of string [@key 2]
-     | TEVoid [@key 3]
-     | TEBool [@key 4]
-   [@@deriving protobuf {protoc= "../../frontend_ir.proto"}]
-   
-   let string_of_type = function
-     | TEInt              -> "Int"
-     | TEClass class_name -> Fmt.str "Class: %s" class_name
-     | TEVoid             -> "Void"
-     | TEBool             -> "Bool"
-   
-   type param = TParam of type_expr * string [@key 1]
-   [@@deriving protobuf {protoc= "../../frontend_ir.proto"}]
-   
-   type identifier =
-     | Variable of string [@key 1]
-     | ObjField of string * int [@key 2] (* object name, field *)
-   [@@deriving protobuf {protoc= "../../frontend_ir.proto"}]
-   
-   type lock_type = Reader [@key 1] | Writer [@key 2]
-   [@@deriving protobuf {protoc= "../../frontend_ir.proto"}]
-   
-   let string_of_lock_type = function Reader -> "Reader" | Writer -> "Writer"
-   
-   type expr =
-     | Integer     of int [@key 1]
-     | Boolean     of bool [@key 2]
-     | Identifier  of identifier * lock_type option [@key 3]
-     | Constructor of string * constructor_arg list [@key 4]
-     | Let         of string * expr [@key 5]
-     | Assign      of identifier * expr * lock_type option [@key 6]
-     | Consume     of identifier * lock_type option [@key 7]
-     | FunctionApp of string * block_expr [@key 8]
-     | MethodApp   of string * string * int * expr list [@key 18]
-     (* object name, static method name (used to get method arg types), method index into
-        vtable, args *)
-     | Printf      of string * block_expr [@key 9]
-     | FinishAsync of async_expr list * block_expr [@key 10]
-     | IfElse      of expr * block_expr * block_expr [@key 11]
-     (* If ___ then ___ else ___ *)
-     | WhileLoop   of expr * block_expr [@key 12]
-     (* While ___ do ___ ; *)
-     | BinOp       of bin_op * expr * expr [@key 13]
-     | UnOp        of un_op * expr [@key 14]
-     | Block       of block_expr [@key 15]
-     | Lock        of string * lock_type [@key 16]
-     | Unlock      of string * lock_type [@key 17]
-   [@@deriving protobuf {protoc= "../../frontend_ir.proto"}]
-   
-   and block_expr = expr list [@@deriving protobuf {protoc= "../../frontend_ir.proto"}]
-   
-   (* Async exprs have a precomputed list of their free variables (passed as arguments when
-      they are spawned as thread) *)
-   and async_expr = AsyncExpr of string list * block_expr [@key 1]
-   [@@deriving protobuf {protoc= "../../frontend_ir.proto"}]
-   
-   and constructor_arg = ConstructorArg of int * expr [@key 1]
-   [@@deriving protobuf {protoc= "../../frontend_ir.proto"}]
-   
-   (* Function defn consists of the function name, return type, the list of params, and the
-      body expr block of the function *)
-   type function_defn = TFunction of string * type_expr * param list * expr list [@key 1]
-   [@@deriving protobuf {protoc= "../../frontend_ir.proto"}]
-   
-   (* Class definitions consist of the class name, the list of the types of its fields and a
-      vtable. Its methods are now plain old functions *)
-   type class_defn = TClass of string * type_expr list * string list [@key 1]
-   [@@deriving protobuf {protoc= "../../frontend_ir.proto"}]
-   
-   (* Each bolt program defines the classes,followed by functions, followed by the main
-      expression block to execute. *)
-   type program = Prog of class_defn list * function_defn list * expr list [@key 1]
-   [@@deriving protobuf {protoc= "../../frontend_ir.proto"}]
+Binary and Unary Operations: Kept these as they can be directly mapped to LLVM 
+instructions.
+
+Control Flow: Kept If, While as they can be directly mapped to LLVM's branching 
+instructions.
+*)
+
+open! Core
+
+module T = Poppy_parser.Ast_types
+
+type llvm_identifier = 
+  | LLVMVariable of string * mutex_state
+  | LLVMField of string * string * mutex_state
+  [@@deriving sexp]
+
+and mutex_state = Locked | Unlocked [@@deriving sexp]
+
+type llvm_expr = {
+  llvm_loc : T.loc;
+  llvm_node: llvm_expr_node
+}
+[@@deriving sexp]
+
+and llvm_expr_node =
+  | LLVMInt          of int
+  | LLVMBool         of bool
+  | LLVMIdentifier   of llvm_identifier
+  | LLVMLoad         of llvm_identifier
+  | LLVMStore        of llvm_identifier * llvm_expr
+  | LLVMCall         of string * llvm_expr list
+  | LLVMIf           of llvm_expr * llvm_block_expr * llvm_block_expr
+  | LLVMWhile        of llvm_expr * llvm_block_expr
+  | LLVMBinOp        of string * llvm_expr * llvm_expr
+  | LLVMUnOp         of string * llvm_expr
+  | LLVMLock         of llvm_identifier
+  | LLVMUnlock       of llvm_identifier
+  | LLVMThread       of string * llvm_block_expr
+  [@@deriving sexp]
+
+and llvm_block_expr = LLVMBlock of T.loc * llvm_expr list [@@deriving sexp]
+
+type llvm_function_defn =
+  | LLVMFunction of
+      string (* function name *)
+      * (string * string) list (* parameter types and names *)
+      * string (* return type *)
+      * llvm_block_expr
+  [@@deriving sexp]
+
+type llvm_program = LLVMProg of 
+                    llvm_function_defn list 
+                    * llvm_block_expr
+[@@deriving sexp]
