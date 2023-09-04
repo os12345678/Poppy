@@ -15,18 +15,18 @@ and expr_node =
 | TBoolean             of bool
 | TIdentifier          of typed_identifier
 | TLet                 of type_expr option * Var_name.t * expr
+| TBlockExpr           of block_expr (* used to interconvert with block expr *)
 | TAssign              of typed_identifier * expr  
 | TConstructor         of Var_name.t * Struct_name.t * constructor_arg list
 | TMethodApp           of Var_name.t * Method_name.t * expr list
 | TFunctionApp         of Function_name.t * expr list 
-| TFinishAsync         of loc * async_expr list * block_expr
 | TIf                  of expr * block_expr * block_expr
 | TWhile               of expr * block_expr
-| TFor                 of expr * expr * expr * block_expr
+(* | TFor                 of expr * expr * expr * block_expr *)
+| TPrintf              of string * expr list 
 | TBinOp               of bin_op * expr * expr
 | TUnOp                of un_op * expr
-| TNewStruct           of Struct_name.t * (Field_name.t * expr) list
-| TAssignToInterface   of Var_name.t * expr
+| TFinishAsync         of async_expr list * block_expr
 [@@deriving sexp]
 
 and typed_identifier = 
@@ -36,6 +36,7 @@ and typed_identifier =
 
 and block_expr = Block of loc * type_expr * expr list [@@deriving sexp]
 
+(* type is of the final expr in block *)
 and async_expr = AsyncExpr of block_expr [@@deriving sexp]
 
 and constructor_arg = ConstructorArg of Field_name.t * expr [@@deriving sexp]
@@ -45,15 +46,6 @@ type struct_defn =
   Struct_name.t 
   * capability list
   * field_defn list
-  [@@deriving sexp]
-
-type method_signature = 
-  | TMethodSignature of
-    Method_name.t
-    * borrowed_ref option 
-    * Capability_name.t list
-    * param list 
-    * type_expr 
   [@@deriving sexp]
 
 type method_defn =
@@ -77,7 +69,7 @@ type trait_defn =
 
 type function_defn =
 | TFunction of
-    Function_name.t * borrowed_ref option * type_expr * param list * block_expr
+    function_signature * block_expr
     [@@deriving sexp]
 
 type program = Prog of 

@@ -57,28 +57,13 @@ open Core
 open Core.Result
 open Core.Result.Let_syntax
 
-let rec add_params_to_scope env params =
-  match params with
-  | [] -> Ok env
-  | Ast_types.Param (param_type, var_name, _, _) :: rest ->
-    let updated_env = add_var_to_block_scope env var_name param_type in
-    add_params_to_scope updated_env rest
-
-let get_expr_type (expr: Typed_ast.expr) : Ast_types.type_expr =
-  expr.typ
-
-let type_function_defn env struct_defns trait_defns impl_defns function_defns (Ast.TFunction (function_name, borrowed, return_type, params, body)) =
+let type_function_defn env struct_defns trait_defns impl_defns function_defns (Ast.TFunction (function_signature, body)) =
   (* Add the parameters to the scope *)
-  let%bind env_with_params = add_params_to_scope env params in
+  let env = add_block_scope env VarNameMap.empty in
+  let%bind env_with_params = add_params_to_scope env function_signature.params in
   (* Type check the body *)
-  let%bind typed_body = Type_expr.type_block_expr struct_defns trait_defns impl_defns function_defns body env_with_params in
-  (* Check that the type of the last expression in the body matches the return type *)
-  (* let inferred_return_type = get_expr_type (List.last_exn typed_body) in *)
-  (* if not (equal_type_expr return_type inferred_return_type) then *)
-    (* Error (Core.Error.of_string (Fmt.str "Type error - Function %s expected return type %s but got %s"  *)
-      (* (Ast_types.Function_name.to_string function_name) (Ast_types.string_of_type return_type) (Ast_types.string_of_type inferred_return_type))) *)
-  (* else *)
-    Ok (Typed_ast.TFunction (function_name, borrowed, return_type, params, typed_body))
-    
+  let%bind (typed_body, _) = Type_expr.type_block_expr struct_defns trait_defns impl_defns function_defns body env_with_params in
+  Ok (Typed_ast.TFunction (function_signature, typed_body))
+
 let type_function_defns env struct_defns trait_defns impl_defns function_defns = 
   Result.all (List.map ~f:(type_function_defn env struct_defns trait_defns impl_defns function_defns) function_defns)

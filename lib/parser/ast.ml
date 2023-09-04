@@ -21,12 +21,13 @@ and expr_node =
 | Constructor         of Var_name.t * Struct_name.t * constructor_arg list
 | MethodApp           of Var_name.t * Method_name.t * expr list
 | FunctionApp         of Function_name.t * expr list 
-| FinishAsync         of loc * async_expr list * block_expr
 | If                  of expr * block_expr * block_expr
 | While               of expr * block_expr
 | For                 of expr * expr * expr * block_expr
+| Printf              of string * expr list
 | BinOp               of bin_op * expr * expr
 | UnOp                of un_op * expr
+| FinishAsync         of async_expr list * block_expr
 [@@deriving sexp]
 
 and block_expr = Block of loc * expr list [@@deriving sexp]
@@ -40,15 +41,6 @@ type struct_defn =
   Struct_name.t 
   * capability list
   * field_defn list
-  [@@deriving sexp]
-
-type method_signature = 
-  | TMethodSignature of
-    Method_name.t
-    * borrowed_ref option 
-    * Capability_name.t list
-    * param list 
-    * type_expr 
   [@@deriving sexp]
 
 type method_defn =
@@ -72,7 +64,8 @@ type trait_defn =
 
 type function_defn =
 | TFunction of
-    Function_name.t * borrowed_ref option * type_expr * param list * block_expr
+    function_signature 
+    * block_expr
     [@@deriving sexp]
 
 type program = Prog of 

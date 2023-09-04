@@ -19,7 +19,7 @@ type env =
   | Function of env * type_expr VarNameMap.t
   | Block of env * type_expr VarNameMap.t
   [@@deriving sexp]
-
+  
 let init_global_scope () =
   Global (StructNameMap.empty, TraitNameMap.empty, MethodNameMap.empty, FunctionNameMap.empty, StructTraitMap.empty)
 
@@ -33,10 +33,9 @@ and equal_type_expr te1 te2 =
   match te1, te2 with
   | TEInt, TEInt -> true
   | TEBool, TEBool -> true
+  | TEVoid, TEVoid -> true
   | TEStruct name1 , TEStruct name2 -> Struct_name.(=) name1 name2
-  | TETrait (name1, _), TETrait (name2, _) -> Trait_name.(=) name1 name2
   | _ -> false
-  
 
 (* Lookup functions *)
 let rec find_global env =
@@ -94,27 +93,26 @@ let rec lookup_impl env struct_name =
     end 
   | Function (parent_env, _) | Block (parent_env, _) -> lookup_impl parent_env struct_name
 
-let rec lookup_var env var_name =
+let rec lookup_var env var_name loc =
   match env with
-  | Global _ -> Error (Core.Error.of_string (Fmt.str "Variable %s not found" (Var_name.to_string var_name)))
+  | Global _ -> Error (Core.Error.of_string (Fmt.str "%s :: Var/ObjField %s not found" (string_of_loc loc) (Var_name.to_string var_name)))
   | Function (parent_env, var_map) | Block (parent_env, var_map) ->
     begin 
       match VarNameMap.find var_map var_name with
       | Some var_type -> Ok var_type
-      | None -> lookup_var parent_env var_name
+      | None -> lookup_var parent_env var_name loc
     end
 
 let lookup_method_signature trait_defn method_name = 
   match trait_defn with
   | Ast.TTrait (_, method_signatures) ->
     begin
-      match List.find method_signatures ~f:(fun (TMethodSignature (name, _, _, _, _)) -> Method_name.(=) name method_name) with
+      match List.find method_signatures ~f:(fun method_signature -> Method_name.(=) method_signature.name method_name) with
       | Some method_signature -> Ok method_signature
       | None -> Error (Core.Error.of_string (Fmt.str "Method %s not found" (Method_name.to_string method_name)))
-    end
+    end   
 
 let lookup_method_in_impl env struct_name method_name =
-  (* let%bind trait_names = lookup_impl env struct_name in *)
   let glob_env = find_global env in
   match glob_env with
   | Global (_, _, method_map, _, _) ->
@@ -128,8 +126,8 @@ let lookup_method_in_impl env struct_name method_name =
 let get_method_map method_defns =
   List.fold method_defns ~init:MethodNameMap.empty ~f:(fun map method_defn ->
     match method_defn with
-    | Ast.TMethod (TMethodSignature (method_name, _, _, _, _), _) ->
-      MethodNameMap.add_exn map ~key:method_name ~data:method_defn
+    | Ast.TMethod (method_signature, _) ->
+      MethodNameMap.add_exn map ~key:method_signature.name ~data:method_defn
   )
   
 let get_struct_trait_map env =
@@ -161,15 +159,15 @@ let add_trait_to_global env trait_defn =
 
 let add_method_to_global env method_defn =
   match env, method_defn with
-  | Global (struct_map, trait_map, method_map, function_map, structtrait_map), Ast.TMethod (TMethodSignature (method_name, _, _, _, _), _) ->
-      let new_method_map = MethodNameMap.add_exn method_map ~key:method_name ~data:method_defn in
+  | Global (struct_map, trait_map, method_map, function_map, structtrait_map), Ast.TMethod (method_signature, _) ->
+      let new_method_map = MethodNameMap.add_exn method_map ~key:method_signature.name ~data:method_defn in
       Global (struct_map, trait_map, new_method_map, function_map, structtrait_map)
   | _ -> env
 
 let add_function_to_global env function_defn =
   match env, function_defn with
-  | Global (struct_map, trait_map, method_map, function_map, structtrait_map), Ast.TFunction (function_name, _, _, _, _) ->
-      let new_function_map = FunctionNameMap.add_exn function_map ~key:function_name ~data:function_defn in
+  | Global (struct_map, trait_map, method_map, function_map, structtrait_map), Ast.TFunction (function_signature, _) ->
+      let new_function_map = FunctionNameMap.add_exn function_map ~key:function_signature.name ~data:function_defn in
       Global (struct_map, trait_map, method_map, new_function_map, structtrait_map)
   | _ -> env
 
@@ -201,6 +199,13 @@ let add_this_to_block_scope env struct_name =
   let this_type = TEStruct struct_name in
   add_var_to_block_scope env (Var_name.of_string "this") this_type
 
+let rec add_params_to_scope env params =
+  match params with
+  | [] -> Ok env
+  | Ast_types.Param (param_type, var_name, _, _) :: rest ->
+    let updated_env = add_var_to_block_scope env var_name param_type in
+    add_params_to_scope updated_env rest
+
 (* Remove Functions *)
 let remove_scope = function
 | Global _ -> Error (Base.Error.of_string "Cannot remove global scope")
@@ -209,7 +214,7 @@ let remove_scope = function
 
 (* Getter Functions *)
 let get_obj_struct_defn var_name env loc = 
-  lookup_var env var_name
+  lookup_var env var_name loc
   >>= function
   | TEStruct (struct_name) ->
       lookup_struct env struct_name
@@ -244,10 +249,14 @@ let check_variable_declarable var_name loc =
   else Ok ()
 
 let check_identifier_assignable id env loc = 
+  print_endline "\t checking identifier assignability";
   match id with 
-  | Ast.Variable var_name -> check_variable_declarable var_name loc
+  | Ast.Variable var_name -> print_endline "\t\t checking variable";
+    check_variable_declarable var_name loc
   | Ast.ObjField (obj_name, field_name) -> 
+    print_endline "\t checking obj field";
     let%bind (Ast.TStruct (_, _, fields)) = get_obj_struct_defn obj_name env loc in
+    begin
     match List.find ~f:(fun (TField (_, _, name, _)) -> Field_name.(=) name field_name) fields with
     | Some (TField(modifier, _, _, _)) ->
       if phys_equal modifier (MConst) then
@@ -255,4 +264,6 @@ let check_identifier_assignable id env loc =
                 (Fmt.str "%d:%d Type error - Cannot assign to const field %s" (loc.lnum) (loc.cnum) (Field_name.to_string field_name)))
       else Ok ()
     | None -> Error (Core.Error.of_string 
-                (Fmt.str "%d:%d Type error - Field %s not found in struct" (loc.lnum) (loc.cnum) (Field_name.to_string field_name)))
+                (Fmt.str "%d:%d Type error - Field %s not found in struct" (loc.lnum) (loc.cnum) (Field_name.to_string field_name))) 
+
+    end

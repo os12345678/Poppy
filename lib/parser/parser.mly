@@ -5,6 +5,7 @@
 
 %token  <int> INT
 %token  <string> ID
+// %token  <string> MUTEX_ID
 %token  LPAREN
 %token  RPAREN 
 %token  LBRACE 
@@ -35,9 +36,14 @@
 %token  IMPL
 %token  NEW
 %token  FUNCTION 
+// %token  MUTEX
+// // %token  MUTEX_ID
+// %token  LOCK
+// %token  UNLOCK
+// %token  CREATE_THREAD
 // %token  CONSUME
-// %token  FINISH 
-// %token  ASYNC 
+%token  FINISH 
+%token  ASYNC 
 %token  CAPABILITY 
 %token  LINEAR 
 %token  LOCAL 
@@ -54,6 +60,8 @@
 %token  ELSE
 %token  FOR
 %token  WHILE
+%token PRINTF
+%token <string> STRING
 %token  MAIN
 %token  EOF
 
@@ -171,8 +179,12 @@ method_signature:
     capabilities_used = struct_capability_annotations;
     method_params=params; ARROW;
     return_type=type_expr;
-    {TMethodSignature(Method_name.of_string method_name, maybeBorrowed, capabilities_used, method_params, return_type)}
-
+   { { name = Method_name.of_string method_name;
+        borrowed = maybeBorrowed;
+        capability = capabilities_used;
+        params = method_params;
+        return_type = return_type;
+      } }
 
 method_defn: 
     | LBRACE 
@@ -180,20 +192,26 @@ method_defn:
     body=block_expr; RBRACE;
     {TMethod(method_signatures, body)}
 
+function_signature:
+    | function_name=ID; 
+    maybeBorrowed=option(borrowed_ref); 
+    function_params=params; ARROW;
+    return_type=type_expr;
+    { { name = Function_name.of_string function_name;
+        borrowed = maybeBorrowed;
+        return_type = return_type;
+        params = function_params;
+      } }
 
 function_defn: 
     | FUNCTION; 
-    function_name=ID; 
-    maybeBorrowed=option(borrowed_ref); 
-    function_params=params; ARROW;
-    return_type=type_expr; 
+    function_signatures = function_signature;
     body=block_expr 
-    {TFunction(Function_name.of_string function_name, maybeBorrowed, return_type, function_params,body)}
+    {TFunction(function_signatures, body)}
 
 // Types
 type_expr : 
     | struct_name=ID {TEStruct(Struct_name.of_string struct_name)}
-    // | TRAIT trait_name=ID {TETrait(Trait_name.of_string trait_name)}
     | TYPE_INT  {TEInt} 
     | TYPE_BOOL {TEBool}
     | TYPE_VOID {TEVoid}
@@ -218,7 +236,6 @@ identifier:
 
 constructor_args:
     | field_name=ID; COLON; assigned_expr=expr {ConstructorArg(Field_name.of_string field_name, assigned_expr)}
-    // | constructor_args COMMA LBRACE field_name=ID; COLON; assigned_expr=expr RBRACE {ConstructorArg(Field_name.of_string field_name, assigned_expr)}
 
 expr:
     | i=INT {{ loc=loc_of_position $startpos; node=Int(i) }}
@@ -237,6 +254,12 @@ expr:
     | WHILE cond_expr=expr; loop_expr=block_expr {{ loc=loc_of_position $startpos; node=While(cond_expr, loop_expr) }}
     | FOR; LPAREN; init_expr=expr; SEMICOLON; cond_expr=expr; SEMICOLON; step_expr=expr; RPAREN; loop_expr=block_expr 
         {{ loc=loc_of_position $startpos; node=For(init_expr, cond_expr, step_expr, loop_expr) }}
+    | PRINTF; LPAREN; format_str=STRING; option(COMMA); args=separated_list(COMMA, expr); RPAREN {{ loc=loc_of_position $startpos; node=Printf(format_str,args) }}
+    | FINISH; LBRACE; forked_async_exprs=list(async_expr); curr_thread_expr=separated_list(SEMICOLON, expr) RBRACE {{ loc=loc_of_position $startpos; node=FinishAsync(forked_async_exprs, Block(loc_of_position $startpos, curr_thread_expr))}}
+
+async_expr:
+| ASYNC exprs=block_expr {AsyncExpr exprs}
+
 
 %inline un_op:
     | EXCLAMATION_MARK {UnOpNot}
