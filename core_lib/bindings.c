@@ -2,9 +2,12 @@
 #include <stdarg.h>
 #include <pthread.h>
 
-// simple printf wrapper
-void print(const char* format, long long *arg) {
-  printf(format, *arg);
+// printf 
+void print(const char* format, ...) {
+    va_list args;
+    va_start(args, format);
+    vprintf(format, args);
+    va_end(args);
 }
 
 // create pthread and return thread identifier

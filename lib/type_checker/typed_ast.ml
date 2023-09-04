@@ -32,7 +32,6 @@ and expr_node =
 and typed_identifier = 
   | TVariable of Var_name.t * type_expr
   | TObjField of Var_name.t * Field_name.t * type_expr
-  | TMutex of Var_name.t * type_expr
   [@@deriving sexp]
 
 and block_expr = Block of loc * type_expr * expr list [@@deriving sexp]

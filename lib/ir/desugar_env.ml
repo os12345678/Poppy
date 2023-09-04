@@ -13,14 +13,12 @@ let mangle_method_name (trait_name: T.Trait_name.t) (struct_name: T.Struct_name.
   let method_str = T.Method_name.to_string method_name in
   "impl_" ^ trait_str ^ "_for_" ^ struct_str ^ "_" ^ method_str
   
-let rec desugar_type (type_expr: T.type_expr) : string =
+let desugar_type (type_expr: T.type_expr) : string =
   match type_expr with
   | TEInt -> "i32"
   | TEBool -> "i1"
   | TEStruct struct_name -> "%" ^ T.Struct_name.to_string struct_name (* prefix % to store struct on the stack *)
   | TEVoid -> "void"
-  | TEUnlocked n -> desugar_type n
-  | TELocked n -> desugar_type n
 
 let desugar_param (param: T.param) : (string * string) =
   match param with

@@ -75,7 +75,7 @@ rule read_tok =
   | "else" { ELSE }
   | "for" { FOR }
   | "main" { MAIN }
-  | "printf" { PRINTF }
+  | "print" { PRINTF }
   | whitespace { read_tok lexbuf }
   | "//" { read_single_line_comment lexbuf }
   | "/*" { read_multi_line_comment 1 lexbuf } 

@@ -79,7 +79,7 @@ type type_expr =
   | TEVoid
   | TEBool
   [@@deriving sexp]
-let rec string_of_type = function
+let string_of_type = function
   | TEInt -> "Int"
   | TEStruct struct_name -> Struct_name.to_string struct_name
   | TEVoid -> "Void"

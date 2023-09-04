@@ -43,10 +43,10 @@ let compile_program ?(should_pprint_past = false) ?(should_pprint_tast = false) 
   >>= fun typed_ast ->
   (if should_pprint_tast then
       print_endline (Sexp.to_string_hum (Typed_ast.sexp_of_program typed_ast)));
-  Desugar_program.desugar_program ast (* Desugared AST *)
+  Desugar_program.desugar_program typed_ast (* Desugared AST *)
   >>= fun desugared_ast ->
   (if should_pprint_dast then
-      print_endline (Sexp.to_string_hum (Frontend_ir.sexp_of_llvm_program desugared_ast)));
+      print_endline (Sexp.to_string_hum (Desugared_ast.sexp_of_dprogram desugared_ast)));
   match compile_out_file with 
   | Some filename -> 
     Out_channel.with_file filename ~f:(fun file_oc ->

@@ -3,13 +3,6 @@ open Poppy_parser
 open Core
 open Core.Result
 open Core.Result.Let_syntax
-open Stdlib.String
-
-exception Deadlock 
-exception AlreadyLocked
-exception NotLocked
-exception NotOwner
-exception UnauthorizedUnlock
 
 (* Environment *)
 module VarNameMap = Map.Make(Var_name)
@@ -26,9 +19,7 @@ type env =
   | Function of env * type_expr VarNameMap.t
   | Block of env * type_expr VarNameMap.t
   [@@deriving sexp]
-
-let analysis : (Var_name.t, type_expr) Hashtbl.t = Hashtbl.create (module Var_name) ~size:10
-
+  
 let init_global_scope () =
   Global (StructNameMap.empty, TraitNameMap.empty, MethodNameMap.empty, FunctionNameMap.empty, StructTraitMap.empty)
 
@@ -42,10 +33,9 @@ and equal_type_expr te1 te2 =
   match te1, te2 with
   | TEInt, TEInt -> true
   | TEBool, TEBool -> true
+  | TEVoid, TEVoid -> true
   | TEStruct name1 , TEStruct name2 -> Struct_name.(=) name1 name2
-  (* | TEMutex te1, TEMutex te2 -> equal_type_expr te1 te2  *)
   | _ -> false
-
 
 (* Lookup functions *)
 let rec find_global env =
@@ -105,7 +95,7 @@ let rec lookup_impl env struct_name =
 
 let rec lookup_var env var_name loc =
   match env with
-  | Global _ -> Error (Core.Error.of_string (Fmt.str "%s :: Mutex/Var/ObjField %s not found" (string_of_loc loc) (Var_name.to_string var_name)))
+  | Global _ -> Error (Core.Error.of_string (Fmt.str "%s :: Var/ObjField %s not found" (string_of_loc loc) (Var_name.to_string var_name)))
   | Function (parent_env, var_map) | Block (parent_env, var_map) ->
     begin 
       match VarNameMap.find var_map var_name with
@@ -123,7 +113,6 @@ let lookup_method_signature trait_defn method_name =
     end   
 
 let lookup_method_in_impl env struct_name method_name =
-  (* let%bind trait_names = lookup_impl env struct_name in *)
   let glob_env = find_global env in
   match glob_env with
   | Global (_, _, method_map, _, _) ->
@@ -210,13 +199,6 @@ let add_this_to_block_scope env struct_name =
   let this_type = TEStruct struct_name in
   add_var_to_block_scope env (Var_name.of_string "this") this_type
 
-let add_var_to_function_scope env var_name var_type = (* only for mutexes *)
-  match env with 
-  | Function (parent, params) ->
-    let new_params = VarNameMap.add_exn params ~key:var_name ~data:var_type in
-    Function (parent, new_params)
-  | _ -> env
-
 let rec add_params_to_scope env params =
   match params with
   | [] -> Ok env
@@ -260,20 +242,6 @@ let check_no_duplicate_var_declarations_in_block exprs loc =
     Ok ()
 
 (* Assignability *)
-let is_mutex mut_name = 
-  starts_with ~prefix:"mut_" (Var_name.to_string mut_name)
-
-let check_mutex_is_locked var_name loc = 
-  print_endline "\t checking mutex is locked";
-  begin match Hashtbl.find analysis var_name with
-  | Some TELocked _ -> Ok ()
-  | Some TEUnlocked _ -> 
-      Error (Core.Error.of_string 
-             (Fmt.str "%d:%d Error - Trying to modify unlocked mutex %s" (loc.lnum) (loc.cnum) (Var_name.to_string var_name)))
-  | _ -> Error (Core.Error.of_string 
-             (Fmt.str "%d:%d Error - Mutex %s not found" (loc.lnum) (loc.cnum) (Var_name.to_string var_name)))
-  end
-
 let check_variable_declarable var_name loc = 
   if phys_equal var_name (Var_name.of_string "this") then 
     Error (Core.Error.of_string 
@@ -284,9 +252,6 @@ let check_identifier_assignable id env loc =
   print_endline "\t checking identifier assignability";
   match id with 
   | Ast.Variable var_name -> print_endline "\t\t checking variable";
-    if is_mutex var_name then 
-      check_mutex_is_locked var_name loc
-    else
     check_variable_declarable var_name loc
   | Ast.ObjField (obj_name, field_name) -> 
     print_endline "\t checking obj field";
@@ -302,31 +267,3 @@ let check_identifier_assignable id env loc =
                 (Fmt.str "%d:%d Type error - Field %s not found in struct" (loc.lnum) (loc.cnum) (Field_name.to_string field_name))) 
 
     end
-
-(* Locking/Unlocking *)
-let create_mutex analysis mutex_name mutex_type =
-  print_endline (Fmt.str "creating mutex %s" (Var_name.to_string mutex_name));
-  if is_mutex mutex_name then
-    Hashtbl.add_exn analysis ~key:mutex_name ~data:(Ast_types.TEUnlocked mutex_type)
-  else 
-    raise (Invalid_argument "Mutex name should start with mut_")
-
-let lock_mutex analysis (mutex_name: Var_name.t) =
-  print_endline "\t locking mutex";
-  match Hashtbl.find analysis mutex_name with
-  | None -> raise (Invalid_argument "Mutex not found") (* Mutex should be created first *)
-  | Some TEUnlocked t ->
-      Hashtbl.set analysis ~key:mutex_name ~data:(TELocked t)
-  | Some TELocked _ ->
-      raise AlreadyLocked (* Can't lock an already locked mutex *)
-  | _ -> raise (Invalid_argument "Mutex not found")
-
-let unlock_mutex analysis mutex_name =
-  match Hashtbl.find analysis mutex_name with
-  | None -> raise (Invalid_argument "Mutex not found")
-  | Some TEUnlocked _ -> raise NotLocked (* Can't unlock an unlocked mutex *)
-  | Some TELocked t ->
-      Hashtbl.set analysis ~key:mutex_name ~data:(TEUnlocked t)
-  | _ -> raise (Invalid_argument "Mutex not found")
-
-      

@@ -1,4 +1,4 @@
-open Core
+(* open Core
 
 module A = Poppy_parser.Ast
 module T = Poppy_parser.Ast_types
@@ -28,4 +28,4 @@ let desugar_impl_defn (impl_defn: A.impl_defn) : F.llvm_function_defn list =
   match impl_defn with
   | A.TImpl (trait_name, struct_name, method_defns) ->
     List.map ~f:(desugar_method_defn trait_name struct_name) method_defns
-    
+     *)

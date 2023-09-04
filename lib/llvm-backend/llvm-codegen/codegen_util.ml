@@ -25,9 +25,6 @@ let get_llvm_type type_expr =
 | T.TEBool -> i1_type context
 | T.TEVoid -> void_type context
 | T.TEStruct name -> named_struct_type context (T.Struct_name.to_string name)
-| _ -> raise (Failure "Not implemented yet")
-(* | TELocked _ -> i64_type context
-| TEUnlocked _ -> i64_type context *)
 
 (* ########################### Frame Pointer ############################### *)
 let int_exp i = L.const_int (i32_type context) i
