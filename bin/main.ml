@@ -4,7 +4,10 @@ open Core
 (* open Parser *)
 open Poppy_parser
 open Poppy_type_checker
+open Ir_gen
 (* open Core_unix *)
+
+module IR = Ir_gen
 
 let is_poppy_file filename = 
   String.split_on_chars ~on:['.'] filename |>  List.last_exn |> String.equal "poppy"
@@ -29,17 +32,21 @@ let poppy_file =
       | true  -> filename
       | false -> error_not_file filename)
 
-let compile_program ?(should_pprint_past = false) ?(should_pprint_tast = false)
+let compile_program ?(should_pprint_past = false) ?(should_pprint_tast = false) ?(should_pprint_dast = false)
 ?compile_out_file lexbuf =
   let open Result in 
-  Lex_and_parse.parse_program lexbuf 
+  Lex_and_parse.parse_program lexbuf (* AST *)
   >>= fun ast ->
   (if should_pprint_past then
       print_endline (Sexp.to_string_hum (Ast.sexp_of_program ast)));
-  Type_program.type_program ast
+  Type_program.type_program ast (* Typed AST *)
   >>= fun typed_ast ->
   (if should_pprint_tast then
       print_endline (Sexp.to_string_hum (Typed_ast.sexp_of_program typed_ast)));
+  Desugar_program.desugar_program ast (* Desugared AST *)
+  >>= fun desugared_ast ->
+  (if should_pprint_dast then
+      print_endline (Sexp.to_string_hum (Frontend_ir.sexp_of_llvm_program desugared_ast)));
   match compile_out_file with 
   | Some filename -> 
     Out_channel.with_file filename ~f:(fun file_oc ->
@@ -61,11 +68,13 @@ let command =
         flag "-printpast" no_arg ~doc:" Pretty print the parsed AST of the program"
       and should_pprint_tast =
         flag "-printtast" no_arg ~doc:" Pretty print the typed AST of the program"
+      and should_pprint_dast = 
+        flag "-printdast" no_arg ~doc:" Pretty print the desugared AST of the program"
       and filename = anon (maybe_with_default "-" ("filename" %: poppy_file)) in
       fun () ->
         In_channel.with_file filename ~f:(fun file_ic ->
             let lexbuf = Lexing.from_channel file_ic in
-            match compile_program ~should_pprint_past ~should_pprint_tast lexbuf with
+            match compile_program ~should_pprint_past ~should_pprint_tast ~should_pprint_dast lexbuf with
             | Ok _ -> () (* Success, do nothing *)
             | Error e -> (* Handle error here *)
               eprintf "Compilation error: %s\n" (Core.Error.to_string_hum e);

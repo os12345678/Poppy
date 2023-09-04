@@ -55,10 +55,9 @@ rule read_tok =
   | "fn" { FUNCTION }
   | "->" { ARROW }
   | "new" { NEW }
-  | "mutex" { MUTEX }
-  | "lock" { LOCK }
-  | "unlock" { UNLOCK }
-  | "create_thread" { CREATE_THREAD }
+  (* | "consume" { CONSUME } *)
+  | "finish" { FINISH }
+  | "async" { ASYNC }
   | "capability" { CAPABILITY }
   | "linear" { LINEAR }
   | "local" { LOCAL }

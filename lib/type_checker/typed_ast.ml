@@ -15,22 +15,18 @@ and expr_node =
 | TBoolean             of bool
 | TIdentifier          of typed_identifier
 | TLet                 of type_expr option * Var_name.t * expr
+| TBlockExpr           of block_expr (* used to interconvert with block expr *)
 | TAssign              of typed_identifier * expr  
 | TConstructor         of Var_name.t * Struct_name.t * constructor_arg list
 | TMethodApp           of Var_name.t * Method_name.t * expr list
 | TFunctionApp         of Function_name.t * expr list 
-| TMutexConstructor    of Var_name.t * type_expr * expr
 | TIf                  of expr * block_expr * block_expr
 | TWhile               of expr * block_expr
-| TFor                 of expr * expr * expr * block_expr
+(* | TFor                 of expr * expr * expr * block_expr *)
 | TPrintf              of string * expr list 
 | TBinOp               of bin_op * expr * expr
 | TUnOp                of un_op * expr
-| TNewStruct           of Struct_name.t * (Field_name.t * expr) list
-| TAssignToInterface   of Var_name.t * expr
-| TLock                of Var_name.t
-| TUnlock              of Var_name.t
-| TThread               of Var_name.t * block_expr
+| TFinishAsync         of async_expr list * block_expr
 [@@deriving sexp]
 
 and typed_identifier = 
@@ -41,7 +37,8 @@ and typed_identifier =
 
 and block_expr = Block of loc * type_expr * expr list [@@deriving sexp]
 
-(* and thread_expr = ThreadExpr of block_expr [@@deriving sexp] *)
+(* type is of the final expr in block *)
+and async_expr = AsyncExpr of block_expr [@@deriving sexp]
 
 and constructor_arg = ConstructorArg of Field_name.t * expr [@@deriving sexp]
 

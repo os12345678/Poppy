@@ -1,4 +1,4 @@
-(* Original AST simplified and contains LLVM IR specific constructs i.e load, 
+(* (* Original AST simplified and contains LLVM IR specific constructs i.e load, 
 store, call, etc.
 
 Key Changes
@@ -13,7 +13,7 @@ LLVMStore, and LLVMCall.
 Function Definitions: Simplified to only include the function name, parameter 
 types and names, and the block expression.
 
-Program Structure: Removed structs, traits, and impls. These are high-level 
+Program Structure: Removed traits and impls. These are high-level 
 constructs that need to be lowered into simpler constructs before generating LLVM IR.
 
 Locks and Threads: Kept these as they can be directly mapped to LLVM's atomic 
@@ -31,15 +31,14 @@ open! Core
 module T = Poppy_parser.Ast_types
 
 type llvm_identifier = 
-  | LLVMVariable of string * mutex_state
-  | LLVMField of string * string * mutex_state
+  | LVariable of string * mutex_state
+  | LField of string * string * mutex_state
   [@@deriving sexp]
 
-and mutex_state = Locked | Unlocked [@@deriving sexp]
-
 type llvm_expr = {
-  llvm_loc : T.loc;
-  llvm_node: llvm_expr_node
+  loc : T.loc;
+  l_type: string;
+  l_node: llvm_expr_node
 }
 [@@deriving sexp]
 
@@ -61,6 +60,19 @@ and llvm_expr_node =
 
 and llvm_block_expr = LLVMBlock of T.loc * llvm_expr list [@@deriving sexp]
 
+type llvm_struct_field = {
+  field_name: string;
+  field_type: string;
+  field_mutex_state: mutex_state;
+}
+[@@deriving sexp]
+
+type llvm_struct_defn = {
+  struct_name: string;
+  struct_fields: llvm_struct_field list;
+}
+[@@deriving sexp]
+
 type llvm_function_defn =
   | LLVMFunction of
       string (* function name *)
@@ -70,6 +82,7 @@ type llvm_function_defn =
   [@@deriving sexp]
 
 type llvm_program = LLVMProg of 
-                    llvm_function_defn list 
+                    llvm_struct_defn list
+                    * llvm_function_defn list 
                     * llvm_block_expr
-[@@deriving sexp]
+[@@deriving sexp] *)

@@ -76,20 +76,14 @@ let string_of_mutex_state = function
 type type_expr =
   | TEInt
   | TEStruct of Struct_name.t
-  (* | TEMutex of type_expr *)
   | TEVoid
   | TEBool
-  | TELocked of type_expr
-  | TEUnlocked of type_expr
   [@@deriving sexp]
 let rec string_of_type = function
   | TEInt -> "Int"
   | TEStruct struct_name -> Struct_name.to_string struct_name
-  (* | TEMutex type_expr -> Fmt.str "Mutex<%s>" (string_of_type type_expr) *)
   | TEVoid -> "Void"
   | TEBool -> "Bool"
-  | TELocked t -> Fmt.str "Mutex<%s>: Locked" (string_of_type t)
-  | TEUnlocked t -> Fmt.str "Mutex<%s>: Unlocked" (string_of_type t)
   [@@deriving sexp]
       
 type field_defn = TField of modifier * type_expr * Field_name.t * Capability_name.t list [@@deriving sexp]

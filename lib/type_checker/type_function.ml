@@ -62,7 +62,7 @@ let type_function_defn env struct_defns trait_defns impl_defns function_defns (A
   let env = add_block_scope env VarNameMap.empty in
   let%bind env_with_params = add_params_to_scope env function_signature.params in
   (* Type check the body *)
-  let%bind typed_body = Type_expr.type_block_expr struct_defns trait_defns impl_defns function_defns body env_with_params in
+  let%bind (typed_body, _) = Type_expr.type_block_expr struct_defns trait_defns impl_defns function_defns body env_with_params in
   Ok (Typed_ast.TFunction (function_signature, typed_body))
 
 let type_function_defns env struct_defns trait_defns impl_defns function_defns = 

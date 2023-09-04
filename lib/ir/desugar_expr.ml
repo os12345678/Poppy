@@ -15,8 +15,6 @@ variables with concrete types wherever possible.
 Lower Functions and Methods: Convert all function and method definitions into 
 a standard form.
 
-Struct to Memory Layout: Convert struct definitions into a flat memory layout.
-
 Lower Control Flow: Convert control flow constructs like if-else and while into 
 basic blocks and branch instructions. 
 *)
@@ -58,13 +56,13 @@ let new_temp () =
 
 (* 
 The `new_global_string` function is used to generate global string variables 
-that are used for the printf wrapper function.    
+that is used for the printf wrapper function.    
 *)
 
 let global_strings = ref []
 
 let new_global_string str =
-  let var_name = "global_string_" ^ (Int.to_string (List.length !global_strings)) in
+  let var_name = "@" ^ (Int.to_string (List.length !global_strings)) in
   global_strings := !global_strings @ [var_name, str];
   LLVMVariable (var_name, Locked)
 
@@ -113,17 +111,6 @@ let rec desugar_exprs (expr: Ast.expr) =
     let llvm_expr = { llvm_loc = expr.loc; llvm_node = LLVMCall (T.Struct_name.to_string struct_name, llvm_exprs) } in
     (stmts @ [{ llvm_loc = expr.loc; llvm_node = LLVMStore (LLVMVariable (temp, Locked), llvm_expr) }], 
       { llvm_loc = expr.loc; llvm_node = LLVMIdentifier (LLVMVariable (temp, Locked)) });
-
-  | A.MutexConstructor (var_name, _, expr) ->
-    let temp = new_temp () in
-    let (stmts, llvm_expr) = desugar_exprs expr in
-    let temp_var = LLVMVariable (temp, Locked) in
-    let var = LLVMVariable (T.Var_name.to_string var_name, Locked) in
-    (stmts @ 
-      [{ llvm_loc = expr.loc; llvm_node = LLVMStore (temp_var, llvm_expr) };
-      { llvm_loc = expr.loc; llvm_node = LLVMLock temp_var };
-      { llvm_loc = expr.loc; llvm_node = LLVMStore (var, { llvm_loc = expr.loc; llvm_node = LLVMLoad temp_var }) }], 
-      { llvm_loc = expr.loc; llvm_node = LLVMIdentifier var });
 
   | A.MethodApp (obj_name, method_name, args) ->
     let (stmts, llvm_args) = List.unzip (List.map ~f:desugar_exprs args) in
@@ -182,23 +169,9 @@ let rec desugar_exprs (expr: Ast.expr) =
     let (expr_stmts, llvm_expr) = desugar_exprs expr in
     let llvm_op = convert_un_op op in
     (expr_stmts, { llvm_loc = expr.loc; llvm_node = LLVMUnOp (llvm_op, llvm_expr) })
+
+  | _ -> failwith "Not implemented"
       
-  | A.Lock var_name ->
-    let temp = T.Var_name.to_string var_name in
-    ([{ llvm_loc = expr.loc; llvm_node = LLVMLock (LLVMVariable (temp, Locked)) }], 
-      { llvm_loc = expr.loc; llvm_node = LLVMIdentifier (LLVMVariable (temp, Locked)) })
-  
-  | A.Unlock var_name ->
-    let temp = T.Var_name.to_string var_name in
-    ([{ llvm_loc = expr.loc; llvm_node = LLVMUnlock (LLVMVariable (temp, Unlocked)) }], 
-      { llvm_loc = expr.loc; llvm_node = LLVMIdentifier (LLVMVariable (temp, Unlocked)) })
-  
-  | A.Thread (var_name, block) ->
-    let temp = T.Var_name.to_string var_name in
-    let (block_stmts, llvm_block) = desugar_block_expr block in
-    (block_stmts @ [{ llvm_loc = expr.loc; llvm_node = LLVMThread (temp, llvm_block) }], 
-      { llvm_loc = expr.loc; llvm_node = LLVMIdentifier (LLVMVariable (temp, Locked)) })
-    
 and desugar_constructor_arg (ConstructorArg (_, expr)) =
   let (stmts, llvm_expr) = desugar_exprs expr in
   (stmts, llvm_expr)
@@ -210,12 +183,3 @@ and desugar_block_expr (block: A.block_expr) =
     let stmts = List.concat stmts in
     (stmts, LLVMBlock (loc, llvm_exprs))
   
-
-
-(* let generate_llvm_ir llvm_program =
-  let global_string_declarations = List.map ~f:(fun (var_name, str) ->
-    "  @" ^ var_name ^ " = private unnamed_addr constant [" ^ (Int.to_string (String.length str + 1)) ^ " x i8] c\"" ^ str ^ "\\00\""
-  ) !global_strings in
-  let llvm_ir = ... (* generate the rest of the LLVM IR *) in
-  String.concat ~sep:"\n" (global_string_declarations @ llvm_ir)
- *)
