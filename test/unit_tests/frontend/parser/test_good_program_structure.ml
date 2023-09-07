@@ -49,14 +49,17 @@ void main() {
     \n   ((TCapability Linear linearCap) (TCapability Subordinate subCap))\
     \n   ((TField MConst TEInt x (Read)) (TField MConst TEInt y (Read)))))\
     \n ((TTrait Movable\
-    \n   ((TMethodSignature move (Borrowed) (linearCap subCap)\
-    \n     ((Param TEInt dx () ()) (Param TEInt dy () ())) TEVoid)\
-    \n    (TMethodSignature move2 () (subCap)\
-    \n     ((Param TEInt dx () ()) (Param TEInt dy () ())) TEVoid))))\
+    \n   (((name move) (borrowed (Borrowed)) (capability (linearCap subCap))\
+    \n     (params ((Param TEInt dx () ()) (Param TEInt dy () ())))\
+    \n     (return_type TEVoid))\
+    \n    ((name move2) (borrowed ()) (capability (subCap))\
+    \n     (params ((Param TEInt dx () ()) (Param TEInt dy () ())))\
+    \n     (return_type TEVoid)))))\
     \n ((TImpl Movable Point\
     \n   ((TMethod\
-    \n     (TMethodSignature move (Borrowed) (linearCap subCap)\
-    \n      ((Param TEInt dx () ()) (Param TEInt dy () ())) TEVoid)\
+    \n     ((name move) (borrowed (Borrowed)) (capability (linearCap subCap))\
+    \n      (params ((Param TEInt dx () ()) (Param TEInt dy () ())))\
+    \n      (return_type TEVoid))\
     \n     (Block ((lnum 14) (cnum 63))\
     \n      (((loc ((lnum 15) (cnum 9)))\
     \n        (node\
@@ -76,7 +79,9 @@ void main() {
     \n             ((loc ((lnum 16) (cnum 19)))\
     \n              (node (Identifier (ObjField this y))))\
     \n             ((loc ((lnum 16) (cnum 28))) (node (Identifier (Variable dy))))))))))))))))\
-    \n ((TFunction add () TEInt ((Param TEInt a () ()) (Param TEInt b () ()))\
+    \n ((TFunction\
+    \n   ((name add) (borrowed ()) (return_type TEInt)\
+    \n    (params ((Param TEInt a () ()) (Param TEInt b () ()))))\
     \n   (Block ((lnum 20) (cnum 29))\
     \n    (((loc ((lnum 21) (cnum 5)))\
     \n      (node\
