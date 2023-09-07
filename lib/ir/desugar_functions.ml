@@ -1,16 +1,27 @@
-(* open Core
+open Core
 
-module A = Poppy_parser.Ast
-module T = Poppy_parser.Ast_types
-module F = Frontend_ir
+module T = Poppy_type_checker.Typed_ast
+module Typ = Poppy_parser.Ast_types
+module D = Desugared_ast
 module E = Desugar_env
 
+(* 
+for each function_defn in program:
+    dfunction = {
+        name: function_name,
+        ret_type: function_signature.return_type,
+        params: function_signature.params,
+        body: function_defn.block_expr
+    }
+    add dfunction to dprogram.functions   
+*)
 
-let desugar_function_defn (function_defn: A.function_defn) : F.llvm_function_defn =
+let desugar_function_defn (function_defn: T.function_defn) : D.dfunction =
   match function_defn with
-  | A.TFunction (function_signature, block_expr) ->
-    let name = T.Function_name.to_string function_signature.name in
+  | T.TFunction (function_signature, block_expr) ->
+    let name = Typ.Function_name.to_string function_signature.name in
     let params = List.map ~f:E.desugar_param function_signature.params in
-    let return_type = E.desugar_type function_signature.return_type in
-    let (_, llvm_block_expr) = Desugar_expr.desugar_block_expr block_expr in
-    F.LLVMFunction (name, params, return_type, llvm_block_expr) *)
+    let ret_type = function_signature.return_type in
+    (* let ret_type = E.desugar_type function_signature.return_type in *)
+    let body = Desugar_expr.desugar_block block_expr in
+    { name; ret_type; params; body }
