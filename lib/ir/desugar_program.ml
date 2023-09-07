@@ -7,7 +7,8 @@ module E = Desugar_env
 
 let desugar_program (prog: T.program) : (D.dprogram , Error.t) Result.t =
   match prog with
-  | T.Prog (structs, _traits, impls, functions, block_expr) ->
+  (* traits are disregarded as they are only used by the type checker for correct method implementation *)
+  | T.Prog (structs, _, impls, functions, block_expr) ->
     let desugared_functions = List.map ~f:Desugar_functions.desugar_function_defn functions in
     let desugared_structs = List.map ~f:Desugar_structs.desugar_struct_defn structs in
     let desugared_impl = Desugar_impl.desugar_impl impls in
@@ -17,14 +18,3 @@ let desugar_program (prog: T.program) : (D.dprogram , Error.t) Result.t =
       functions = desugared_impl @ desugared_functions;
       main = desugared_block;
     }
-
-    (* let desugar_program (Prog(structs, traits, impls, funcs, main)) =
-      {
-        structs = List.map desugar_struct structs;
-        functions = List.flatten [
-                      List.map desugar_function funcs;
-                      desugar_impl impls
-                    ];
-        main = desugar_block main;
-      }
-     *)
