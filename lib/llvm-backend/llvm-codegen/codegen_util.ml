@@ -1,4 +1,4 @@
-open Llvm
+(* open Llvm
 open Poppy_parser
 (* open Ast_types *)
 
@@ -71,4 +71,4 @@ let link_core_library the_module =
 
   (* Link the core library into the main module *)
   Llvm_linker.link_modules' the_module corelib_module;
-  print_endline "Core library linked to the main module."
+  print_endline "Core library linked to the main module." *)

@@ -1,4 +1,4 @@
-open Llvm
+(* open Llvm
 (* open Poppy_parser *)
 (* open Ast *)
 (* open Core *)
@@ -30,4 +30,4 @@ let named_values : (string, llvalue) Stdlib.Hashtbl.t = Stdlib.Hashtbl.create 10
   | Ast.Identifier id -> 
  *)
 
-
+ *)

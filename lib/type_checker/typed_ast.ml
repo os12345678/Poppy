@@ -22,7 +22,6 @@ and expr_node =
 | TFunctionApp         of Function_name.t * expr list 
 | TIf                  of expr * block_expr * block_expr
 | TWhile               of expr * block_expr
-(* | TFor                 of expr * expr * expr * block_expr *)
 | TPrintf              of string * expr list 
 | TBinOp               of bin_op * expr * expr
 | TUnOp                of un_op * expr

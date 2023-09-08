@@ -29,7 +29,7 @@ and dblock = dexpr_node list [@@deriving sexp]
 type dfunction = {
   name: string;
   ret_type: T.type_expr;
-  params: (string * T.type_expr) list;
+  params: (T.type_expr * string) list;
   body: dblock;
 } [@@deriving sexp]
 

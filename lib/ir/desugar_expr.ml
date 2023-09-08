@@ -31,13 +31,19 @@ type function_call = {
   args: dexpr list;
 }
   
-let counter = ref 0
 let rec desugar_expr (te: T.expr) : Desugared_ast.dexpr = 
   match te.node with
   | TInt i -> 
     { loc = te.loc; typ = TEInt; node = DIntLit i }
   | TBoolean b -> 
     { loc = te.loc; typ = TEBool; node = DBoolLit b }
+  | TBlockExpr block -> 
+    let desugared_block = desugar_block block in
+    {
+      loc = te.loc;
+      typ = te.typ; (* Assuming the type remains the same after desugaring *)
+      node = DBlockExpr desugared_block;
+    }
 
   (* Variables and Assignments *)
   | TIdentifier id -> 
@@ -51,6 +57,21 @@ let rec desugar_expr (te: T.expr) : Desugared_ast.dexpr =
     { loc = te.loc; 
       typ = te.typ; 
       node = DAssign (var_name, desugared_expr.node) }
+  | TLet (_, var_name, expr) ->
+    let desugared_expr = desugar_expr expr in
+    { loc = te.loc; typ = te.typ; node = DAssign (A.Var_name.to_string var_name, desugared_expr.node) }
+  | TConstructor (_var_name, struct_name, constructor_args) ->
+    (* Convert constructor_args into a list of dexpr_nodes *)
+    let arg_nodes = List.map ~f:(fun (ConstructorArg (_, expr)) ->
+        desugar_expr expr
+    ) constructor_args in
+    (* Extract the node field from each dexpr to get a list of dexpr_nodes *)
+    let arg_node_values = List.map ~f:(fun de -> de.node) arg_nodes in
+    (* Create a special constructor function name *)
+    let constructor_fn_name = "init_" ^ (A.Struct_name.to_string struct_name) in
+    { loc = te.loc; 
+      typ = te.typ; 
+      node = DCall (constructor_fn_name, arg_node_values) }
   
   (* Binary/unary Operators *)
   | TBinOp (op, e1, e2) -> 
@@ -71,6 +92,13 @@ let rec desugar_expr (te: T.expr) : Desugared_ast.dexpr =
     { loc = te.loc; 
       typ = te.typ; 
       node = DCall (A.Function_name.to_string fname, List.map ~f:(fun e -> e.node) desugared_args) }
+  | TMethodApp (obj_name, method_name, args) ->
+    let obj_expr = { loc = te.loc; typ = te.typ; node = DVar (A.Var_name.to_string obj_name) } in
+    let desugared_args = List.map ~f:desugar_expr args in
+    let mangled_fn_name = (A.Var_name.to_string obj_name) ^ "_" ^ (A.Method_name.to_string method_name) in
+    { loc = te.loc; 
+      typ = te.typ; 
+      node = DCall (mangled_fn_name, obj_expr.node :: (List.map ~f:(fun de -> de.node) desugared_args)) }
   | TPrintf (format_str, exprs) ->
     let desugared_exprs = List.map ~f:desugar_expr exprs in
     let desugared_args = List.map ~f:(fun de -> de.node) desugared_exprs in
@@ -112,14 +140,8 @@ let rec desugar_expr (te: T.expr) : Desugared_ast.dexpr =
     { loc = te.loc; 
       typ = TEVoid; 
       node = DBlockExpr combined_nodes }
-    
-  | _ -> failwith "Not implemented"
-     
-
+         
 and desugar_block (tb: T.block_expr) : Desugared_ast.dblock =
-(* increment the counter by 1 each time desugar block is called *)
-counter := !counter + 1;
-print_endline ("\ndesugar block called " ^ (string_of_int !counter) ^ " times");
 match tb with
 | Block (_, _, exprs) ->
   List.concat_map ~f:(fun te ->
