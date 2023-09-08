@@ -4,10 +4,8 @@ open Core
 (* open Parser *)
 open Poppy_parser
 open Poppy_type_checker
-open Ir_gen
+open Desugar
 (* open Core_unix *)
-
-module IR = Ir_gen
 
 let is_poppy_file filename = 
   String.split_on_chars ~on:['.'] filename |>  List.last_exn |> String.equal "poppy"
