@@ -30,7 +30,7 @@ type function_call = {
   fname: string;
   args: dexpr list;
 }
-  
+
 let rec desugar_expr (te: T.expr) : Desugared_ast.dexpr = 
   match te.node with
   | TInt i -> 
@@ -39,10 +39,11 @@ let rec desugar_expr (te: T.expr) : Desugared_ast.dexpr =
     { loc = te.loc; typ = TEBool; node = DBoolLit b }
   | TBlockExpr block -> 
     let desugared_block = desugar_block block in
+    let block_nodes = List.map ~f:(fun expr -> expr.node) desugared_block in
     {
       loc = te.loc;
-      typ = te.typ; (* Assuming the type remains the same after desugaring *)
-      node = DBlockExpr desugared_block;
+      typ = te.typ;
+      node = DBlockExpr block_nodes;
     }
 
   (* Variables and Assignments *)
@@ -135,7 +136,7 @@ let rec desugar_expr (te: T.expr) : Desugared_ast.dexpr =
     let thread_joins = List.map ~f:(fun call -> DJoinThread (DVar call.fname)) all_calls in
     let dblock = desugar_block block in
     (* Combine thread creations, joins, and the main block *)
-    let dblock_nodes = List.map ~f:(fun expr -> expr) dblock in
+    let dblock_nodes = List.map ~f:(fun expr -> expr.node) dblock in
     let combined_nodes = thread_creations @ thread_joins @ dblock_nodes in
     { loc = te.loc; 
       typ = TEVoid; 
@@ -149,7 +150,7 @@ match tb with
     match te.node with
     | TBlockExpr inner_block -> 
         desugar_block inner_block (* Flatten nested blocks *)
-    | _ -> [de.node]
+    | _ -> [de]
   ) exprs
 
 and extract_calls_from_async (async: T.async_expr) : function_call list =
