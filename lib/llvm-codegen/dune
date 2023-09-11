@@ -1,5 +1,5 @@
 (library
  (name poppy_codegen)
- (libraries poppy_parser poppy_type_checker llvm llvm.analysis)
+ (libraries poppy_parser poppy_type_checker desugar llvm llvm.analysis)
  (preprocess (pps ppx_expect ppx_inline_test))
  (modules codegen_expr codegen_util))

@@ -1,4 +1,4 @@
-(* open Llvm
+open Llvm
 open Poppy_parser
 (* open Ast_types *)
 
@@ -21,35 +21,62 @@ let string_of_llmodule m =
 (* ############################# LLVM types ################################# *)
 let get_llvm_type type_expr = 
   match type_expr with
-| T.TEInt-> i64_type context
+| T.TEInt-> i32_type context
 | T.TEBool -> i1_type context
 | T.TEVoid -> void_type context
 | T.TEStruct name -> named_struct_type context (T.Struct_name.to_string name)
 
-(* ########################### Frame Pointer ############################### *)
-let int_exp i = L.const_int (i32_type context) i
-let malloc (name: string) (typ: T.type_expr): exp =
-  L.build_malloc (typ |> get_llvm_type) name builder 
-
-let frame_pointer_stack = Stack.create()
-
-let push_fp_to_stack (typ: L.lltype) (addr: L.llvalue) =
-  Stack.push (typ, addr) frame_pointer_stack
-
-let pop_fp_from_stack () = Stack.pop frame_pointer_stack
-
-let get_current_fp () = Stack.top frame_pointer_stack
-
-let get_fp_value () : llvalue =
-  let (_, fp_struct_addr) = get_current_fp() in
-  let fp_addr = L.build_gep fp_struct_addr [| int_exp(0); int_exp (0) |] "frame_pointer_address" builder in
-  L.build_load fp_addr "frame_pointer_val" builder  
-
-
 (* ############################# LLVM values ################################# *)
 
+let declare_thread_functions llmodule =
+  (* Create the LLVM types for the functions *)
 
-(* ################### Helper Functions for Aux Functions ################### *)
+  (* pthread_t type (assuming it's i32) *)
+  let pthread_t_type = Llvm.i32_type context in
+
+  (* Type for thread function pointers. Assuming thread functions have 
+     signature i32(i8*-). Adjust as needed. *)
+  let thread_func_ptr_type = Llvm.pointer_type (Llvm.function_type (Llvm.i32_type context) [| Llvm.pointer_type (Llvm.i8_type context) |]) in
+
+  (* Declare create_thread: pthread_t (i32(*)(i8*), i8*-) *)
+  let _ = Llvm.declare_function "create_thread" (Llvm.function_type pthread_t_type [| thread_func_ptr_type; Llvm.pointer_type (Llvm.i8_type context) |]) llmodule in
+  
+  (* Declare join_thread: i32(pthread_t) *)
+  let _ = Llvm.declare_function "join_thread" (Llvm.function_type (Llvm.i32_type context) [| pthread_t_type |]) llmodule in
+  ()
+
+(* ############################# Symbol Table ############################### *)
+
+type symbol_info = {
+  llvm_value: Llvm.llvalue;
+  typ: T.type_expr;
+}
+
+module Symbol_table : sig
+  type t
+
+  val create : unit -> t
+  val insert : t -> string -> Llvm.llvalue -> T.type_expr -> unit
+  val lookup : t -> string -> symbol_info option
+end = struct
+  module StringHasher = struct
+    type t = string
+    let equal = String.equal
+    let hash = Hashtbl.hash
+  end
+
+  module SH = Hashtbl.Make(StringHasher)
+
+  type t = symbol_info SH.t
+
+  let create () = SH.create 16
+
+  let insert table key llvm_val typ = 
+    let info = { llvm_value = llvm_val; typ = typ } in
+    SH.add table key info
+
+  let lookup table key = SH.find_opt table key
+end
 
 
 (* ########################### Core Library ################################# *)
@@ -71,4 +98,4 @@ let link_core_library the_module =
 
   (* Link the core library into the main module *)
   Llvm_linker.link_modules' the_module corelib_module;
-  print_endline "Core library linked to the main module." *)
+  print_endline "Core library linked to the main module."
