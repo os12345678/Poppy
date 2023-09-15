@@ -5,7 +5,11 @@ open Core
 open Poppy_parser
 open Poppy_type_checker
 open Desugar
+open Poppy_codegen
+
 (* open Core_unix *)
+
+module Codegen = Poppy_codegen.Codegen_expr.Codegen
 
 let is_poppy_file filename = 
   String.split_on_chars ~on:['.'] filename |>  List.last_exn |> String.equal "poppy"
@@ -30,8 +34,8 @@ let poppy_file =
       | true  -> filename
       | false -> error_not_file filename)
 
-let compile_program ?(should_pprint_past = false) ?(should_pprint_tast = false) ?(should_pprint_dast = false)
-?compile_out_file lexbuf =
+let compile_program ?(should_pprint_past = false) ?(should_pprint_tast = false) 
+?(should_pprint_dast = false) ?(should_print_llvm_table = false) ?compile_out_file lexbuf =
   let open Result in 
   Lex_and_parse.parse_program lexbuf (* AST *)
   >>= fun ast ->
@@ -42,9 +46,13 @@ let compile_program ?(should_pprint_past = false) ?(should_pprint_tast = false) 
   (if should_pprint_tast then
       print_endline (Sexp.to_string_hum (Typed_ast.sexp_of_program typed_ast)));
   Desugar_program.desugar_program typed_ast (* Desugared AST *)
-  >>= fun desugared_ast ->
+  >>= fun dprogram ->
   (if should_pprint_dast then
-      print_endline (Sexp.to_string_hum (Desugared_ast.sexp_of_dprogram desugared_ast)));
+      print_endline (Sexp.to_string_hum (Desugared_ast.sexp_of_dprogram dprogram)));
+  Ok(Codegen.codegen_ast dprogram)
+  >>= fun symboltable ->
+    (if should_print_llvm_table then
+      Codegen_expr.print_symbol_table symboltable);
   match compile_out_file with 
   | Some filename -> 
     Out_channel.with_file filename ~f:(fun file_oc ->
@@ -68,11 +76,13 @@ let command =
         flag "-printtast" no_arg ~doc:" Pretty print the typed AST of the program"
       and should_pprint_dast = 
         flag "-printdast" no_arg ~doc:" Pretty print the desugared AST of the program"
+      and should_print_llvm_table = 
+        flag "-sym" no_arg ~doc:"Print llvm symbol table"
       and filename = anon (maybe_with_default "-" ("filename" %: poppy_file)) in
       fun () ->
         In_channel.with_file filename ~f:(fun file_ic ->
             let lexbuf = Lexing.from_channel file_ic in
-            match compile_program ~should_pprint_past ~should_pprint_tast ~should_pprint_dast lexbuf with
+            match compile_program ~should_pprint_past ~should_pprint_tast ~should_pprint_dast ~should_print_llvm_table lexbuf with
             | Ok _ -> () (* Success, do nothing *)
             | Error e -> (* Handle error here *)
               eprintf "Compilation error: %s\n" (Core.Error.to_string_hum e);
