@@ -11,7 +11,7 @@ let builder = builder context
 
 type break_block = Llvm.llbasicblock
 
-type exp = L.llvalue
+(* type exp = L.llvalue *)
 
 let string_of_llmodule m =
   let s = string_of_llmodule m in
