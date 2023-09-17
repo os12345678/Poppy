@@ -12,15 +12,11 @@ let string_of_type_list type_list =
   |> String.concat ~sep:", "
 
 let type_identifier id env loc =
-  Print_env.print_block_scope env;
-  print_endline "type identifier";
   match id with
   | Ast.Variable var ->
-    print_endline "\t typing variable id";
     let%bind var_type = lookup_var env var loc in
     Ok (Typed_ast.TVariable (var, var_type), var_type)
   | Ast.ObjField (var_name, field_name) -> 
-    print_endline "\t typing obj field id";
     let%bind var_type = lookup_var env var_name loc in
     begin
     match var_type with
@@ -74,7 +70,6 @@ let rec type_expr (struct_defns: Ast.struct_defn list) (trait_defns: Ast.trait_d
     ({Typed_ast.loc = expr.loc; typ = id_type; node = TIdentifier typed_id})
 
   | Ast.Let (type_annot_maybe, var_name, let_expr)-> 
-    print_endline "Let expr";
     let%bind () = check_variable_declarable var_name expr.loc in
     let%bind typed_expr = type_with_defns let_expr env in
     let var_type = match type_annot_maybe with
@@ -91,13 +86,9 @@ let rec type_expr (struct_defns: Ast.struct_defn list) (trait_defns: Ast.trait_d
       Ok ({Typed_ast.loc = expr.loc; typ = TEStruct (struct_name); node = TConstructor (var_name, struct_name, typed_constructor_args)})
     
   | Ast.Assign (id, assignable_expr) -> 
-    print_endline "variable assignment";
       let%bind () = check_identifier_assignable id env expr.loc in
-      print_endline "\t identifier is assignable";
       let%bind typed_expr = type_with_defns assignable_expr env in
-      print_endline "\t typed expr with defns";
       let%bind (typed_id, id_type) = type_identifier id env expr.loc in 
-      print_endline "\t typed identifier";
       if equal_type_expr id_type typed_expr.typ then
         Ok ({Typed_ast.loc = expr.loc; typ = id_type; node = TAssign (typed_id, typed_expr)})
       else
