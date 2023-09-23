@@ -5,11 +5,11 @@ open Core
 open Poppy_parser
 open Poppy_type_checker
 open Desugar
-open Poppy_codegen
+(* open Poppy_codegen *)
 
 (* open Core_unix *)
 
-module Codegen = Poppy_codegen.Codegen_expr.Codegen
+module St = Poppy_codegen.Ir_symbol_table
 
 let is_poppy_file filename = 
   String.split_on_chars ~on:['.'] filename |>  List.last_exn |> String.equal "poppy"
@@ -49,10 +49,10 @@ let compile_program ?(should_pprint_past = false) ?(should_pprint_tast = false)
   >>= fun dprogram ->
   (if should_pprint_dast then
       print_endline (Sexp.to_string_hum (Desugared_ast.sexp_of_dprogram dprogram)));
-  Ok(Codegen.codegen_ast dprogram)
-  >>= fun symboltable ->
+  Ok(St.build_symbol_table dprogram)
+  >>= fun llvmsymboltable ->
     (if should_print_llvm_table then
-      Codegen_expr.print_symbol_table symboltable);
+      St.print_symbol_table llvmsymboltable);
   match compile_out_file with 
   | Some filename -> 
     Out_channel.with_file filename ~f:(fun file_oc ->
@@ -65,6 +65,21 @@ let compile_program ?(should_pprint_past = false) ?(should_pprint_tast = false)
     let ir_program = "IR generation not implemented yet" in
     print_endline ir_program;
     Ok ()
+
+    (* Ok(St.codegen_ast dprogram)
+>>= fun llvm_module ->
+  (if should_print_llvm_table then
+    Symbol_table.print_symbol_table symboltable);  (* Assuming you still want to print the symbol table *)
+  match compile_out_file with 
+  | Some filename -> 
+    Out_channel.with_file filename ~f:(fun file_oc ->
+      let ir_program = Llvm.string_of_llmodule llvm_module in
+      Out_channel.output_string file_oc ir_program;
+      Ok ())
+  | None ->
+    let ir_program = Llvm.string_of_llmodule llvm_module in
+    print_endline ir_program;
+    Ok () *)
       
 let command =
   Command.basic ~summary:"Run Poppy programs"

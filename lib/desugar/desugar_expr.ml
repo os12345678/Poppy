@@ -143,23 +143,29 @@ let rec desugar_expr (te: T.expr) : Desugared_ast.dexpr =
       node = DBlockExpr combined_nodes }
          
 and desugar_block (tb: T.block_expr) : Desugared_ast.dblock =
-match tb with
-| Block (_, _, exprs) ->
-  List.concat_map ~f:(fun te ->
-    let de = desugar_expr te in
-    match te.node with
-    | TBlockExpr inner_block -> 
-        desugar_block inner_block (* Flatten nested blocks *)
-    | _ -> [de]
-  ) exprs
-
+  match tb with
+  | Block (_, _, exprs) ->
+    let results = List.concat_map ~f:(fun te ->
+      let de = desugar_expr te in
+      match te.node with
+      | TBlockExpr inner_block -> 
+          let inner = desugar_block inner_block in
+          inner
+      | _ -> [de]
+    ) exprs in
+    results
+      
 and extract_calls_from_async (async: T.async_expr) : function_call list =
   match async with
   | AsyncExpr (Block (_, _, exprs)) -> 
-    List.filter_map ~f:(fun expr ->
+    let results = List.filter_map ~f:(fun expr ->
       match expr.node with
       | TFunctionApp (fname, args) -> 
         let desugared_args = List.map ~f:desugar_expr args in
-        Some { fname = A.Function_name.to_string fname; args = desugared_args }
+        let fname_str = A.Function_name.to_string fname in
+        Printf.printf "Function call: %s with %d args\n" fname_str (List.length desugared_args);
+        Some { fname = fname_str; args = desugared_args }
       | _ -> None
-    ) exprs
+    ) exprs in
+    Printf.printf "Found %d function calls in async block\n" (List.length results);
+    results

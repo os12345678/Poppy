@@ -9,15 +9,6 @@ let context = global_context ()
 let the_module = create_module context "Poppy_JIT"
 let builder = builder context
 
-type break_block = Llvm.llbasicblock
-
-(* type exp = L.llvalue *)
-
-let string_of_llmodule m =
-  let s = string_of_llmodule m in
-  dispose_module m;
-  s
-
 (* ############################# LLVM types ################################# *)
 let get_llvm_type type_expr = 
   match type_expr with
@@ -44,39 +35,6 @@ let declare_thread_functions llmodule =
   (* Declare join_thread: i32(pthread_t) *)
   let _ = Llvm.declare_function "join_thread" (Llvm.function_type (Llvm.i32_type context) [| pthread_t_type |]) llmodule in
   ()
-
-(* ############################# Symbol Table ############################### *)
-
-type symbol_info = {
-  llvm_value: Llvm.llvalue;
-  typ: T.type_expr;
-}
-
-module Symbol_table : sig
-  type t
-
-  val create : unit -> t
-  val insert : t -> string -> Llvm.llvalue -> T.type_expr -> unit
-  val lookup : t -> string -> symbol_info option
-end = struct
-  module StringHasher = struct
-    type t = string
-    let equal = String.equal
-    let hash = Hashtbl.hash
-  end
-
-  module SH = Hashtbl.Make(StringHasher)
-
-  type t = symbol_info SH.t
-
-  let create () = SH.create 16
-
-  let insert table key llvm_val typ = 
-    let info = { llvm_value = llvm_val; typ = typ } in
-    SH.add table key info
-
-  let lookup table key = SH.find_opt table key
-end
 
 
 (* ########################### Core Library ################################# *)
