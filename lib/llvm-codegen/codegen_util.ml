@@ -1,13 +1,10 @@
-open Llvm
+(* open Llvm
 open Poppy_parser
 (* open Ast_types *)
 
-(* ############################# LLVM setup ################################# *)
+(*  LLVM setup ################################# *)
 module L = Llvm
 module T = Ast_types
-let context = global_context ()
-let the_module = create_module context "Poppy_JIT"
-let builder = builder context
 
 (* ############################# LLVM types ################################# *)
 let get_llvm_type type_expr = 
@@ -56,4 +53,4 @@ let link_core_library the_module =
 
   (* Link the core library into the main module *)
   Llvm_linker.link_modules' the_module corelib_module;
-  print_endline "Core library linked to the main module."
+  print_endline "Core library linked to the main module." *)
