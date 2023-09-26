@@ -5,7 +5,8 @@ open Core
 open Poppy_parser
 open Poppy_type_checker
 open Desugar
-(* open Poppy_codegen *)
+open Poppy_codegen.Ir_symbol_table
+open Poppy_codegen.Codegen_expr
 
 (* open Core_unix *)
 
@@ -49,20 +50,24 @@ let compile_program ?(should_pprint_past = false) ?(should_pprint_tast = false)
   >>= fun dprogram ->
   (if should_pprint_dast then
       print_endline (Sexp.to_string_hum (Desugared_ast.sexp_of_dprogram dprogram)));
-  Ok(St.build_symbol_table dprogram)
+  Ok(build_symbol_table dprogram)
   >>= fun llvmsymboltable ->
     (if should_print_llvm_table then
       St.print_symbol_table llvmsymboltable);
+  Ok(codegen_ast dprogram llvmsymboltable)
+  >>= fun llvm_module ->
   match compile_out_file with 
   | Some filename -> 
     Out_channel.with_file filename ~f:(fun file_oc ->
       (* Placeholder for IR generation *)
-      let ir_program = "IR generation not implemented yet" in
+      (* let ir_program = "IR generation not implemented yet" in *)
+      let ir_program = Llvm.string_of_llmodule llvm_module in
       Out_channel.output_string file_oc ir_program;
       Ok ())
   | None ->
     (* Placeholder for IR generation *)
-    let ir_program = "IR generation not implemented yet" in
+    (* let ir_program = "IR generation not implemented yet" in *)
+    let ir_program = Llvm.string_of_llmodule llvm_module in
     print_endline ir_program;
     Ok ()
 
@@ -92,7 +97,7 @@ let command =
       and should_pprint_dast = 
         flag "-printdast" no_arg ~doc:" Pretty print the desugared AST of the program"
       and should_print_llvm_table = 
-        flag "-sym" no_arg ~doc:"Print llvm symbol table"
+        flag "-printsym" no_arg ~doc:" Pretty print the llvm symbol table"
       and filename = anon (maybe_with_default "-" ("filename" %: poppy_file)) in
       fun () ->
         In_channel.with_file filename ~f:(fun file_ic ->
