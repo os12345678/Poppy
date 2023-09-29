@@ -3,7 +3,7 @@
 #include <pthread.h>
 
 // printf 
-void print(const char* format, ...) {
+void print(char format[static 1], ...) {
     va_list args;
     va_start(args, format);
     vprintf(format, args);

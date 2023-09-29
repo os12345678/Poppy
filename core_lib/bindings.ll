@@ -8,7 +8,7 @@ target triple = "arm64-apple-macosx13.0.0"
 %struct._opaque_pthread_attr_t = type { i64, [56 x i8] }
 
 ; Function Attrs: noinline nounwind optnone ssp uwtable
-define void @print(i8* %0, ...) #0 {
+define void @print(i8* align 1 dereferenceable(1) %0, ...) #0 {
   %2 = alloca i8*, align 8
   %3 = alloca i8*, align 8
   store i8* %0, i8** %2, align 8
