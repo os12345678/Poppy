@@ -1,1 +1,2 @@
 - external function print not working - pass pointer to string instead of string 
+- blockexpr for finish/async causing trace trap... why and how 
