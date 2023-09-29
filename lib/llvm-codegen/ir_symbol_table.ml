@@ -183,7 +183,7 @@ let rec process_expr (sym_table: llvm_symbol_table) (expr: dexpr) : llvm_symbol_
   | DUnOp (_, e) ->
       let wrapped_expr = { loc = expr.loc; typ = expr.typ; node = e } in
       process_expr sym_table wrapped_expr
-  | DCall (fname, args) ->
+  | DCall (fname, args) -> (* TODO *)
     let updated_sym_table = List.fold_left (fun current_sym_table arg ->
         let wrapped_expr = { loc = expr.loc; typ = expr.typ; node = arg } in
         process_expr current_sym_table wrapped_expr
@@ -250,7 +250,6 @@ and build_symbol_table program =
   let sym_table_after_structs = process_structs sym_table_after_entering_scope program.structs in
   let sym_table_after_functions = process_functions sym_table_after_structs program.functions in
   let sym_table_after_main = process_block sym_table_after_functions program.main in
-  (* sym_table_after_main *)
   exit_scope sym_table_after_main
     
 
