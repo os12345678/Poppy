@@ -1,6 +1,7 @@
 _build/*
 *.poppy
 /*.ll
+/*.c
 .gitignore
 out
 output
