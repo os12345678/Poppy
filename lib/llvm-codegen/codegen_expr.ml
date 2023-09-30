@@ -72,13 +72,9 @@ let rec codegen_expr (expr: D.dexpr) (sym_table: St.llvm_symbol_table) : (St.llv
         codegen_expr (wrap expr.loc expr.typ rhs_expr_node) sym_table in
     begin 
       match St.lookup_variable updated_sym_table varname with
-      | Some (St.LVarInfo { llvm_value = Some llvm_var; _ }) ->
-          ignore (L.build_store rhs_value llvm_var U.builder); 
-          (updated_sym_table, rhs_value)
-
-      | Some (LVarInfo { llvm_value = None; llvm_type = None; storage = Local; _ }) ->
+      | Some _ ->
         let llvm_type = expr.typ |> llvm_type_of_typ in
-        let llvm_var = Llvm.build_alloca llvm_type varname U.builder in
+        let llvm_var = L.build_alloca llvm_type varname U.builder in
         ignore (L.build_store rhs_value llvm_var U.builder);
         let updated_info = St.LVarInfo { 
             llvm_value = Some llvm_var; 
@@ -86,35 +82,31 @@ let rec codegen_expr (expr: D.dexpr) (sym_table: St.llvm_symbol_table) : (St.llv
             storage = Local;
             is_global = false;
         } in
-        let updated_sym_table = St.add_symbol sym_table varname updated_info in
+        let updated_sym_table = St.add_symbol updated_sym_table varname updated_info in
         (updated_sym_table, rhs_value)
 
       | _ -> raise (Codegen_error (Printf.sprintf "Variable %s not found" varname))
     end
-
-  | DCall (fname, args) -> (* TODO: not working for external print *)
+  
+  | DCall (fname, args) -> 
     begin
       match L.lookup_function fname U.the_module with
       | Some fn ->
           let arg_values_and_tables = List.map (fun arg -> codegen_expr {expr with node = arg} sym_table) args in
           let arg_values = List.map (fun (_, value) -> 
-            match L.classify_value value with
-            | L.ValueKind.GlobalVariable -> 
-                value
-            | _ -> 
-                if L.type_of value = L.pointer_type (L.i8_type U.context) then 
-                    let global_string = L.define_global "str_const" value U.the_module in
-                    L.build_gep global_string [|L.const_int (L.i32_type U.context) 0|] "str_ptr" U.builder
-                else if L.type_of value = L.pointer_type (L.i32_type U.context) then
-                    L.build_load value "load_tmp" U.builder
-                else
-                    value
+            if L.type_of value = L.pointer_type (L.i32_type U.context) then
+              L.build_load value "load_tmp" U.builder
+            else
+              value
           ) arg_values_and_tables in
           let call = L.build_call fn (Array.of_list arg_values) fname U.builder in
           sym_table, call
       | None -> 
           failwith (Printf.sprintf "Function %s not declared in the LLVM module." fname)
     end
+  
+  
+  
 
   (* | DBlockExpr exprs ->
     (* Codegen each expression in the block, preserving the sym_table *)
