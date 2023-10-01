@@ -31,6 +31,18 @@ type function_call = {
   args: dexpr list;
 }
 
+let thread_counters = Core.Hashtbl.Poly.create () 
+
+let get_next_thread_name fname =
+  let count = 
+    match Core.Hashtbl.find thread_counters fname with
+    | Some n -> n
+    | None -> 0
+  in
+  Core.Hashtbl.set thread_counters ~key:fname ~data:(count + 1);
+  if count = 0 then "thread_id_"^fname else Printf.sprintf "thread_id_%s%d" fname count
+
+
 let rec desugar_expr (te: T.expr) : Desugared_ast.dexpr = 
   match te.node with
   | TInt i -> 
@@ -133,7 +145,7 @@ let rec desugar_expr (te: T.expr) : Desugared_ast.dexpr =
       DCreateThread (call.fname, List.map ~f:(fun de -> de.node) call.args)
     ) all_calls in
     (* Join all threads after they've been created *)
-    let thread_joins = List.map ~f:(fun call -> DJoinThread (DVar call.fname)) all_calls in
+    let thread_joins = List.map ~f:(fun call -> DJoinThread (DVar (call.fname))) all_calls in
     let dblock = desugar_block block in
     (* Combine thread creations, joins, and the main block *)
     let dblock_nodes = List.map ~f:(fun expr -> expr.node) dblock in
@@ -163,9 +175,7 @@ and extract_calls_from_async (async: T.async_expr) : function_call list =
       | TFunctionApp (fname, args) -> 
         let desugared_args = List.map ~f:desugar_expr args in
         let fname_str = A.Function_name.to_string fname in
-        Printf.printf "Function call: %s with %d args\n" fname_str (List.length desugared_args);
         Some { fname = fname_str; args = desugared_args }
       | _ -> None
     ) exprs in
-    Printf.printf "Found %d function calls in async block\n" (List.length results);
     results
