@@ -251,7 +251,7 @@ expr:
     | obj=ID; DOT; method_name=ID; method_args=args {{ loc=loc_of_position $startpos; node=MethodApp(Var_name.of_string obj, Method_name.of_string method_name, method_args) }}
     | fn=ID; fn_args=args {{ loc=loc_of_position $startpos; node=FunctionApp(Function_name.of_string fn, fn_args) }} 
     | IF; LPAREN cond_expr=expr; RPAREN then_expr=block_expr; ELSE; else_expr=block_expr {{ loc=loc_of_position $startpos; node=If(cond_expr, then_expr, else_expr) }}
-    | WHILE cond_expr=expr; loop_expr=block_expr {{ loc=loc_of_position $startpos; node=While(cond_expr, loop_expr) }}
+    | WHILE; LPAREN; cond_expr=expr; RPAREN; loop_expr=block_expr {{ loc=loc_of_position $startpos; node=While(cond_expr, loop_expr) }}
     | FOR; LPAREN; init_expr=expr; SEMICOLON; cond_expr=expr; SEMICOLON; step_expr=expr; RPAREN; loop_expr=block_expr 
         {{ loc=loc_of_position $startpos; node=For(init_expr, cond_expr, step_expr, loop_expr) }}
     | PRINTF; LPAREN; format_str=STRING; option(COMMA); args=separated_list(COMMA, expr); RPAREN {{ loc=loc_of_position $startpos; node=Printf(format_str,args) }}
