@@ -1,2 +1,4 @@
 - external function print not working - pass pointer to string instead of string 
-- blockexpr for finish/async causing trace trap... why and how 
+- loops - step decrement not working
+- assign - not correctly adding vars to symbol table
+- thread join - not finding thread to join

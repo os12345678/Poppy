@@ -94,10 +94,19 @@ let rec codegen_expr (expr: D.dexpr) (sym_table: St.llvm_symbol_table) : (St.llv
       | Some fn ->
           let arg_values_and_tables = List.map (fun arg -> codegen_expr {expr with node = arg} sym_table) args in
           let arg_values = List.map (fun (_, value) -> 
-            if L.type_of value = L.pointer_type (L.i32_type U.context) then
-              L.build_load value "load_tmp" U.builder
-            else
-              value
+            match L.classify_value value with
+            | L.ValueKind.ConstantDataArray ->
+                print_endline "constant data array";
+                print_endline (fname);
+                print_endline (L.string_of_llvalue value);
+                let string_ptr = U.handle_string_constant value in
+                print_endline ("type of value: "^ L.string_of_llvalue string_ptr);
+                string_ptr
+            | _ -> 
+                if L.type_of value = L.pointer_type (L.i32_type U.context) then
+                    L.build_load value "load_tmp" U.builder
+                else
+                    value
           ) arg_values_and_tables in
           let call = L.build_call fn (Array.of_list arg_values) fname U.builder in
           sym_table, call
@@ -105,60 +114,124 @@ let rec codegen_expr (expr: D.dexpr) (sym_table: St.llvm_symbol_table) : (St.llv
           failwith (Printf.sprintf "Function %s not declared in the LLVM module." fname)
     end
   
+  | DIf (cond, then_block, else_block) ->
+    let (sym_table_after_cond, cond_val) = codegen_expr { expr with node = cond } sym_table in
+    
+    let start_bb = L.insertion_block U.builder in
+    let the_function = L.block_parent start_bb in
+    let then_bb = L.append_block U.context "then" the_function in
+    let else_bb = L.append_block U.context "else" the_function in
+    let merge_bb = L.append_block U.context "ifcont" the_function in
+
+    ignore (L.build_cond_br cond_val then_bb else_bb U.builder);
+
+    (* Generate then block *)
+    L.position_at_end then_bb U.builder;
+    let _ = codegen_block then_block sym_table_after_cond  in
+    if L.block_terminator (L.insertion_block U.builder) = None then
+      ignore (L.build_br merge_bb U.builder);
+
+    (* Generate else block *)
+    L.position_at_end else_bb U.builder;
+    let _ = codegen_block else_block sym_table_after_cond  in
+    if L.block_terminator (L.insertion_block U.builder) = None then
+      ignore (L.build_br merge_bb U.builder);
+
+    L.position_at_end merge_bb U.builder;
+    sym_table_after_cond, L.const_int (L.i32_type U.context) 0
+
+  | DWhile (cond, block) ->
+    print_endline "inside while loop";
+    (* Create blocks for loop header, body, and exit. *)
+    let start_bb = L.insertion_block U.builder in
+    let the_function = L.block_parent start_bb in
+    let loop_header = L.append_block U.context "loop.header" the_function in
+    let loop_body = L.append_block U.context "loop.body" the_function in
+    let loop_exit = L.append_block U.context "loop.exit" the_function in
+
+    (* Jump to loop header at the start. *)
+    ignore (L.build_br loop_header U.builder);
+
+    (* In the loop header, evaluate the condition. *)
+    L.position_at_end loop_header U.builder;
+    let (sym_table_after_cond, cond_val) = codegen_expr { expr with node = cond } sym_table in
+
+    (* Conditional jump based on the condition. *)
+    ignore (L.build_cond_br cond_val loop_body loop_exit U.builder);
+
+    (* Generate loop body. *)
+    L.position_at_end loop_body U.builder;
+    let _ = codegen_block block sym_table_after_cond  in
+    if L.block_terminator (L.insertion_block U.builder) = None then
+      ignore (L.build_br loop_header U.builder);  (* Jump back to loop header. *)
+
+    (* Continue from the loop exit block. *)
+    L.position_at_end loop_exit U.builder;
+
+    sym_table_after_cond, L.const_int (L.i32_type U.context) 0
+
+  | DBlockExpr exprs ->
+    let loc = expr.loc in
+    let typ = expr.typ in
+    let wrapped = List.map (fun expr_node -> wrap loc typ expr_node) exprs in
+    codegen_block wrapped sym_table
+
+    | DCreateThread (fname, args) ->
+      begin
+          match L.lookup_function fname U.the_module with
+          | Some fn ->
+              (* Generate arguments *)
+              let arg_values_and_tables = List.map (fun arg -> 
+                  codegen_expr {expr with node = arg} sym_table
+              ) args in
   
+              let arg_values = List.map snd arg_values_and_tables in
+  
+              (* For simplicity, let's consider the function takes only one argument. 
+                  Adjust this based on your function's actual signature *)
+              let arg_for_thread_func = List.hd arg_values in
+  
+              (* Get function reference for create_thread *)
+              let create_thread_fn = L.lookup_function "create_thread" U.the_module in
+              begin
+              match create_thread_fn with
+              | Some create_thread_fn_ref ->
+                  (* fn is the function pointer, and arg_for_thread_func is the argument *)
+                  let thread_id = L.build_call create_thread_fn_ref [| fn; arg_for_thread_func |] "thread_id" U.builder in
+                  
+                  (* Add thread_id to active_threads_table with value true *)
+                  Hashtbl.add U.active_threads_table thread_id true;
+  
+                  sym_table, thread_id
+              | None -> 
+                  failwith "create_thread function not found in the LLVM module."
+              end
+  
+          | None -> 
+              failwith (Printf.sprintf "Function %s not declared in the LLVM module." fname)
+      end
   
 
-  (* | DBlockExpr exprs ->
-    (* Codegen each expression in the block, preserving the sym_table *)
-    let sym_table, _ = List.fold_left (fun (acc_sym_table, _) e ->
-        codegen_expr {expr with node = e} acc_sym_table
-    ) (sym_table, (L.const_null (L.void_type U.context))) exprs in
-    sym_table, (L.const_null (L.void_type U.context))
-   *)
-
-  (* | DCreateThread (fname, args) ->
-    begin
-        match L.lookup_function fname U.the_module with
-        | Some fn ->
-            (* Generate arguments *)
-            let arg_values_and_tables = List.map (fun arg -> 
-                codegen_expr {expr with node = arg} sym_table
-            ) args in
-
-            let arg_values = List.map snd arg_values_and_tables in
-
-            (* For simplicity, let's consider the function takes only one argument. 
-                Adjust this based on your function's actual signature *)
-            let arg_for_thread_func = List.hd arg_values in
-
-            (* Get function reference for create_thread *)
-            let create_thread_fn = L.lookup_function "create_thread" U.the_module in
-            begin
-            match create_thread_fn with
-            | Some create_thread_fn_ref ->
-                (* fn is the function pointer, and arg_for_thread_func is the argument *)
-                let thread_id = L.build_call create_thread_fn_ref [| fn; arg_for_thread_func |] "thread_id" U.builder in
-                sym_table, thread_id
-            | None -> 
-                failwith "create_thread function not found in the LLVM module."
-            end
-
-        | None -> 
-            failwith (Printf.sprintf "Function %s not declared in the LLVM module." fname)
-    end
-
-  | DJoinThread e ->
-    let _, thread_id_value = codegen_expr {expr with node = e} sym_table in
-
-    let join_thread_fn = L.lookup_function "join_thread" U.the_module in
-    begin
-    match join_thread_fn with
-    | Some join_thread_fn_ref ->
-        let _ = L.build_call join_thread_fn_ref [| thread_id_value |] "" U.builder in
-        sym_table, (L.const_null (L.void_type U.context)) 
-    | None -> 
-        failwith "join_thread function not found in the LLVM module."
-    end *)
+    | DJoinThread e ->
+      let _, thread_id_value = codegen_expr {expr with node = e} sym_table in
+  
+      (* Ensure the thread ID is valid, i.e., it exists in the symbol table or another data structure *)
+      if not (U.is_valid_thread_id thread_id_value) then
+          failwith (Printf.sprintf "Thread ID %s is invalid or the thread has already been joined." (L.string_of_llvalue thread_id_value));
+  
+      (* Get function reference for join_thread *)
+      let join_thread_fn = L.lookup_function "join_thread" U.the_module in
+      begin
+      match join_thread_fn with
+      | Some join_thread_fn_ref ->
+          let _ = L.build_call join_thread_fn_ref [| thread_id_value |] "" U.builder in
+          (* Clear or mark the thread as joined in your data structure or symbol table *)
+          U.clear_thread_id thread_id_value;
+          sym_table, (L.const_null (L.void_type U.context))
+      | None -> 
+          failwith "join_thread function not found in the LLVM module."
+      end
+  
   
     
   
@@ -168,15 +241,23 @@ let rec codegen_expr (expr: D.dexpr) (sym_table: St.llvm_symbol_table) : (St.llv
     
     
 
-  | _ -> raise (Codegen_error "not implemented")
+  (* | _ -> raise (Codegen_error "not implemented") *)
 
 (* ############################ Codegen block ################################ *)
-let codegen_block
+(* and codegen_block
 (sym_table: St.llvm_symbol_table) (block: D.dblock): St.llvm_symbol_table = 
   List.fold_left (fun acc_sym_table expr ->
   let (updated_sym_table, _) = codegen_expr expr acc_sym_table  in
   updated_sym_table
-  ) sym_table block
+  ) sym_table block *)
+
+and codegen_block (block: D.dblock) (sym_table: St.llvm_symbol_table) : St.llvm_symbol_table * llvalue =
+  match block with
+  | [] -> (sym_table, L.const_int (L.i32_type U.context) 0) (* Default return for an empty block. Adjust as needed. *)
+  | [last_expr] -> codegen_expr last_expr sym_table
+  | expr :: rest -> 
+      let updated_sym_table, _ = codegen_expr expr sym_table in
+      codegen_block rest updated_sym_table
 
 (* ########################### Codegen function ############################## *)
 let codegen_proto (func: D.dfunction) (sym_table: St.llvm_symbol_table) : St.llvm_symbol_table * llvalue =
@@ -256,7 +337,7 @@ let codegen_main (main_block: D.dblock) (sym_table: St.llvm_symbol_table): unit 
   let bb = L.append_block U.context "entry" main_function in
   L.position_at_end bb U.builder;
 
-  let _ = codegen_block sym_table main_block in
+  let _ = codegen_block main_block sym_table  in
   
   if L.block_terminator (L.insertion_block U.builder) = None then
     ignore (L.build_ret_void U.builder);

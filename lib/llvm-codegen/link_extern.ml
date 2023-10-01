@@ -4,7 +4,7 @@ module M = Codegen_util
 let declare_externals the_module =
   (* Declare the print function *)
   let printf_type = 
-    L.var_arg_function_type (L.void_type M.context) [| L.pointer_type (L.i8_type M.context) |] in
+    L.var_arg_function_type (L.i32_type M.context) [| L.pointer_type (L.i8_type M.context) |] in
   let _ = L.declare_function "print" printf_type the_module in
 
   (* Declare the create_thread function *)
@@ -21,5 +21,5 @@ let declare_externals the_module =
   let join_thread_type = 
     L.function_type (L.i32_type M.context) [| pthread_t_type |] in
   let _ = L.declare_function "join_thread" join_thread_type the_module in
-  
+
   ()
