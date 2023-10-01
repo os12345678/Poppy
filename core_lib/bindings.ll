@@ -8,18 +8,21 @@ target triple = "arm64-apple-macosx13.0.0"
 %struct._opaque_pthread_attr_t = type { i64, [56 x i8] }
 
 ; Function Attrs: noinline nounwind optnone ssp uwtable
-define void @print(i8* align 1 dereferenceable(1) %0, ...) #0 {
+define i32 @print(i8* %0, ...) #0 {
   %2 = alloca i8*, align 8
   %3 = alloca i8*, align 8
+  %4 = alloca i32, align 4
   store i8* %0, i8** %2, align 8
-  %4 = bitcast i8** %3 to i8*
-  call void @llvm.va_start(i8* %4)
-  %5 = load i8*, i8** %2, align 8
-  %6 = load i8*, i8** %3, align 8
-  %7 = call i32 @vprintf(i8* %5, i8* %6)
-  %8 = bitcast i8** %3 to i8*
-  call void @llvm.va_end(i8* %8)
-  ret void
+  %5 = bitcast i8** %3 to i8*
+  call void @llvm.va_start(i8* %5)
+  %6 = load i8*, i8** %2, align 8
+  %7 = load i8*, i8** %3, align 8
+  %8 = call i32 @vprintf(i8* %6, i8* %7)
+  store i32 %8, i32* %4, align 4
+  %9 = bitcast i8** %3 to i8*
+  call void @llvm.va_end(i8* %9)
+  %10 = load i32, i32* %4, align 4
+  ret i32 %10
 }
 
 ; Function Attrs: nofree nosync nounwind willreturn
