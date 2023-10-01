@@ -176,73 +176,71 @@ let rec codegen_expr (expr: D.dexpr) (sym_table: St.llvm_symbol_table) : (St.llv
     let wrapped = List.map (fun expr_node -> wrap loc typ expr_node) exprs in
     codegen_block wrapped sym_table
 
-    | DCreateThread (fname, args) ->
-      begin
-          match L.lookup_function fname U.the_module with
-          | Some fn ->
-              (* Generate arguments *)
-              let arg_values_and_tables = List.map (fun arg -> 
-                  codegen_expr {expr with node = arg} sym_table
-              ) args in
+  | DCreateThread (fname, args) ->
+    print_endline "inside create thread";
+    begin
+        match L.lookup_function fname U.the_module with
+        | Some fn ->
+            (* Generate arguments *)
+            let arg_values_and_tables = List.map (fun arg -> 
+                codegen_expr {expr with node = arg} sym_table
+            ) args in
+
+            let arg_values = List.map snd arg_values_and_tables in
+
+            (* For simplicity, let's consider the function takes only one argument. 
+                Adjust this based on your function's actual signature *)
+            let arg_for_thread_func = List.hd arg_values in
+
+            (* Get function reference for create_thread *)
+            let create_thread_fn = L.lookup_function "create_thread" U.the_module in
+            begin
+            match create_thread_fn with
+            | Some create_thread_fn_ref ->
+                (* fn is the function pointer, and arg_for_thread_func is the argument *)
+                let thread_id = L.build_call create_thread_fn_ref [| fn; arg_for_thread_func |] "thread_id" U.builder in
+                (* Add thread_id to active_threads_table with value true *)
+                U.add_thread_to_table fname thread_id;
+                print_endline "added thread_id to active_threads_table";
+                print_endline (L.string_of_llvalue thread_id);
+
+                sym_table, thread_id
+            | None -> 
+                failwith "create_thread function not found in the LLVM module."
+            end
+        | None -> 
+            failwith (Printf.sprintf "Function %s not declared in the LLVM module." fname)
+    end
   
-              let arg_values = List.map snd arg_values_and_tables in
-  
-              (* For simplicity, let's consider the function takes only one argument. 
-                  Adjust this based on your function's actual signature *)
-              let arg_for_thread_func = List.hd arg_values in
-  
-              (* Get function reference for create_thread *)
-              let create_thread_fn = L.lookup_function "create_thread" U.the_module in
+  | DJoinThread thread_name ->
+    print_endline "\ninside join thread";
+    begin
+      match thread_name with 
+      | DVar(name) -> 
+        begin
+          match U.check_and_remove_thread_from_table name with
+          | Some thread_id_value ->
+            print_endline (L.string_of_llvalue thread_id_value);
+              (* Get function reference for join_thread *)
+              let join_thread_fn = L.lookup_function "join_thread" U.the_module in
               begin
-              match create_thread_fn with
-              | Some create_thread_fn_ref ->
-                  (* fn is the function pointer, and arg_for_thread_func is the argument *)
-                  let thread_id = L.build_call create_thread_fn_ref [| fn; arg_for_thread_func |] "thread_id" U.builder in
-                  
-                  (* Add thread_id to active_threads_table with value true *)
-                  Hashtbl.add U.active_threads_table thread_id true;
-  
-                  sym_table, thread_id
-              | None -> 
-                  failwith "create_thread function not found in the LLVM module."
+                match join_thread_fn with
+                | Some join_thread_fn_ref ->
+                    print_endline ("\tjoin_thread_fn_ref: "^L.string_of_llvalue join_thread_fn_ref);
+                    let t = L.build_call join_thread_fn_ref [| thread_id_value |] "" U.builder in
+                    print_endline ("\t\t t: "^L.string_of_llvalue t);
+                    (* Return a null void value as the resulting expression *)
+                    sym_table, t;
+                | None -> 
+                    failwith "join_thread function not found in the LLVM module."
               end
-  
           | None -> 
-              failwith (Printf.sprintf "Function %s not declared in the LLVM module." fname)
-      end
-  
-
-    | DJoinThread e ->
-      let _, thread_id_value = codegen_expr {expr with node = e} sym_table in
-  
-      (* Ensure the thread ID is valid, i.e., it exists in the symbol table or another data structure *)
-      if not (U.is_valid_thread_id thread_id_value) then
-          failwith (Printf.sprintf "Thread ID %s is invalid or the thread has already been joined." (L.string_of_llvalue thread_id_value));
-  
-      (* Get function reference for join_thread *)
-      let join_thread_fn = L.lookup_function "join_thread" U.the_module in
-      begin
-      match join_thread_fn with
-      | Some join_thread_fn_ref ->
-          let _ = L.build_call join_thread_fn_ref [| thread_id_value |] "" U.builder in
-          (* Clear or mark the thread as joined in your data structure or symbol table *)
-          U.clear_thread_id thread_id_value;
-          sym_table, (L.const_null (L.void_type U.context))
-      | None -> 
-          failwith "join_thread function not found in the LLVM module."
-      end
-  
-  
-    
-  
-
-      
-      
-    
-    
-
-  (* | _ -> raise (Codegen_error "not implemented") *)
-
+              failwith (Printf.sprintf "No active threads found for function: %s" name)
+          end
+      | _ ->
+          failwith "Invalid thread name"
+    end
+        
 (* ############################ Codegen block ################################ *)
 (* and codegen_block
 (sym_table: St.llvm_symbol_table) (block: D.dblock): St.llvm_symbol_table = 

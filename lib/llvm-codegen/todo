@@ -1,4 +1,4 @@
-- external function print not working - pass pointer to string instead of string 
+- print - Call parameter type does not match function signature!
 - loops - step decrement not working
 - assign - not correctly adding vars to symbol table
-- thread join - not finding thread to join
+- thread create/join - Call parameter type does not match function signature!
