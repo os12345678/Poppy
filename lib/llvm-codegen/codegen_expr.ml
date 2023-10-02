@@ -11,18 +11,6 @@ module T = Poppy_parser.Ast_types
 module St = Ir_symbol_table
 module E = Link_extern
 
-let wrap loc typ node = {
-  D.loc = loc;
-  D.typ = typ;
-  D.node = node;
-}
-
-let llvm_type_of_typ = function
-  | T.TEInt -> Llvm.i32_type U.context
-  | T.TEBool -> Llvm.i1_type U.context
-  | T.TEVoid -> Llvm.void_type U.context
-  | T.TEStruct s -> Llvm.named_struct_type U.context (T.Struct_name.to_string s)
-
 (* ############################ Codegen expr ################################ *)
 let rec codegen_expr (expr: D.dexpr) (sym_table: St.llvm_symbol_table) : (St.llvm_symbol_table * llvalue) =
   match expr.node with
@@ -67,13 +55,13 @@ let rec codegen_expr (expr: D.dexpr) (sym_table: St.llvm_symbol_table) : (St.llv
         | _ -> failwith (Printf.sprintf "Variable %s not found or not declared in the symbol table." var_name)
     end
 
-  | D.DAssign (varname, rhs_expr_node) ->
+  | DAssign (varname, rhs_expr_node) ->
     let (updated_sym_table, rhs_value) = 
-        codegen_expr (wrap expr.loc expr.typ rhs_expr_node) sym_table in
+        codegen_expr (U.wrap expr.loc expr.typ rhs_expr_node) sym_table in
     begin 
       match St.lookup_variable updated_sym_table varname with
       | Some _ ->
-        let llvm_type = expr.typ |> llvm_type_of_typ in
+        let llvm_type = expr.typ |> U.llvm_type_of_typ in
         let llvm_var = L.build_alloca llvm_type varname U.builder in
         ignore (L.build_store rhs_value llvm_var U.builder);
         let updated_info = St.LVarInfo { 
@@ -173,7 +161,7 @@ let rec codegen_expr (expr: D.dexpr) (sym_table: St.llvm_symbol_table) : (St.llv
   | DBlockExpr exprs ->
     let loc = expr.loc in
     let typ = expr.typ in
-    let wrapped = List.map (fun expr_node -> wrap loc typ expr_node) exprs in
+    let wrapped = List.map (fun expr_node -> U.wrap loc typ expr_node) exprs in
     codegen_block wrapped sym_table
 
   | DCreateThread (fname, args) ->
@@ -259,8 +247,8 @@ and codegen_block (block: D.dblock) (sym_table: St.llvm_symbol_table) : St.llvm_
 
 (* ########################### Codegen function ############################## *)
 let codegen_proto (func: D.dfunction) (sym_table: St.llvm_symbol_table) : St.llvm_symbol_table * llvalue =
-  let param_types = List.map (fun (typ, _) -> llvm_type_of_typ typ) func.params in
-  let ret_type = llvm_type_of_typ func.ret_type in
+  let param_types = List.map (fun (typ, _) -> U.llvm_type_of_typ typ) func.params in
+  let ret_type = U.llvm_type_of_typ func.ret_type in
   let ftype = L.function_type ret_type (Array.of_list param_types) in
 
   match L.lookup_function func.name U.the_module with
@@ -302,27 +290,46 @@ let codegen_func_body (func: D.dfunction) (fn: llvalue) (sym_table: St.llvm_symb
   updated_sym_table
 
 (* ############################ Codegen struct ############################## *)
-(* let codegen_structs (structs: D.dstruct) (sym_table: St.llvm_symbol_table) : St.llvm_symbol_table =
-  List.fold_left (fun current_table dstruct ->
-    let struct_name = dstruct.name in
-    
-    (* Convert the list of field types to an array of LLVM types *)
-    let llvm_field_types = Array.of_list (List.map (fun (_, field_type) -> llvm_type_of_typ field_type) dstruct.fields) in
+let codegen_struct_init_function dstruct llvm_struct_type =
+  let func_name = "init_" ^ dstruct.D.name in
+  let param_types = Array.of_list (List.map U.llvm_type_of_typ (List.map snd dstruct.fields)) in
+  let ret_type = L.pointer_type llvm_struct_type in
+  let func_type = L.function_type ret_type param_types in
+  let func = L.define_function func_name func_type U.the_module in
+  
+  let builder = L.builder_at_end U.context (L.entry_block func) in
+  
+  (* Allocate memory for the struct on the stack *)
+  let alloca = L.build_alloca llvm_struct_type "" builder in
 
-    (* Define an LLVM structure type *)
-    let llvm_struct_type = L.named_struct_type U.context struct_name in
-    L.struct_set_body llvm_struct_type llvm_field_types false;
-    
-    (* Add the defined LLVM structure type to the symbol table *)
-    let struct_info_option = St.lookup_variable current_table struct_name in
-    begin match struct_info_option with
-    | Some (St.LStructInfo struct_info) ->
-        struct_info.St.llvm_struct <- Some llvm_struct_type;
-        current_table
-    | _ -> 
-        failwith (Printf.sprintf "Struct %s not found in the symbol table or mismatched identifier type." struct_name)
-    end
-  ) sym_table structs *)
+  (* Populate the struct's fields *)
+  List.iteri (fun idx (_, _field_typ) ->
+      let field_ptr = L.build_struct_gep alloca idx "" builder in
+      let param_value = L.param func idx in
+      let _ = L.build_store param_value field_ptr builder in
+      ()
+  ) dstruct.fields;
+
+  (* Return the pointer to the struct *)
+  let _ = L.build_ret alloca builder in
+  func
+
+let codegen_structs (structs: D.dstruct list) (sym_table: St.llvm_symbol_table) : St.llvm_symbol_table  =
+  List.fold_left (fun current_table dstruct ->
+    let struct_name = dstruct.D.name in
+    let field_types = List.map snd dstruct.fields in
+    let llvm_field_types = List.map (fun t -> U.llvm_type_of_typ t) field_types in
+    let llvm_struct_type = L.struct_type U.context (Array.of_list llvm_field_types) in
+    let _ = codegen_struct_init_function dstruct llvm_struct_type in
+    let struct_info = St.LStructInfo {
+      llvm_struct = Some llvm_struct_type; 
+      field_map = (match St.lookup_variable current_table struct_name with
+                   | Some (St.LStructInfo info) -> info.field_map
+                   | _ -> failwith "Struct information not found in symbol table.")
+    } in
+    St.add_symbol current_table struct_name struct_info
+  ) sym_table structs
+
 
 
 (* ############################# Codegen main ############################### *)
@@ -347,14 +354,22 @@ let codegen_main (main_block: D.dblock) (sym_table: St.llvm_symbol_table): unit 
 let codegen_ast (dprogram: D.dprogram) (symboltable: St.llvm_symbol_table): llmodule =   
   E.declare_externals U.the_module;
   (* Generate code for all structs *)
-  (* let sym_table_0 = codegen_structs dprogram.structs symboltable in
- *)
+  let updated_sym_table = codegen_structs dprogram.structs symboltable in
+
+  (* 2. Generate initialization functions for each structure *)
+  let _ = List.map (fun dstruct ->
+    let llvm_struct_type = match St.lookup_variable updated_sym_table dstruct.D.name with
+      | Some (St.LStructInfo { llvm_struct = Some llvm_struct_type; _ }) -> llvm_struct_type
+      | _ -> failwith "Struct information not found in symbol table."
+    in
+    codegen_struct_init_function dstruct llvm_struct_type
+  ) dprogram.structs in
 
   (* Generate code for all functions *)
   let sym_table_1 = List.fold_left (fun acc_sym_table func ->
     let (new_sym_table, fn) = codegen_proto func acc_sym_table in
     codegen_func_body func fn new_sym_table
-  ) symboltable dprogram.functions in
+  ) updated_sym_table dprogram.functions in
 
   (* Generate code for the main block *)
   let _ = codegen_main dprogram.main sym_table_1 in

@@ -5,6 +5,7 @@ exception Codegen_error of string
 
 module D = Desugar.Desugared_ast
 module A = Poppy_parser.Ast_types
+module U = Codegen_util
 
 
 
@@ -40,7 +41,7 @@ type llvm_symbol_info =
     params        : llvm_symbol_info list;
   }
   | LStructInfo of {
-    llvm_struct: llvalue option;
+    llvm_struct: lltype option;
     field_map : (string, int) Hashtbl.t; (* Maps field names to their indices in the struct *)
   }
 
@@ -108,7 +109,7 @@ and print_symbol_info info =
       List.iter print_symbol_info params
   | LStructInfo { llvm_struct; field_map } ->
       Printf.printf "\tType: Struct\n";
-      Printf.printf "\tLLVM Struct: %s\n" (Option.value ~default:"None" (Option.map string_of_llvalue llvm_struct));
+      Printf.printf "\tLLVM Struct: %s\n" (Option.value ~default:"None" (Option.map string_of_lltype llvm_struct));
       Printf.printf "\tFields:\n";
       Hashtbl.iter (fun field_name index -> Printf.printf "\t\t%s : %d\n" field_name index) field_map
       
@@ -118,9 +119,12 @@ let process_structs (sym_table: llvm_symbol_table) (structs: dstruct list) : llv
   List.fold_left (fun current_table dstruct ->
     let struct_name = dstruct.name in
     (* Create a new empty field map *)
+    let field_types = List.map (fun (_, t) -> U.llvm_type_of_typ t) dstruct.fields in
+    let llvm_struct_typ = Llvm.struct_type U.context (Array.of_list field_types) in
     let field_map = Hashtbl.create (List.length dstruct.fields) in
     List.iteri (fun idx (field_name, _) -> Hashtbl.add field_map field_name idx) dstruct.fields;
-    let struct_info = LStructInfo { llvm_struct = None; field_map = field_map } in
+
+    let struct_info = LStructInfo { llvm_struct = Some llvm_struct_typ; field_map = field_map } in
     add_symbol current_table struct_name struct_info
   ) sym_table structs
 

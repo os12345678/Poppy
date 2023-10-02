@@ -1,8 +1,23 @@
+module D = Desugar.Desugared_ast
+module T = Poppy_parser.Ast_types
+
 let context = Llvm.global_context ()
 let the_module = Llvm.create_module context "Poppy JIT"
 let builder = Llvm.builder context
 
 let active_threads_table : (string, Llvm.llvalue list) Hashtbl.t = Hashtbl.create 50
+
+let wrap loc typ node = {
+  D.loc = loc;
+  D.typ = typ;
+  D.node = node;
+}
+
+let llvm_type_of_typ = function
+  | T.TEInt -> Llvm.i32_type context
+  | T.TEBool -> Llvm.i1_type context
+  | T.TEVoid -> Llvm.void_type context
+  | T.TEStruct s -> Llvm.named_struct_type context (T.Struct_name.to_string s)
 
 let handle_string_constant value =
   print_endline ("Handling string constant " ^ (Llvm.string_of_llvalue value));
