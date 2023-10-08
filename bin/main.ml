@@ -18,14 +18,6 @@ let is_poppy_file filename =
 (* let get_output_file filename = 
   String.substr_replace_all filename ~pattern:".poppy" ~with_:".ir" *)
 
-  (* let maybe_pprint_ast should_pprint p_print ast =
-    if should_pprint then
-      ast
-      |> p_print
-      |> Sexp.to_string_hum
-      |> print_endline;
-    Result.return ast   *)
-
 let poppy_file =
   let error_not_file filename =
     eprintf "'%s' is not a Poppy file. Hint: use the .poppy extension\n%!" filename ;
@@ -59,32 +51,13 @@ let compile_program ?(should_pprint_past = false) ?(should_pprint_tast = false)
   match compile_out_file with 
   | Some filename -> 
     Out_channel.with_file filename ~f:(fun file_oc ->
-      (* Placeholder for IR generation *)
-      (* let ir_program = "IR generation not implemented yet" in *)
       let ir_program = Llvm.string_of_llmodule llvm_module in
       Out_channel.output_string file_oc ir_program;
       Ok ())
   | None ->
-    (* Placeholder for IR generation *)
-    (* let ir_program = "IR generation not implemented yet" in *)
     let ir_program = Llvm.string_of_llmodule llvm_module in
     print_endline ir_program;
     Ok ()
-
-    (* Ok(St.codegen_ast dprogram)
->>= fun llvm_module ->
-  (if should_print_llvm_table then
-    Symbol_table.print_symbol_table symboltable);  (* Assuming you still want to print the symbol table *)
-  match compile_out_file with 
-  | Some filename -> 
-    Out_channel.with_file filename ~f:(fun file_oc ->
-      let ir_program = Llvm.string_of_llmodule llvm_module in
-      Out_channel.output_string file_oc ir_program;
-      Ok ())
-  | None ->
-    let ir_program = Llvm.string_of_llmodule llvm_module in
-    print_endline ir_program;
-    Ok () *)
       
 let command =
   Command.basic ~summary:"Run Poppy programs"

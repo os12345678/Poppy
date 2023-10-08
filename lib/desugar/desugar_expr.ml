@@ -24,8 +24,9 @@ module A = Poppy_parser.Ast_types
 let extract_var_name (id: T.typed_identifier) : string = 
   match id with
   | T.TVariable (name, _) -> A.Var_name.to_string name
-  | T.TObjField (name, _, _) -> A.Var_name.to_string name
-  
+  | T.TObjField (obj_name, field_name, _) -> 
+    A.Var_name.to_string obj_name ^ "." ^ A.Field_name.to_string field_name
+
 type function_call = {
   fname: string;
   args: dexpr list;
@@ -66,6 +67,7 @@ let rec desugar_expr (te: T.expr) : Desugared_ast.dexpr =
       node = DVar var_name }
   | TAssign (id, expr) -> 
     let var_name = extract_var_name id in
+    print_endline ("TASSIGN; desugaring assignment to " ^ var_name);
     let desugared_expr = desugar_expr expr in
     { loc = te.loc; 
       typ = te.typ; 

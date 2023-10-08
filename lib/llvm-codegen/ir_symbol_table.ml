@@ -81,6 +81,23 @@ let rec lookup_variable (sym_table: llvm_symbol_table) (name: string) : llvm_sym
       | Some parent_table -> lookup_variable parent_table name
       | None -> None  (* Reached global scope, symbol not found *)
 
+let print_variable_info_from_symbol (key: string) (symbol_info: llvm_symbol_info) : unit =
+  match symbol_info with
+  | LVarInfo { llvm_type = Some llvm_t; _ } -> 
+      Printf.printf "Variable Name: %s, LLVM Type: %s\n" key (Llvm.string_of_lltype llvm_t)
+  | _ -> () (* Skip non-variable symbols *)
+
+let rec print_variables_from_table (sym_table: llvm_symbol_table) : unit =
+  SymbolMap.iter print_variable_info_from_symbol sym_table.table;
+  match sym_table.parent with
+  | Some parent_table -> print_variables_from_table parent_table
+  | None -> ()
+
+let print_all_variables (sym_table: llvm_symbol_table) : unit =
+  Printf.printf "=== All Variables ===\n";
+  print_variables_from_table sym_table;
+  Printf.printf "\n=== End of Variables ===\n"
+
 let rec print_symbol_table (sym_table: llvm_symbol_table) : unit =
   Printf.printf "=== Symbol Table ===\n";
   SymbolMap.iter (fun key symbol_info ->
@@ -113,8 +130,6 @@ and print_symbol_info info =
       Printf.printf "\tFields:\n";
       Hashtbl.iter (fun field_name index -> Printf.printf "\t\t%s : %d\n" field_name index) field_map
       
-
-  (* TODO *)
 let process_structs (sym_table: llvm_symbol_table) (structs: dstruct list) : llvm_symbol_table =
   List.fold_left (fun current_table dstruct ->
     let struct_name = dstruct.name in
@@ -128,25 +143,22 @@ let process_structs (sym_table: llvm_symbol_table) (structs: dstruct list) : llv
     add_symbol current_table struct_name struct_info
   ) sym_table structs
 
-  (* TODO *) 
   let process_functions (sym_table: llvm_symbol_table) (functions: dfunction list) : llvm_symbol_table =
   List.fold_left (fun current_table dfunction ->
     let params = List.map (fun param ->
-      let _param_name, _param_type = param in 
+      let _param_type, _param_name = param in 
       LVarInfo {
         llvm_value = None; 
         llvm_type = None; 
         storage = Local; 
         is_global = false;
-      }
-    ) dfunction.params in
-    let func_name = dfunction.name in
-    let func_info = LFuncInfo { llvm_function = None; params = params } in
+        }
+      ) dfunction.params in
+      let func_name = dfunction.name in
+      let func_info = LFuncInfo { llvm_function = None; params = params } in
     add_symbol current_table func_name func_info
   ) sym_table functions
   
-
-
 let rec process_expr (sym_table: llvm_symbol_table) (expr: dexpr) : llvm_symbol_table =
   match expr.node with
   | DIntLit _ | DBoolLit _ | DStringLit _ -> sym_table
@@ -163,6 +175,7 @@ let rec process_expr (sym_table: llvm_symbol_table) (expr: dexpr) : llvm_symbol_
     exit_scope final_sym_table
   | DVar name -> 
     let var_info = LVarInfo { llvm_value = None; llvm_type = None; storage = Local; is_global = false } in
+    print_endline ("DVAR: added " ^ name ^ " to sym table");
     add_symbol sym_table name var_info
   | DAssign (name, e) ->
     let wrapped_expr = { loc = expr.loc; typ = expr.typ; node = e } in
@@ -174,6 +187,7 @@ let rec process_expr (sym_table: llvm_symbol_table) (expr: dexpr) : llvm_symbol_
         updated_sym_table
       | None ->
         let new_var_info = LVarInfo { llvm_value = None; llvm_type = None; storage = Local; is_global = false } in
+        print_endline ("DASSIGN: added " ^ name ^ " to sym table");
         add_symbol updated_sym_table name new_var_info
       | Some (LFuncInfo _ | LStructInfo _) ->
         failwith (Printf.sprintf "Identifier %s is not a variable, but type-checking phase passed!!!" name)

@@ -1,4 +1,6 @@
 - print - Call parameter type does not match function signature!
 - loops - step decrement not working
 - assign - not correctly adding vars to symbol table
-- thread create/join - Call parameter type does not match function signature!
+- desugaring - not correctly adding object fields (i.e this.x) to the symbol table
+
+- async/finish - test llvm ir output!
