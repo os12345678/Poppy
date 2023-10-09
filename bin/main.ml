@@ -7,6 +7,7 @@ open Poppy_type_checker
 open Desugar
 open Poppy_codegen.Ir_symbol_table
 open Poppy_codegen.Codegen_expr
+open Poppy_codegen.Codegen_util 
 
 (* open Core_unix *)
 
@@ -30,6 +31,9 @@ let poppy_file =
 let compile_program ?(should_pprint_past = false) ?(should_pprint_tast = false) 
 ?(should_pprint_dast = false) ?(should_print_llvm_table = false) ?compile_out_file lexbuf =
   let open Result in 
+  (* let the_execution_engine = Llvm_executionengine.create the_module in *)
+  let the_fpm = Llvm.PassManager.create_function the_module in
+
   Lex_and_parse.parse_program lexbuf (* AST *)
   >>= fun ast ->
   (if should_pprint_past then
@@ -46,7 +50,7 @@ let compile_program ?(should_pprint_past = false) ?(should_pprint_tast = false)
   >>= fun llvmsymboltable ->
     (if should_print_llvm_table then
       St.print_symbol_table llvmsymboltable);
-  Ok(codegen_ast dprogram llvmsymboltable)
+  Ok(codegen_ast dprogram llvmsymboltable the_fpm)
   >>= fun llvm_module ->
   match compile_out_file with 
   | Some filename -> 

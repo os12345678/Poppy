@@ -12,14 +12,14 @@ module St = Ir_symbol_table
 module E = Link_extern
 
 (* ############################ Codegen expr ################################ *)
-let rec codegen_expr (expr: D.dexpr) (sym_table: St.llvm_symbol_table) : (St.llvm_symbol_table * llvalue) =
+let rec codegen_expr (expr: D.dexpr) (sym_table: St.llvm_symbol_table) (fpm: [ `Function ] L.PassManager.t) : (St.llvm_symbol_table * llvalue) =
   match expr.node with
   | D.DIntLit i -> (sym_table, const_int (Llvm.i32_type U.context) i)
   | D.DBoolLit b -> (sym_table, const_int (i1_type U.context) (if b then 1 else 0))
   | D.DStringLit s -> (sym_table, const_string U.context s)
   | DBinOp (op, lhs, rhs) ->
-    let (_, lhs_val) = codegen_expr {expr with node = lhs} sym_table in
-    let (_, rhs_val) = codegen_expr {expr with node = rhs} sym_table in
+    let (_, lhs_val) = codegen_expr {expr with node = lhs} sym_table fpm in
+    let (_, rhs_val) = codegen_expr {expr with node = rhs} sym_table fpm in
     begin 
       match op with 
       | T.BinOpPlus -> (sym_table, L.build_add lhs_val rhs_val "addtmp" U.builder)
@@ -37,7 +37,7 @@ let rec codegen_expr (expr: D.dexpr) (sym_table: St.llvm_symbol_table) : (St.llv
       | T.BinOpOr -> (sym_table, L.build_or lhs_val rhs_val "ortmp" U.builder)
       end
   | DUnOp (op, un_expr) ->
-    let (_, un_expr_val) = codegen_expr {expr with node = un_expr} sym_table in
+    let (_, un_expr_val) = codegen_expr {expr with node = un_expr} sym_table fpm in
     begin
       match op with
       | T.UnOpNeg -> (sym_table, L.build_neg un_expr_val "negtmp" U.builder)
@@ -57,7 +57,7 @@ let rec codegen_expr (expr: D.dexpr) (sym_table: St.llvm_symbol_table) : (St.llv
 
   | DAssign (varname, rhs_expr_node) ->
     let (updated_sym_table, rhs_value) = 
-        codegen_expr (U.wrap expr.loc expr.typ rhs_expr_node) sym_table in
+        codegen_expr (U.wrap expr.loc expr.typ rhs_expr_node) sym_table fpm in
     begin 
       match St.lookup_variable updated_sym_table varname with
       | Some _ ->
@@ -102,7 +102,7 @@ let rec codegen_expr (expr: D.dexpr) (sym_table: St.llvm_symbol_table) : (St.llv
     begin
       match L.lookup_function fname U.the_module with
       | Some fn ->
-          let arg_values_and_tables = List.map (fun arg -> codegen_expr {expr with node = arg} sym_table) args in
+          let arg_values_and_tables = List.map (fun arg -> codegen_expr {expr with node = arg} sym_table fpm) args in
           let arg_values = List.map (fun (_, value) -> 
             match L.classify_value value with
             | L.ValueKind.ConstantDataArray ->
@@ -125,7 +125,7 @@ let rec codegen_expr (expr: D.dexpr) (sym_table: St.llvm_symbol_table) : (St.llv
     end
   
   | DIf (cond, then_block, else_block) ->
-    let (sym_table_after_cond, cond_val) = codegen_expr { expr with node = cond } sym_table in
+    let (sym_table_after_cond, cond_val) = codegen_expr { expr with node = cond } sym_table fpm in
     
     let start_bb = L.insertion_block U.builder in
     let the_function = L.block_parent start_bb in
@@ -136,12 +136,12 @@ let rec codegen_expr (expr: D.dexpr) (sym_table: St.llvm_symbol_table) : (St.llv
     ignore (L.build_cond_br cond_val then_bb else_bb U.builder);
 
     L.position_at_end then_bb U.builder;
-    let _ = codegen_block then_block sym_table_after_cond  in
+    let _ = codegen_block then_block sym_table_after_cond fpm in
     if L.block_terminator (L.insertion_block U.builder) = None then
       ignore (L.build_br merge_bb U.builder);
 
     L.position_at_end else_bb U.builder;
-    let _ = codegen_block else_block sym_table_after_cond  in
+    let _ = codegen_block else_block sym_table_after_cond fpm in
     if L.block_terminator (L.insertion_block U.builder) = None then
       ignore (L.build_br merge_bb U.builder);
 
@@ -159,12 +159,12 @@ let rec codegen_expr (expr: D.dexpr) (sym_table: St.llvm_symbol_table) : (St.llv
     ignore (L.build_br loop_header U.builder);
 
     L.position_at_end loop_header U.builder;
-    let (sym_table_after_cond, cond_val) = codegen_expr { expr with node = cond } sym_table in
+    let (sym_table_after_cond, cond_val) = codegen_expr { expr with node = cond } sym_table fpm in
 
     ignore (L.build_cond_br cond_val loop_body loop_exit U.builder);
 
     L.position_at_end loop_body U.builder;
-    let _ = codegen_block block sym_table_after_cond  in
+    let _ = codegen_block block sym_table_after_cond fpm in
     if L.block_terminator (L.insertion_block U.builder) = None then
       ignore (L.build_br loop_header U.builder);  (* Jump back to loop header. *)
 
@@ -176,7 +176,7 @@ let rec codegen_expr (expr: D.dexpr) (sym_table: St.llvm_symbol_table) : (St.llv
     let loc = expr.loc in
     let typ = expr.typ in
     let wrapped = List.map (fun expr_node -> U.wrap loc typ expr_node) exprs in
-    codegen_block wrapped sym_table
+    codegen_block wrapped sym_table fpm
 
     | DCreateThread (fname, args) ->
       print_endline "inside create thread";
@@ -184,7 +184,7 @@ let rec codegen_expr (expr: D.dexpr) (sym_table: St.llvm_symbol_table) : (St.llv
           match L.lookup_function fname U.the_module with
           | Some _ ->
               let arg_values_and_tables = List.map (fun arg -> 
-                  codegen_expr {expr with node = arg} sym_table
+                  codegen_expr {expr with node = arg} sym_table fpm
               ) args in
   
               let arg_values = List.map snd arg_values_and_tables in
@@ -235,13 +235,13 @@ let rec codegen_expr (expr: D.dexpr) (sym_table: St.llvm_symbol_table) : (St.llv
     end
         
 (* ############################ Codegen block ################################ *)
-and codegen_block (block: D.dblock) (sym_table: St.llvm_symbol_table) : St.llvm_symbol_table * llvalue =
+and codegen_block (block: D.dblock) (sym_table: St.llvm_symbol_table) (fpm: [ `Function ] L.PassManager.t) : St.llvm_symbol_table * llvalue =
   match block with
   | [] -> (sym_table, L.const_int (L.i32_type U.context) 0) (* Default return for an empty block. Adjust as needed. *)
-  | [last_expr] -> codegen_expr last_expr sym_table
+  | [last_expr] -> codegen_expr last_expr sym_table fpm
   | expr :: rest -> 
-      let updated_sym_table, _ = codegen_expr expr sym_table in
-      codegen_block rest updated_sym_table
+      let updated_sym_table, _ = codegen_expr expr sym_table fpm in
+      codegen_block rest updated_sym_table fpm
 
 (* ########################### Codegen function ############################## *)
 let codegen_proto (func: D.dfunction) (sym_table: St.llvm_symbol_table) : St.llvm_symbol_table * llvalue =
@@ -257,7 +257,7 @@ let codegen_proto (func: D.dfunction) (sym_table: St.llvm_symbol_table) : St.llv
     let new_sym_table = { St.table = St.SymbolMap.add func.name new_info sym_table.table; parent = Some sym_table } in
     (new_sym_table, new_fn)
 
-let codegen_func_body (func: D.dfunction) (fn: llvalue) (sym_table: St.llvm_symbol_table) : St.llvm_symbol_table =
+let codegen_func_body (func: D.dfunction) (fn: llvalue) (sym_table: St.llvm_symbol_table) (fpm: [ `Function ] L.PassManager.t) : St.llvm_symbol_table =
   let bb = L.append_block U.context "entry" fn in
   L.position_at_end bb U.builder;
 
@@ -274,7 +274,7 @@ let codegen_func_body (func: D.dfunction) (fn: llvalue) (sym_table: St.llvm_symb
   let last_expr_result = 
     match List.rev func.body with
     | last_expr :: _ -> 
-        let (_updated_sym_table, value) = codegen_expr last_expr updated_sym_table in
+        let (_updated_sym_table, value) = codegen_expr last_expr updated_sym_table fpm in
         Some value
     | [] -> None
   in
@@ -285,6 +285,8 @@ let codegen_func_body (func: D.dfunction) (fn: llvalue) (sym_table: St.llvm_symb
   end;
     
   Llvm_analysis.assert_valid_function fn;
+
+  (* let _ = PassManager.run_function fn U.the_fpm in *)
   updated_sym_table
 
 (* ############################ Codegen struct ############################## *)
@@ -331,7 +333,7 @@ let codegen_structs (structs: D.dstruct list) (sym_table: St.llvm_symbol_table) 
 
 
 (* ############################# Codegen main ############################### *)
-let codegen_main (main_block: D.dblock) (sym_table: St.llvm_symbol_table): unit =
+let codegen_main (main_block: D.dblock) (sym_table: St.llvm_symbol_table) (fpm: [ `Function ] L.PassManager.t) : unit =
   let main_function = match L.lookup_function "main" U.the_module with
     | Some fn -> fn
     | None -> 
@@ -340,7 +342,7 @@ let codegen_main (main_block: D.dblock) (sym_table: St.llvm_symbol_table): unit 
   let bb = L.append_block U.context "entry" main_function in
   L.position_at_end bb U.builder;
 
-  let _ = codegen_block main_block sym_table  in
+  let _ = codegen_block main_block sym_table fpm in
   
   if L.block_terminator (L.insertion_block U.builder) = None then
     ignore (L.build_ret_void U.builder);
@@ -349,7 +351,7 @@ let codegen_main (main_block: D.dblock) (sym_table: St.llvm_symbol_table): unit 
 
 (* ########################### Codegen program ############################## *)
 
-let codegen_ast (dprogram: D.dprogram) (symboltable: St.llvm_symbol_table): llmodule =   
+let codegen_ast (dprogram: D.dprogram) (symboltable: St.llvm_symbol_table) (fpm: [ `Function ] L.PassManager.t): llmodule =   
   E.declare_externals U.the_module;
 
   (* Generate code for all structs *)
@@ -358,11 +360,11 @@ let codegen_ast (dprogram: D.dprogram) (symboltable: St.llvm_symbol_table): llmo
   (* Generate code for all functions *)
   let sym_table_1 = List.fold_left (fun acc_sym_table func ->
     let (new_sym_table, fn) = codegen_proto func acc_sym_table in
-    codegen_func_body func fn new_sym_table
+    codegen_func_body func fn new_sym_table fpm
   ) updated_sym_table dprogram.functions in
 
   (* Generate code for the main block *)
-  let _ = codegen_main dprogram.main sym_table_1 in
+  let _ = codegen_main dprogram.main sym_table_1 fpm in
 
-  (* Llvm_analysis.assert_valid_module U.the_module; *)
+  Llvm_analysis.assert_valid_module U.the_module;
   U.the_module

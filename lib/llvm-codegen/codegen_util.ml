@@ -1,9 +1,15 @@
+(* open Llvm_executionengine
+open Llvm_target *)
+
 module D = Desugar.Desugared_ast
 module T = Poppy_parser.Ast_types
 
 let context = Llvm.global_context ()
 let the_module = Llvm.create_module context "Poppy JIT"
 let builder = Llvm.builder context
+
+(* let the_execution_engine = Llvm_executionengine.create the_module in
+let the_fpm = Llvm.PassManager.create_function the_module *)
 
 let active_threads_table : (string, Llvm.llvalue list) Hashtbl.t = Hashtbl.create 50
 

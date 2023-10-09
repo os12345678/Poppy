@@ -140,6 +140,7 @@ let rec desugar_expr (te: T.expr) : Desugared_ast.dexpr =
 
   (* Async Constructs *)
   | TFinishAsync (asyncs, block) -> 
+    print_endline "TFinishAsync; desugaring async block";
     (* Extract all function calls from each async block *)
     let all_calls = List.concat_map ~f:extract_calls_from_async asyncs in
     (* Create a thread for each function call *)
