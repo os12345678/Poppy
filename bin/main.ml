@@ -9,7 +9,6 @@ open Poppy_codegen.Ir_symbol_table
 open Poppy_codegen.Codegen_expr
 open Poppy_codegen.Codegen_util 
 
-(* open Core_unix *)
 
 module St = Poppy_codegen.Ir_symbol_table
 
