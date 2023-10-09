@@ -1,0 +1,6 @@
+(library
+ (name poppy_codegen)
+ (libraries poppy_parser poppy_type_checker desugar llvm.executionengine llvm.linker llvm.irreader
+ llvm.target)
+ (preprocess (pps ppx_expect ppx_inline_test))
+ (modules symbol_table codegen_expr codegen_util ir_symbol_table link_extern))

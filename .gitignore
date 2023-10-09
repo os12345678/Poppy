@@ -1,8 +1,10 @@
 _build/*
 *.poppy
 /*.ll
+/*.c
 .gitignore
 out
 output
 .vscode
 .DS_Store
+build

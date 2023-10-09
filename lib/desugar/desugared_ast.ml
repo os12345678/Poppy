@@ -13,7 +13,7 @@ and dexpr_node =
 | DIntLit              of int
 | DBoolLit             of bool
 | DStringLit           of string
-| DBlockExpr           of dblock
+| DBlockExpr           of dexpr_node list
 | DVar                 of string
 | DAssign              of string * dexpr_node
 | DBinOp               of T.bin_op * dexpr_node * dexpr_node
@@ -24,7 +24,7 @@ and dexpr_node =
 | DCreateThread        of string (* function name *) * dexpr_node list (* argument *)
 | DJoinThread          of dexpr_node (* thread identifier *)
 
-and dblock = dexpr_node list [@@deriving sexp]
+and dblock = dexpr list [@@deriving sexp]
 
 type dfunction = {
   name: string;

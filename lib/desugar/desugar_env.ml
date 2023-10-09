@@ -2,7 +2,6 @@ open Core
 
 module TAst = Poppy_type_checker.Typed_ast
 module T = Poppy_parser.Ast_types
-module F = Frontend_ir
 
 let mangle_name (name: T.Method_name.t) : string =
   "mangled_" ^ T.Method_name.to_string name

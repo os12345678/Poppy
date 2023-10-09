@@ -24,13 +24,26 @@ module A = Poppy_parser.Ast_types
 let extract_var_name (id: T.typed_identifier) : string = 
   match id with
   | T.TVariable (name, _) -> A.Var_name.to_string name
-  | T.TObjField (name, _, _) -> A.Var_name.to_string name
-  
+  | T.TObjField (obj_name, field_name, _) -> 
+    A.Var_name.to_string obj_name ^ "." ^ A.Field_name.to_string field_name
+
 type function_call = {
   fname: string;
   args: dexpr list;
 }
-  
+
+let thread_counters = Core.Hashtbl.Poly.create () 
+
+let get_next_thread_name fname =
+  let count = 
+    match Core.Hashtbl.find thread_counters fname with
+    | Some n -> n
+    | None -> 0
+  in
+  Core.Hashtbl.set thread_counters ~key:fname ~data:(count + 1);
+  if count = 0 then "thread_id_"^fname else Printf.sprintf "thread_id_%s%d" fname count
+
+
 let rec desugar_expr (te: T.expr) : Desugared_ast.dexpr = 
   match te.node with
   | TInt i -> 
@@ -39,10 +52,11 @@ let rec desugar_expr (te: T.expr) : Desugared_ast.dexpr =
     { loc = te.loc; typ = TEBool; node = DBoolLit b }
   | TBlockExpr block -> 
     let desugared_block = desugar_block block in
+    let block_nodes = List.map ~f:(fun expr -> expr.node) desugared_block in
     {
       loc = te.loc;
-      typ = te.typ; (* Assuming the type remains the same after desugaring *)
-      node = DBlockExpr desugared_block;
+      typ = te.typ;
+      node = DBlockExpr block_nodes;
     }
 
   (* Variables and Assignments *)
@@ -53,6 +67,7 @@ let rec desugar_expr (te: T.expr) : Desugared_ast.dexpr =
       node = DVar var_name }
   | TAssign (id, expr) -> 
     let var_name = extract_var_name id in
+    print_endline ("TASSIGN; desugaring assignment to " ^ var_name);
     let desugared_expr = desugar_expr expr in
     { loc = te.loc; 
       typ = te.typ; 
@@ -125,6 +140,7 @@ let rec desugar_expr (te: T.expr) : Desugared_ast.dexpr =
 
   (* Async Constructs *)
   | TFinishAsync (asyncs, block) -> 
+    print_endline "TFinishAsync; desugaring async block";
     (* Extract all function calls from each async block *)
     let all_calls = List.concat_map ~f:extract_calls_from_async asyncs in
     (* Create a thread for each function call *)
@@ -132,33 +148,37 @@ let rec desugar_expr (te: T.expr) : Desugared_ast.dexpr =
       DCreateThread (call.fname, List.map ~f:(fun de -> de.node) call.args)
     ) all_calls in
     (* Join all threads after they've been created *)
-    let thread_joins = List.map ~f:(fun call -> DJoinThread (DVar call.fname)) all_calls in
+    let thread_joins = List.map ~f:(fun call -> DJoinThread (DVar (call.fname))) all_calls in
     let dblock = desugar_block block in
     (* Combine thread creations, joins, and the main block *)
-    let dblock_nodes = List.map ~f:(fun expr -> expr) dblock in
+    let dblock_nodes = List.map ~f:(fun expr -> expr.node) dblock in
     let combined_nodes = thread_creations @ thread_joins @ dblock_nodes in
     { loc = te.loc; 
       typ = TEVoid; 
       node = DBlockExpr combined_nodes }
          
 and desugar_block (tb: T.block_expr) : Desugared_ast.dblock =
-match tb with
-| Block (_, _, exprs) ->
-  List.concat_map ~f:(fun te ->
-    let de = desugar_expr te in
-    match te.node with
-    | TBlockExpr inner_block -> 
-        desugar_block inner_block (* Flatten nested blocks *)
-    | _ -> [de.node]
-  ) exprs
-
+  match tb with
+  | Block (_, _, exprs) ->
+    let results = List.concat_map ~f:(fun te ->
+      let de = desugar_expr te in
+      match te.node with
+      | TBlockExpr inner_block -> 
+          let inner = desugar_block inner_block in
+          inner
+      | _ -> [de]
+    ) exprs in
+    results
+      
 and extract_calls_from_async (async: T.async_expr) : function_call list =
   match async with
   | AsyncExpr (Block (_, _, exprs)) -> 
-    List.filter_map ~f:(fun expr ->
+    let results = List.filter_map ~f:(fun expr ->
       match expr.node with
       | TFunctionApp (fname, args) -> 
         let desugared_args = List.map ~f:desugar_expr args in
-        Some { fname = A.Function_name.to_string fname; args = desugared_args }
+        let fname_str = A.Function_name.to_string fname in
+        Some { fname = fname_str; args = desugared_args }
       | _ -> None
-    ) exprs
+    ) exprs in
+    results

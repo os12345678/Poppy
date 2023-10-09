@@ -26,10 +26,16 @@ and desugar_impl_single (T.TImpl(trait_name, struct_name, methods)) =
 
 and desugar_method (struct_name: Typ.Struct_name.t) (trait_name: Typ.Trait_name.t) 
                     (T.TMethod(signature, block_expr)) : D.dfunction =
+  let this_param = Typ.Param ( 
+    Typ.TEStruct(struct_name), 
+    Typ.Var_name.of_string "this",
+    None, 
+    None
+  ) in
   {
     name = Desugar_env.mangle trait_name struct_name signature.name;
     ret_type = signature.return_type;
-    params = List.map ~f: Desugar_env.desugar_param (signature.params);
+    params = Desugar_env.desugar_param(this_param) :: (List.map ~f: Desugar_env.desugar_param (signature.params));
     body = Desugar_expr.desugar_block block_expr;
   }
 

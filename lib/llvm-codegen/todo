@@ -1,0 +1,9 @@
+- print - Call parameter type does not match function signature!
+- loops - step decrement not working
+- assign - not correctly adding vars to symbol table
+- desugaring - not correctly adding object fields (i.e this.x) to the symbol table
+             - desugar block DBlockExpr not matched line 166
+
+- async/finish - test llvm ir output!
+- Llvm_analysis.assert_valid_module U.the_module failing. i32Stored value type does not match pointer operand type!
+

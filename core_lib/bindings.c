@@ -3,11 +3,12 @@
 #include <pthread.h>
 
 // printf 
-void print(const char* format, ...) {
+int print(const char *format, ...) {
     va_list args;
     va_start(args, format);
-    vprintf(format, args);
+    int result = vprintf(format, args);
     va_end(args);
+    return result;
 }
 
 // create pthread and return thread identifier

@@ -249,12 +249,10 @@ let check_variable_declarable var_name loc =
   else Ok ()
 
 let check_identifier_assignable id env loc = 
-  print_endline "\t checking identifier assignability";
   match id with 
-  | Ast.Variable var_name -> print_endline "\t\t checking variable";
+  | Ast.Variable var_name -> 
     check_variable_declarable var_name loc
   | Ast.ObjField (obj_name, field_name) -> 
-    print_endline "\t checking obj field";
     let%bind (Ast.TStruct (_, _, fields)) = get_obj_struct_defn obj_name env loc in
     begin
     match List.find ~f:(fun (TField (_, _, name, _)) -> Field_name.(=) name field_name) fields with

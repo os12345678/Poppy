@@ -1,7 +1,7 @@
 (library
- (name ir_gen)
+ (name desugar)
  (libraries poppy_parser poppy_type_checker llvm llvm.analysis)
  (preprocess (pps ppx_expect ppx_jane ppx_inline_test))
- (modules frontend_ir desugared_ast desugar_expr desugar_functions
+ (modules desugared_ast desugar_expr desugar_functions
   desugar_structs desugar_env desugar_traits desugar_impl
   desugar_program))
