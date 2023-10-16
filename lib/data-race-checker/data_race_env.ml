@@ -108,6 +108,28 @@ let identifier_matches_var_name var_name = function
 | T.TVariable (name, _, _, _) -> name = var_name
 | T.TObjField (_, name, _, _, _, _) -> name = var_name
 
+let param_to_obj_var_and_capabilities env
+    (A.Param (type_expr, param_name, maybe_capability_guards, _)) =
+  match type_expr with
+  | A.TEStruct param_struct ->
+      let class_capabilities = E.get_struct_capabilities param_struct env in
+      let obj_capabilities =
+        match maybe_capability_guards with
+        | None -> class_capabilities
+        (* no constraints so can access anything *)
+        | Some capability_guards ->
+            Core.List.filter
+              ~f:(fun (TCapability (_, cap_name)) ->
+                elem_in_list cap_name capability_guards)
+              class_capabilities in
+      Some (param_name, param_struct, obj_capabilities)
+  | _                        ->
+      (* not an object so ignore *)
+      None
+
+let params_to_obj_vars_and_capabilities class_defns params =
+  Core.List.filter_map ~f:(param_to_obj_var_and_capabilities class_defns) params
+
 let set_identifier_capabilities id new_capabilities =
   match id with
   | T.TVariable (var_type, var_name, _, maybeBorrowed) ->

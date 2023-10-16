@@ -67,7 +67,6 @@ let rec desugar_expr (te: T.expr) : Desugared_ast.dexpr =
       node = DVar var_name }
   | TAssign (id, expr) -> 
     let var_name = extract_var_name id in
-    print_endline ("TASSIGN; desugaring assignment to " ^ var_name);
     let desugared_expr = desugar_expr expr in
     { loc = te.loc; 
       typ = te.typ; 
@@ -140,7 +139,6 @@ let rec desugar_expr (te: T.expr) : Desugared_ast.dexpr =
 
   (* Async Constructs *)
   | TFinishAsync (asyncs, block) -> 
-    print_endline "TFinishAsync; desugaring async block";
     (* Extract all function calls from each async block *)
     let all_calls = List.concat_map ~f:extract_calls_from_async asyncs in
     (* Create a thread for each function call *)

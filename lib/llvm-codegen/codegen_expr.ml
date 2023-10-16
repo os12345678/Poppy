@@ -106,11 +106,7 @@ let rec codegen_expr (expr: D.dexpr) (sym_table: St.llvm_symbol_table) (fpm: [ `
           let arg_values = List.map (fun (_, value) -> 
             match L.classify_value value with
             | L.ValueKind.ConstantDataArray ->
-                print_endline "constant data array";
-                print_endline (fname);
-                print_endline (L.string_of_llvalue value);
                 let string_ptr = U.handle_string_constant value in
-                print_endline ("type of value: "^ L.string_of_llvalue string_ptr);
                 string_ptr
             | _ -> 
                 if L.type_of value = L.pointer_type (L.i32_type U.context) then
@@ -149,7 +145,6 @@ let rec codegen_expr (expr: D.dexpr) (sym_table: St.llvm_symbol_table) (fpm: [ `
     sym_table_after_cond, L.const_int (L.i32_type U.context) 0
 
   | DWhile (cond, block) ->
-    print_endline "inside while loop";
     let start_bb = L.insertion_block U.builder in
     let the_function = L.block_parent start_bb in
     let loop_header = L.append_block U.context "loop.header" the_function in
@@ -179,7 +174,6 @@ let rec codegen_expr (expr: D.dexpr) (sym_table: St.llvm_symbol_table) (fpm: [ `
     codegen_block wrapped sym_table fpm
 
     | DCreateThread (fname, args) ->
-      print_endline "inside create thread";
       begin
           match L.lookup_function fname U.the_module with
           | Some _ ->

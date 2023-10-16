@@ -175,7 +175,6 @@ let rec process_expr (sym_table: llvm_symbol_table) (expr: dexpr) : llvm_symbol_
     exit_scope final_sym_table
   | DVar name -> 
     let var_info = LVarInfo { llvm_value = None; llvm_type = None; storage = Local; is_global = false } in
-    print_endline ("DVAR: added " ^ name ^ " to sym table");
     add_symbol sym_table name var_info
   | DAssign (name, e) ->
     let wrapped_expr = { loc = expr.loc; typ = expr.typ; node = e } in
@@ -187,7 +186,6 @@ let rec process_expr (sym_table: llvm_symbol_table) (expr: dexpr) : llvm_symbol_
         updated_sym_table
       | None ->
         let new_var_info = LVarInfo { llvm_value = None; llvm_type = None; storage = Local; is_global = false } in
-        print_endline ("DASSIGN: added " ^ name ^ " to sym table");
         add_symbol updated_sym_table name new_var_info
       | Some (LFuncInfo _ | LStructInfo _) ->
         failwith (Printf.sprintf "Identifier %s is not a variable, but type-checking phase passed!!!" name)

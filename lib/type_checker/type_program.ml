@@ -23,7 +23,6 @@ let type_check_main_expr global_env struct_defns trait_defns impl_defns function
 
 let type_program (Ast.Prog (struct_defns, trait_defns, impl_defns, function_defns, main_expr)) = 
   let%bind typed_struct_defns = type_struct_defns struct_defns in
-
   let initial_global_env = init_global_scope () in 
   let global_env = add_definitions_to_global ~init:initial_global_env ~f:add_struct_to_global struct_defns in
   let global_env = add_definitions_to_global ~init:global_env ~f:add_trait_to_global trait_defns in
@@ -33,4 +32,4 @@ let type_program (Ast.Prog (struct_defns, trait_defns, impl_defns, function_defn
   let%bind typed_trait_defns, typed_function_defns, typed_method_defns = type_check_definitions global_env struct_defns trait_defns impl_defns function_defns in
   let%map (typed_main_expr, _) = type_check_main_expr global_env struct_defns trait_defns impl_defns function_defns main_expr in
 
-  Typed_ast.Prog (typed_struct_defns, typed_trait_defns, typed_method_defns, typed_function_defns, typed_main_expr)
+  (global_env, Typed_ast.Prog (typed_struct_defns, typed_trait_defns, typed_method_defns, typed_function_defns, typed_main_expr))

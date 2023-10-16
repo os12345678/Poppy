@@ -26,10 +26,8 @@ let llvm_type_of_typ = function
   | T.TEStruct s -> Llvm.named_struct_type context (T.Struct_name.to_string s)
 
 let handle_string_constant value =
-  print_endline ("Handling string constant " ^ (Llvm.string_of_llvalue value));
   let string_ptr_type = Llvm.pointer_type (Llvm.i8_type context) in
   let casted_ptr = Llvm.build_bitcast value string_ptr_type "casted_str_ptr" builder in
-  print_endline ("Resulting value: " ^ (Llvm.string_of_llvalue casted_ptr));
   casted_ptr
 
 let is_valid_thread_id thread_id = 

@@ -1,10 +1,11 @@
 open Core
 open Type_data_race_expr
+open Poppy_type_checker.Type_env
 
 module T = Poppy_type_checker.Typed_ast
 (* module E = Data_race_checker.Type_data_race_expr *)
 
-let type_data_race_program
+let type_data_race_program (env: env)
 (T.Prog (struct_defns, trait_defns, method_defns, function_defns, main_expr)) : (T.program, Error.t) Result.t = 
   let open Result in
   match type_data_races_block_expr env main_expr [] with

@@ -68,5 +68,7 @@ let rec type_read_capabilities_expr (expr: T.expr) : T.expr =
       T.TUnOp (unop, type_read_capabilities_expr expr)}
 
 and type_read_capabilities_block_expr (T.Block (loc, type_block_expr, exprs)) =
+  print_endline "START: type read capabilities";
   let updated_exprs = List.map type_read_capabilities_expr exprs in
+  print_endline "END: type read capabilities";
   T.Block (loc, type_block_expr, updated_exprs)
