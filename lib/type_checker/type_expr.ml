@@ -11,26 +11,34 @@ let string_of_type_list type_list =
   |> List.map ~f:string_of_type
   |> String.concat ~sep:", "
 
-let type_identifier id env loc =
-  match id with
-  | Ast.Variable var ->
-    let%bind var_type = lookup_var env var loc in
-    Ok (Typed_ast.TVariable (var, var_type), var_type)
-  | Ast.ObjField (var_name, field_name) -> 
-    let%bind var_type = lookup_var env var_name loc in
-    begin
-    match var_type with
-    | TEStruct (struct_name) ->
-      let%bind struct_defn = lookup_struct env struct_name in
-      begin match struct_defn with
-        | Ast.TStruct (_, _, fields) ->
-          begin match List.find ~f:(fun (TField (_, _, name, _)) -> Field_name.(=) name field_name) fields with
-            | Some (TField (_, field_type, _, _)) -> Ok (Typed_ast.TObjField (var_name, field_name, field_type), field_type)
-            | None -> Error (Core.Error.of_string (Fmt.str "%d:%d Type error - Field %s not found in struct %s" (loc.lnum) (loc.cnum) (Field_name.to_string field_name) (Struct_name.to_string struct_name)))
+  (* TODO: assumes NO BORROWING - check if variable is borrowed *)
+  let type_identifier id env loc =
+    match id with
+    | Ast.Variable var ->
+      let%bind var_type = lookup_var env var loc in
+      (match var_type with 
+      | TEStruct struct_name ->
+        let capabilities = get_struct_capabilities struct_name env in
+        Ok (Typed_ast.TVariable (var, var_type, capabilities, None), var_type)
+      | _ -> Ok (Typed_ast.TVariable (var, var_type, [], None), var_type))
+  
+      | Ast.ObjField (var_name, field_name) -> 
+        let%bind obj_type = lookup_var env var_name loc in
+        begin
+        match obj_type with
+        | TEStruct struct_name ->
+          let%bind struct_defn = lookup_struct env struct_name in
+          begin match struct_defn with
+            | Ast.TStruct (_, _, fields) ->
+              begin match List.find ~f:(fun (TField (_, _, name, _)) -> Field_name.(=) name field_name) fields with
+                | Some (TField (_, field_type, _, _)) ->
+                  let field_capabilities = get_method_field_capabilities struct_name env in
+                  Ok (Typed_ast.TObjField (struct_name, var_name, field_type, field_name, field_capabilities, None), field_type)
+                | None -> Error (Core.Error.of_string (Fmt.str "%d:%d Type error - Field %s not found in struct %s" (loc.lnum) (loc.cnum) (Field_name.to_string field_name) (Struct_name.to_string struct_name)))
+              end
           end
-      end
-    | _ -> Error (Core.Error.of_string (Fmt.str "%d:%d Type error - Variable %s is not a struct" (loc.lnum) (loc.cnum) (Var_name.to_string var_name)))
-    end
+        | _ -> Error (Core.Error.of_string (Fmt.str "%d:%d Type error - Variable %s is not a struct" (loc.lnum) (loc.cnum) (Var_name.to_string var_name)))
+        end
 
 let type_args type_expr_fn args env =
   Result.all (List.map ~f:(fun expr -> type_expr_fn expr env) args)

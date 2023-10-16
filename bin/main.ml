@@ -8,9 +8,12 @@ open Desugar
 open Poppy_codegen.Ir_symbol_table
 open Poppy_codegen.Codegen_expr
 open Poppy_codegen.Codegen_util 
+open Data_race_checker.Type_data_race_program
+open Poppy_type_checker.Type_env
 
 
 module St = Poppy_codegen.Ir_symbol_table
+module Envir = Poppy_type_checker.Type_env
 
 let is_poppy_file filename = 
   String.split_on_chars ~on:['.'] filename |>  List.last_exn |> String.equal "poppy"
@@ -41,6 +44,10 @@ let compile_program ?(should_pprint_past = false) ?(should_pprint_tast = false)
   >>= fun typed_ast ->
   (if should_pprint_tast then
       print_endline (Sexp.to_string_hum (Typed_ast.sexp_of_program typed_ast)));
+    let open Poppy_type_checker.Type_env in
+
+  type_data_race_program typed_ast
+  >>= fun _ ->
   Desugar_program.desugar_program typed_ast (* Desugared AST *)
   >>= fun dprogram ->
   (if should_pprint_dast then

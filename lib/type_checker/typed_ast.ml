@@ -29,8 +29,14 @@ and expr_node =
 [@@deriving sexp]
 
 and typed_identifier = 
-  | TVariable of Var_name.t * type_expr
-  | TObjField of Var_name.t * Field_name.t * type_expr
+  | TVariable of Var_name.t * type_expr * capability list * borrowed_ref option
+  | TObjField of  
+  Struct_name.t (* struct of the object*)
+  * Var_name.t
+  * type_expr
+  * Field_name.t (*type of field *)
+  * capability list
+  * borrowed_ref option
   [@@deriving sexp]
 
 and block_expr = Block of loc * type_expr * expr list [@@deriving sexp]

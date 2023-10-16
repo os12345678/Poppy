@@ -213,6 +213,15 @@ let remove_scope = function
 | Block (parent, _) -> Ok parent
 
 (* Getter Functions *)
+let rec elem_in_list x = function [] -> false | y :: ys -> Ast_types.Capability_name.(=)x y || elem_in_list x ys
+
+let get_struct_defn struct_name struct_defns =
+  let matching_struct_defns =
+    List.filter
+      ~f:(fun (Typed_ast.TStruct (name, _, _)) -> Ast_types.Struct_name.(=) struct_name name)
+      struct_defns in
+  List.hd_exn matching_struct_defns
+
 let get_obj_struct_defn var_name env loc = 
   lookup_var env var_name loc
   >>= function
@@ -224,6 +233,38 @@ let get_obj_struct_defn var_name env loc =
                   (string_of_loc loc) 
                   (Var_name.to_string var_name)
                   (string_of_type wrong_type)))
+
+let get_struct_capabilities struct_name env =
+  match env with
+  | Global (struct_map, _, _, _, _) ->
+    (match StructNameMap.find struct_map struct_name with
+    | Some (TStruct (_, capabilities, _)) -> capabilities
+    | None -> [])
+  | _ -> []
+
+let get_struct_fields struct_name env = 
+  match env with 
+  | Global (struct_map, _, _, _, _) ->
+    (match StructNameMap.find struct_map struct_name with 
+    | Some (TStruct (_, _, fields)) -> fields
+    | None -> [])
+  | _ -> []
+
+  let get_method_field_capabilities struct_name env =
+    let fields = get_struct_fields struct_name env in
+    let struct_capabilities = get_struct_capabilities struct_name env in
+  
+    List.fold_left 
+      ~f:(fun acc (TField (_, _, _, field_capability_names)) ->
+        List.filter 
+          ~f:(fun (TCapability (_, capability_name)) ->
+            elem_in_list capability_name field_capability_names) 
+          struct_capabilities @ acc
+      )
+      ~init:[] 
+      fields
+  
+
   
 (* Invariances *)
 let has_duplicates l ~equal =
@@ -265,3 +306,6 @@ let check_identifier_assignable id env loc =
                 (Fmt.str "%d:%d Type error - Field %s not found in struct" (loc.lnum) (loc.cnum) (Field_name.to_string field_name))) 
 
     end
+
+
+    

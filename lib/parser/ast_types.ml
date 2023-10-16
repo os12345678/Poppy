@@ -64,15 +64,6 @@ let string_of_modifier = function MConst -> "Const" | MVar -> "Var" [@@deriving 
 type borrowed_ref = Borrowed [@@deriving sexp]
 let string_of_maybe_borrowed_ref = function Some Borrowed -> "Borrowed " | None -> "" [@@deriving sexp]
 
-(* type mutex_state = 
-  | MSLocked 
-  | MSUnlocked
-  [@@deriving sexp]
-let string_of_mutex_state = function
-  | MSLocked -> "Locked"
-  | MSUnlocked -> "Unlocked"
-  [@@deriving sexp] *)
-
 type type_expr =
   | TEInt
   | TEStruct of Struct_name.t
