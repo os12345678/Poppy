@@ -73,6 +73,15 @@ let add_symbol (sym_table: llvm_symbol_table) (name: string) (info: llvm_symbol_
   let updated_sym_table = { sym_table with table = new_table } in
   updated_sym_table
 
+let rec lookup_struct (sym_table: llvm_symbol_table) (struct_name: string) =
+  match SymbolMap.find_opt struct_name sym_table.table with
+  | Some (LStructInfo _ as info) -> Some info
+  | Some _ -> None
+  | None ->
+      match sym_table.parent with
+      | Some parent_table -> lookup_struct parent_table struct_name
+      | None -> None
+  
 let rec lookup_variable (sym_table: llvm_symbol_table) (name: string) : llvm_symbol_info option =
   match SymbolMap.find_opt name sym_table.table with
   | Some info -> Some info (* Found in the current scope *)
@@ -80,6 +89,14 @@ let rec lookup_variable (sym_table: llvm_symbol_table) (name: string) : llvm_sym
       match sym_table.parent with
       | Some parent_table -> lookup_variable parent_table name
       | None -> None  (* Reached global scope, symbol not found *)
+
+let parse_mangled_method_name name =
+  if String.starts_with ~prefix:"impl_" name then 
+    match String.split_on_char '_' name with
+    | ["impl"; trait; "for"; struct_name; method_name] -> Some (trait, struct_name, method_name)
+    | _ -> None
+  else
+    None    
 
 let print_variable_info_from_symbol (key: string) (symbol_info: llvm_symbol_info) : unit =
   match symbol_info with
@@ -144,20 +161,41 @@ let process_structs (sym_table: llvm_symbol_table) (structs: dstruct list) : llv
   ) sym_table structs
 
   let process_functions (sym_table: llvm_symbol_table) (functions: dfunction list) : llvm_symbol_table =
-  List.fold_left (fun current_table dfunction ->
-    let params = List.map (fun param ->
-      let _param_type, _param_name = param in 
-      LVarInfo {
-        llvm_value = None; 
-        llvm_type = None; 
-        storage = Local; 
-        is_global = false;
-        }
-      ) dfunction.params in
-      let func_name = dfunction.name in
-      let func_info = LFuncInfo { llvm_function = None; params = params } in
-    add_symbol current_table func_name func_info
-  ) sym_table functions
+    List.fold_left (fun current_table (dfunction : dfunction) ->
+      match parse_mangled_method_name dfunction.name with
+      | Some (_, struct_name, _) -> 
+          let struct_info_opt = lookup_struct sym_table struct_name in
+          begin match struct_info_opt with
+          | Some (LStructInfo { field_map; _ }) -> 
+            let updated_table = Hashtbl.fold (fun field_name _ current_table ->
+              let prefixed_field_name = "this." ^ field_name in
+              let field_info = LVarInfo {
+                llvm_value = None; 
+                llvm_type = None; 
+                storage = Local;
+                is_global = false;
+              } in
+              add_symbol current_table prefixed_field_name field_info
+              ) field_map current_table in
+              updated_table
+          | _ -> 
+              failwith (Printf.sprintf "Struct %s not found in symbol table" struct_name)
+          end
+      | None -> 
+        print_endline "did not find corresponding struct";
+          let params = List.map (fun param ->
+              let _param_type, _param_name = param in 
+              LVarInfo {
+                llvm_value = None; 
+                llvm_type = None; 
+                storage = Local; 
+                is_global = false;
+              }
+          ) dfunction.params in
+          let func_info = LFuncInfo { llvm_function = None; params = params } in
+          add_symbol current_table dfunction.name func_info
+    ) sym_table functions
+  
   
 let rec process_expr (sym_table: llvm_symbol_table) (expr: dexpr) : llvm_symbol_table =
   match expr.node with
@@ -175,7 +213,7 @@ let rec process_expr (sym_table: llvm_symbol_table) (expr: dexpr) : llvm_symbol_
     exit_scope final_sym_table
   | DVar name -> 
     let var_info = LVarInfo { llvm_value = None; llvm_type = None; storage = Local; is_global = false } in
-    add_symbol sym_table name var_info
+    add_symbol sym_table name var_info;
   | DAssign (name, e) ->
     let wrapped_expr = { loc = expr.loc; typ = expr.typ; node = e } in
     let updated_sym_table = process_expr sym_table wrapped_expr in
@@ -183,8 +221,10 @@ let rec process_expr (sym_table: llvm_symbol_table) (expr: dexpr) : llvm_symbol_
     begin 
       match var_info with 
       | Some (LVarInfo _) ->
+        print_endline "found var info";
         updated_sym_table
       | None ->
+        print_endline "did not find var info";
         let new_var_info = LVarInfo { llvm_value = None; llvm_type = None; storage = Local; is_global = false } in
         add_symbol updated_sym_table name new_var_info
       | Some (LFuncInfo _ | LStructInfo _) ->
@@ -257,7 +297,6 @@ and process_block sym_table block =
   let final_sym_table = List.fold_left (fun acc_sym_table expr -> 
       process_expr acc_sym_table expr
   ) entered_sym_table block in
-  (* final_sym_table *)
   exit_scope final_sym_table
 
 and build_symbol_table program =
