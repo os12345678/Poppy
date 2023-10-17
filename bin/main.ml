@@ -1,17 +1,11 @@
 open Core
-(* open Lexer *)
-(* open Lexing *)
-(* open Parser *)
 open Poppy_parser
 open Poppy_type_checker
 open Desugar
-open Poppy_codegen.Ir_symbol_table
+open Poppy_codegen
 open Poppy_codegen.Codegen_expr
 open Poppy_codegen.Codegen_util 
 open Data_race_checker.Type_data_race_program
-
-
-module St = Poppy_codegen.Ir_symbol_table
 
 let is_poppy_file filename = 
   String.split_on_chars ~on:['.'] filename |>  List.last_exn |> String.equal "poppy"
@@ -38,22 +32,28 @@ let compile_program ?(should_pprint_past = false) ?(should_pprint_tast = false)
   >>= fun ast ->
   (if should_pprint_past then
       print_endline (Sexp.to_string_hum (Ast.sexp_of_program ast)));
+
   Type_program.type_program ast (* Typed AST *)
   >>= fun (env, typed_ast) ->
   (if should_pprint_tast then
       print_endline (Sexp.to_string_hum (Typed_ast.sexp_of_program typed_ast)));
-  type_data_race_program env typed_ast
+
+  type_data_race_program env typed_ast (* Data-race checker *)
   >>= fun _ ->
+
   Desugar_program.desugar_program typed_ast (* Desugared AST *)
   >>= fun dprogram ->
   (if should_pprint_dast then
       print_endline (Sexp.to_string_hum (Desugared_ast.sexp_of_dprogram dprogram)));
-  Ok(build_symbol_table dprogram)
-  >>= fun llvmsymboltable ->
+
+  Ok(Ir_symbol_table.build_symbol_table dprogram) (* Build LLVM Symbol Table *)
+  >>= fun llvmsymboltable -> 
     (if should_print_llvm_table then
-      St.print_symbol_table llvmsymboltable);
-  Ok(codegen_ast dprogram llvmsymboltable the_fpm)
+      Ir_symbol_table.print_symbol_table llvmsymboltable);
+
+  Ok(codegen_ast dprogram llvmsymboltable the_fpm) (* Generage LLVM IR *)
   >>= fun llvm_module ->
+
   match compile_out_file with 
   | Some filename -> 
     Out_channel.with_file filename ~f:(fun file_oc ->
