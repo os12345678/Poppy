@@ -37,7 +37,6 @@ let type_linear_assign_expr env = function
   | _ -> Ok ()
 
 let rec type_linear_capabilities_block_expr env (T.Block (loc, type_expr, exprs)) =
-  print_endline "START: type linear capabilities";
   match exprs with
   | []                  -> Ok (T.Block (loc, type_expr, exprs))
   | expr :: other_exprs ->
@@ -62,6 +61,5 @@ let rec type_linear_capabilities_block_expr env (T.Block (loc, type_expr, exprs)
       (* recurse on the subsequent expressions in the block *)
       type_linear_capabilities_block_expr env possibly_updated_other_exprs_block
       >>| fun (Block (_, _, updated_other_exprs)) ->
-        print_endline "END: type linear capabilities";
       T.Block (loc, type_expr, expr :: updated_other_exprs)
     
