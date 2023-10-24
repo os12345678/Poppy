@@ -21,7 +21,7 @@ let rec reduce_expr_to_obj_ids (expr: T.expr) =
       [T.TVariable (var_name, Option.get var_type, [], None)]
   | T.TAssign (id, _) -> [id]
   (* | T.TConsume (_, _) -> [] *)
-  | T.TMethodApp (_, _, _) -> []
+  | T.TMethodApp (_, _, _, _, _) -> []
   | T.TFunctionApp ( _, _) -> []
   | T.TPrintf (_, _) -> []
   | T.TFinishAsync (_, curr_thread_expr) ->
@@ -203,7 +203,7 @@ let rec find_immediate_aliases_in_expr should_match_fields orig_obj_name curr_al
     | T.TAssign (_, assigned_expr) ->
         find_imm_aliases_in_expr_rec curr_aliases assigned_expr.node
     (* | Consume _ -> curr_aliases *)
-    | T.TMethodApp (_, _, args_exprs) ->
+    | T.TMethodApp (_, _, _, _, args_exprs) ->
       let node_list = Core.List.map ~f:(fun e -> e.node) args_exprs in
       Core.List.fold ~init:curr_aliases ~f:find_imm_aliases_in_expr_rec node_list
     | T.TFunctionApp (_, args_exprs) ->

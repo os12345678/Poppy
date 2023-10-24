@@ -23,9 +23,11 @@ let rec type_read_capabilities_expr (expr: T.expr) : T.expr =
     T.TAssign
       (remove_read_capabilities id
       , type_read_capabilities_expr assigned_expr )}
-  | T.TMethodApp (var_name, method_name, args) ->
+  | T.TMethodApp (var_name, struct_name, trait_name, method_name, args) ->
     {expr with node = T.TMethodApp
       (var_name
+      , struct_name 
+      , trait_name
       , method_name
       , List.map type_read_capabilities_expr args )}
   | T.TFunctionApp (func_name, args) ->

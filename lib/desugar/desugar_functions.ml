@@ -16,12 +16,11 @@ for each function_defn in program:
     add dfunction to dprogram.functions   
 *)
 
-let desugar_function_defn (function_defn: T.function_defn) : D.dfunction =
+let desugar_function_defn (function_defn: T.function_defn): D.dfunction =
   match function_defn with
   | T.TFunction (function_signature, block_expr) ->
     let name = Typ.Function_name.to_string function_signature.name in
     let params = List.map ~f:E.desugar_param function_signature.params in
     let ret_type = function_signature.return_type in
-    (* let ret_type = E.desugar_type function_signature.return_type in *)
     let body = Desugar_expr.desugar_block block_expr in
     { name; ret_type; params; body }

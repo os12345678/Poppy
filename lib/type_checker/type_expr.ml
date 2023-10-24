@@ -104,7 +104,7 @@ let rec type_expr (struct_defns: Ast.struct_defn list) (trait_defns: Ast.trait_d
         (Fmt.str "%s Type error - Trying to assign type %s to a field of type %s" 
           (string_of_loc expr.loc) (string_of_type typed_expr.typ) (string_of_type id_type))
 
-  | Ast.MethodApp(receiver_var, method_name, args_expr) ->
+  (* | Ast.MethodApp(receiver_var, method_name, args_expr) ->
     let%bind receiver_type = lookup_var env receiver_var expr.loc in
     begin match receiver_type with
     | TEStruct (receiver_struct_name) ->
@@ -122,7 +122,38 @@ let rec type_expr (struct_defns: Ast.struct_defn list) (trait_defns: Ast.trait_d
       end
     | _ -> Error (Core.Error.of_string (Fmt.str "%s Type error - Method %s can only be called on objects of type struct, but receiver is of type %s" 
           (string_of_loc expr.loc) (Method_name.to_string method_name) (string_of_type receiver_type)))
-    end          
+    end           *)
+
+    | Ast.MethodApp(receiver_var, method_name, args_expr) ->
+      let%bind receiver_type = lookup_var env receiver_var expr.loc in
+      begin match receiver_type with
+      | TEStruct (receiver_struct_name) ->
+          let%bind trait_names = lookup_impl env receiver_struct_name in
+          let find_trait_and_method_signature trait_name =
+              match lookup_method_in_impl env receiver_struct_name method_name with
+              | Ok (Ast.TMethod (method_signature, _)) -> Some (trait_name, method_signature)
+              | _ -> None
+          in
+          let trait_and_method_signature = List.find_map ~f:find_trait_and_method_signature trait_names in
+          begin match trait_and_method_signature with
+          | Some (trait_name, method_signature) ->
+              let param_types = List.map ~f:(function Param (param_type, _, _, _) -> param_type) method_signature.params in
+              let%bind typed_args = type_args type_with_defns args_expr env in
+              if not (equal_type_expr_list param_types (List.map typed_args ~f:(fun arg -> arg.typ))) then
+                  Error (Core.Error.of_string (Fmt.str "%s Type error - Method %s expected arguments of type %s but got %s" 
+                      (string_of_loc expr.loc) (Method_name.to_string method_name) (string_of_type_list param_types) (string_of_type_list (List.map typed_args ~f:(fun arg -> arg.typ)))))
+              else
+                  Ok ({Typed_ast.loc = expr.loc; typ = method_signature.return_type; node = TMethodApp (receiver_var, receiver_struct_name, trait_name, method_name, typed_args)})
+          | None -> 
+              Error (Core.Error.of_string (Fmt.str "%s Type error - Method %s not found in any implemented trait for struct %s" 
+                  (string_of_loc expr.loc) (Method_name.to_string method_name) (Struct_name.to_string receiver_struct_name)))
+          end
+      | _ -> 
+          Error (Core.Error.of_string (Fmt.str "%s Type error - Method %s can only be called on objects of type struct, but receiver is of type %s" 
+              (string_of_loc expr.loc) (Method_name.to_string method_name) (string_of_type receiver_type)))
+      end
+  
+  
 
   | Ast.FunctionApp(func_name, args_expr) ->
     let%bind typed_args_exprs = type_args type_with_defns args_expr env in

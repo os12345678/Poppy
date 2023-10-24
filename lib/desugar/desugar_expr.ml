@@ -1,5 +1,6 @@
 open Core 
 open Desugared_ast
+(* open Poppy_type_checker *)
 
 (* 
 Flatten Nested Expressions: Convert complex expressions into a sequence of 
@@ -20,6 +21,7 @@ basic blocks and branch instructions.
 
 module T = Poppy_type_checker.Typed_ast
 module A = Poppy_parser.Ast_types
+module E = Desugar_env
 
 let extract_var_name (id: T.typed_identifier) : string = 
   match id with
@@ -44,7 +46,7 @@ let get_next_thread_name fname =
   if count = 0 then "thread_id_"^fname else Printf.sprintf "thread_id_%s%d" fname count
 
 
-let rec desugar_expr (te: T.expr) : Desugared_ast.dexpr = 
+let rec desugar_expr (te: T.expr): Desugared_ast.dexpr = 
   match te.node with
   | TInt i -> 
     { loc = te.loc; typ = TEInt; node = DIntLit i }
@@ -102,19 +104,22 @@ let rec desugar_expr (te: T.expr) : Desugared_ast.dexpr =
 
   (* Application *)
   | TFunctionApp (fname, args) -> 
-    let desugared_args = List.map ~f:desugar_expr args in
+    let desugared_args = List.map ~f:(fun args -> desugar_expr args ) args in
     { loc = te.loc; 
       typ = te.typ; 
       node = DCall (A.Function_name.to_string fname, List.map ~f:(fun e -> e.node) desugared_args) }
-  | TMethodApp (obj_name, method_name, args) ->
+
+  | TMethodApp (obj_name, struct_name, trait_name, method_name, args) ->
     let obj_expr = { loc = te.loc; typ = te.typ; node = DVar (A.Var_name.to_string obj_name) } in
-    let desugared_args = List.map ~f:desugar_expr args in
-    let mangled_fn_name = (A.Var_name.to_string obj_name) ^ "_" ^ (A.Method_name.to_string method_name) in
+    let desugared_args = List.map ~f:(fun args -> desugar_expr args ) args in
+    let mangled_fn_name = 
+      E.mangle_impl trait_name struct_name method_name in
     { loc = te.loc; 
       typ = te.typ; 
       node = DCall (mangled_fn_name, obj_expr.node :: (List.map ~f:(fun de -> de.node) desugared_args)) }
+    
   | TPrintf (format_str, exprs) ->
-    let desugared_exprs = List.map ~f:desugar_expr exprs in
+    let desugared_exprs = List.map ~f:(fun exprs -> desugar_expr exprs ) exprs in
     let desugared_args = List.map ~f:(fun de -> de.node) desugared_exprs in
     {
       loc = te.loc;
@@ -139,14 +144,17 @@ let rec desugar_expr (te: T.expr) : Desugared_ast.dexpr =
 
   (* Async Constructs *)
   | TFinishAsync (asyncs, block) -> 
+    print_endline "Desugaring finish_async";
     (* Extract all function calls from each async block *)
-    let all_calls = List.concat_map ~f:extract_calls_from_async asyncs in
+    let all_calls = List.concat_map ~f:(fun asyncs -> extract_calls_from_async asyncs ) asyncs in
     (* Create a thread for each function call *)
     let thread_creations = List.map ~f:(fun call -> 
       DCreateThread (call.fname, List.map ~f:(fun de -> de.node) call.args)
     ) all_calls in
+    print_endline ("Thread creates: " ^ (string_of_int (List.length thread_creations)));
     (* Join all threads after they've been created *)
     let thread_joins = List.map ~f:(fun call -> DJoinThread (DVar (call.fname))) all_calls in
+    print_endline ("Thread joins: " ^ (string_of_int (List.length thread_joins)));
     let dblock = desugar_block block in
     (* Combine thread creations, joins, and the main block *)
     let dblock_nodes = List.map ~f:(fun expr -> expr.node) dblock in
@@ -171,12 +179,19 @@ and desugar_block (tb: T.block_expr) : Desugared_ast.dblock =
 and extract_calls_from_async (async: T.async_expr) : function_call list =
   match async with
   | AsyncExpr (Block (_, _, exprs)) -> 
+    print_endline "found async expr block";
     let results = List.filter_map ~f:(fun expr ->
       match expr.node with
       | TFunctionApp (fname, args) -> 
-        let desugared_args = List.map ~f:desugar_expr args in
+        let desugared_args = List.map ~f:(fun args -> desugar_expr args ) args in
         let fname_str = A.Function_name.to_string fname in
         Some { fname = fname_str; args = desugared_args }
-      | _ -> None
+      | TMethodApp (_var_name, sname, tname, mname, args) ->
+        let desugared_args = List.map ~f:(fun args -> desugar_expr args) args in
+        let mangled_fn_name = E.mangle_impl tname sname mname in
+        Some { fname = mangled_fn_name; args = desugared_args }
+      | _ -> 
+      print_endline "found no async expr block";
+      None
     ) exprs in
     results

@@ -55,9 +55,11 @@ let rec update_matching_identifier_caps_expr names_to_match capability_filter_fn
         ( update_var_modes_identifier_rec id
         , update_matching_identifier_caps_expr_rec assigned_expr )}
   (* | Consume (loc, id) -> Consume (loc, update_var_modes_identifier_rec id) *)
-  | TMethodApp (obj_struct, method_name, args) -> {expr with node =
+  | TMethodApp (obj_struct, struct_name, trait_name, method_name, args) -> {expr with node =
       TMethodApp
         ( obj_struct
+        , struct_name
+        , trait_name
         , method_name
         , List.map ~f:update_matching_identifier_caps_expr_rec args )}
   | TFunctionApp (func_name, args) -> {expr with node =
