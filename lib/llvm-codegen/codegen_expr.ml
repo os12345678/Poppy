@@ -50,8 +50,10 @@ let rec codegen_expr (expr: D.dexpr) (sym_table: St.llvm_symbol_table) (fpm: [ `
         | Some (St.LVarInfo {llvm_value = Some value; llvm_type = Some typ; _}) when L.classify_type typ = L.TypeKind.Pointer ->
             let loaded_value = L.build_load value var_name U.builder in
             sym_table, loaded_value
-        | Some (St.LVarInfo {llvm_value = Some value; _}) -> 
+        | Some (St.LVarInfo {llvm_value = Some value; _}) ->
             sym_table, value
+        | Some (St.LVarInfo {llvm_value = None; _}) -> (* y.setg(5) - y is found but has no llvalue in var info ...*)
+            sym_table, failwith (Printf.sprintf "Variable %s not initialized" var_name)
         | _ -> failwith (Printf.sprintf "Variable %s not found or not declared in the symbol table." var_name)
     end
 
@@ -61,7 +63,7 @@ let rec codegen_expr (expr: D.dexpr) (sym_table: St.llvm_symbol_table) (fpm: [ `
     begin 
       match St.lookup_variable updated_sym_table varname with
       | Some _ ->
-        let llvm_type = expr.typ |> U.llvm_type_of_typ in
+        let llvm_type = L.type_of rhs_value in  (* Use the type of rhs_value *)
         let llvm_var = L.build_alloca llvm_type varname U.builder in
         ignore (L.build_store rhs_value llvm_var U.builder);
         let updated_info = St.LVarInfo { 
@@ -75,28 +77,6 @@ let rec codegen_expr (expr: D.dexpr) (sym_table: St.llvm_symbol_table) (fpm: [ `
 
       | _ -> raise (Codegen_error (Printf.sprintf "Variable %s not found" varname))
     end
-
-    (* | DAssign (name, e) ->
-    let wrapped_expr = { loc = expr.loc; typ = expr.typ; node = e } in
-    let updated_sym_table, rhs_value = process_expr sym_table wrapped_expr in
-    let var_info = lookup_variable updated_sym_table name in 
-    begin 
-        match var_info with 
-        | Some (LVarInfo {llvm_value = Some llvm_var; _}) ->
-            ignore (L.build_store rhs_value llvm_var U.builder);
-            updated_sym_table
-        | None ->
-            (* If the variable does not exist in the symbol table, you can decide how to handle it.
-               Either raise an error, create a new variable or some other handling. *)
-            let llvm_type = wrapped_expr.typ |> U.llvm_type_of_typ in
-            let llvm_var = L.build_alloca llvm_type name U.builder in
-            ignore (L.build_store rhs_value llvm_var U.builder);
-            let new_var_info = LVarInfo { llvm_value = Some llvm_var; llvm_type = Some llvm_type; storage = Local; is_global = false } in
-            add_symbol updated_sym_table name new_var_info
-        | Some (LFuncInfo _ | LStructInfo _) ->
-            failwith (Printf.sprintf "Identifier %s is not a variable, but type-checking phase passed!!!" name)
-    end
- *)
   
   | DCall (fname, args) -> 
     begin

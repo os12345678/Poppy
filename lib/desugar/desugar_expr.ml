@@ -76,7 +76,7 @@ let rec desugar_expr (te: T.expr): Desugared_ast.dexpr =
   | TLet (_, var_name, expr) ->
     let desugared_expr = desugar_expr expr in
     { loc = te.loc; typ = te.typ; node = DAssign (A.Var_name.to_string var_name, desugared_expr.node) }
-  | TConstructor (_var_name, struct_name, constructor_args) ->
+  | TConstructor (var_name, struct_name, constructor_args) ->
     (* Convert constructor_args into a list of dexpr_nodes *)
     let arg_nodes = List.map ~f:(fun (ConstructorArg (_, expr)) ->
         desugar_expr expr
@@ -85,9 +85,13 @@ let rec desugar_expr (te: T.expr): Desugared_ast.dexpr =
     let arg_node_values = List.map ~f:(fun de -> de.node) arg_nodes in
     (* Create a special constructor function name *)
     let constructor_fn_name = "init_" ^ (A.Struct_name.to_string struct_name) in
+    (* Create the DCall node for the constructor function *)
+    let call_node = { loc = te.loc; typ = te.typ; node = DCall (constructor_fn_name, arg_node_values) } in
+    (* Create the DAssign node to assign the result of the constructor call to the variable *)
     { loc = te.loc; 
       typ = te.typ; 
-      node = DCall (constructor_fn_name, arg_node_values) }
+      node = DAssign (A.Var_name.to_string var_name, call_node.node) }
+  
   
   (* Binary/unary Operators *)
   | TBinOp (op, e1, e2) -> 
