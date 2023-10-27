@@ -267,6 +267,9 @@ let get_struct_fields struct_name env =
 
   
 (* Invariances *)
+
+let rec elem_in_list x = function [] -> false | y :: ys -> Var_name.(=) x y || elem_in_list x ys
+
 let has_duplicates l ~equal =
   let rec aux seen = function
     | [] -> false
@@ -295,7 +298,6 @@ let check_identifier_assignable id env loc =
     check_variable_declarable var_name loc
   | Ast.ObjField (obj_name, field_name) -> 
     let%bind (Ast.TStruct (_, _, fields)) = get_obj_struct_defn obj_name env loc in
-    begin
     match List.find ~f:(fun (TField (_, _, name, _)) -> Field_name.(=) name field_name) fields with
     | Some (TField(modifier, _, _, _)) ->
       if phys_equal modifier (MConst) then
@@ -304,8 +306,30 @@ let check_identifier_assignable id env loc =
       else Ok ()
     | None -> Error (Core.Error.of_string 
                 (Fmt.str "%d:%d Type error - Field %s not found in struct" (loc.lnum) (loc.cnum) (Field_name.to_string field_name))) 
-
-    end
-
-
-    
+                
+let check_identifier_consumable id env loc =
+  match id with
+  | Ast.Variable var_name ->
+      if Var_name.(=) var_name (Var_name.of_string "this") then
+        Error
+          (Core.Error.of_string
+              (Fmt.str "%s Type error - Trying to consume 'this'.@." (string_of_loc loc)))
+      else Ok ()
+  | Ast.ObjField (obj_name, field_name) ->
+    let%bind struct_defn = get_obj_struct_defn obj_name env loc in
+    (match struct_defn with
+      | TStruct (_, _, field_defs) ->
+        let field = 
+          List.find 
+            ~f:(fun (TField (_, _, f_name, _)) -> Field_name.(=) f_name field_name) 
+            field_defs 
+        in
+        (match field with
+          | Some (TField (modifier, _, _, _)) ->
+            if phys_equal modifier MConst then
+              Error
+                (Core.Error.of_string
+                    (Fmt.str "%s Type error - Trying to consume a const field.@."
+                      (string_of_loc loc)))
+            else Ok ()
+          | None -> Error (Core.Error.of_string "Field not found")))

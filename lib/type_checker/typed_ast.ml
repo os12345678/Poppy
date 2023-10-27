@@ -18,6 +18,7 @@ and expr_node =
 | TBlockExpr           of block_expr (* used to interconvert with block expr *)
 | TAssign              of typed_identifier * expr  
 | TConstructor         of Var_name.t * Struct_name.t * constructor_arg list
+| TConsume            of typed_identifier
 | TMethodApp           of Var_name.t * Struct_name.t * Trait_name.t * Method_name.t * expr list
 | TFunctionApp         of Function_name.t * expr list 
 | TIf                  of expr * block_expr * block_expr
