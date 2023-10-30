@@ -3,6 +3,8 @@
 open! Core
 open Poppy_parser.Ast_types
 
+type obj_var_and_capabilities = Var_name.t * Struct_name.t * capability list [@@deriving sexp]
+
 type expr = {
   loc : loc;
   typ : type_expr; (* additional type information *)
@@ -26,7 +28,7 @@ and expr_node =
 | TPrintf              of string * expr list 
 | TBinOp               of bin_op * expr * expr
 | TUnOp                of un_op * expr
-| TFinishAsync         of async_expr list * block_expr
+| TFinishAsync         of async_expr list * obj_var_and_capabilities list * block_expr
 [@@deriving sexp]
 
 and typed_identifier = 
@@ -43,7 +45,7 @@ and typed_identifier =
 and block_expr = Block of loc * type_expr * expr list [@@deriving sexp]
 
 (* type is of the final expr in block *)
-and async_expr = AsyncExpr of block_expr [@@deriving sexp]
+and async_expr = AsyncExpr of obj_var_and_capabilities list * block_expr [@@deriving sexp]
 
 and constructor_arg = ConstructorArg of Field_name.t * expr [@@deriving sexp]
 

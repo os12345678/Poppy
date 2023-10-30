@@ -5,4 +5,4 @@
  (modules type_data_race_program type_data_race_expr type_read_capabilities
   data_race_env type_data_race_async type_linear_capabilities update_identifier_capabilities
   type_alias_liveliness type_data_race_function type_capability_annotations
-  type_borrowing type_capability_constraints))
+  type_borrowing type_capability_constraints type_consume))

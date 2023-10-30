@@ -4,6 +4,9 @@ open Core
 open Core.Result
 open Core.Result.Let_syntax
 
+exception MethodNotFoundError of string
+exception FunctionNotFoundError of string
+
 (* Environment *)
 module VarNameMap = Map.Make(Var_name)
 module StructNameMap = Map.Make(Struct_name)
@@ -249,6 +252,28 @@ let get_struct_fields struct_name env =
     | Some (TStruct (_, _, fields)) -> fields
     | None -> [])
   | _ -> []
+
+  let get_method_defn method_name env =
+    match env with
+    | Global (_, _, method_map, _, _) ->
+      (match MethodNameMap.find method_map method_name with
+      | Some method_defn -> method_defn
+      | None -> 
+          let error_message = Fmt.str "Method %s not found" (Method_name.to_string method_name) in
+          raise (MethodNotFoundError error_message))
+    | _ -> 
+        raise (MethodNotFoundError "Method lookup should be done in the global environment")
+
+let get_function_defn function_name env =
+  match env with
+  | Global (_, _, _, function_map, _) ->
+    (match FunctionNameMap.find function_map function_name with
+    | Some function_defn -> function_defn
+    | None ->
+      let error_message = Fmt.str "Function %s not found" (Function_name.to_string function_name) in
+      raise (FunctionNotFoundError error_message))
+  | _ ->
+    raise (FunctionNotFoundError "Function lookup should be done in the global environment")
 
   let get_method_field_capabilities struct_name env =
     let fields = get_struct_fields struct_name env in

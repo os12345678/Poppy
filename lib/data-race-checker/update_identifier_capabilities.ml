@@ -68,12 +68,12 @@ let rec update_matching_identifier_caps_expr names_to_match capability_filter_fn
         , List.map ~f:update_matching_identifier_caps_expr_rec args )}
   | TPrintf (format_str, args) -> {expr with node =
       TPrintf (format_str, List.map ~f:update_matching_identifier_caps_expr_rec args)}
-  | TFinishAsync (async_exprs, curr_thread_expr) -> {expr with node =
+  | TFinishAsync (async_exprs, curr_thread_free_vars, curr_thread_expr) -> {expr with node =
       TFinishAsync
         ( List.map
-            ~f:(fun (AsyncExpr expr) ->
-              AsyncExpr (update_matching_identifier_caps_block_expr_rec expr))
-            async_exprs
+            ~f:(fun (AsyncExpr (free_objs, expr)) ->
+              AsyncExpr (free_objs, update_matching_identifier_caps_block_expr_rec expr))
+            async_exprs, curr_thread_free_vars
         , update_matching_identifier_caps_block_expr_rec curr_thread_expr )}
   | TIf (cond_expr, then_expr, else_expr) -> {expr with node =
       TIf
@@ -91,6 +91,10 @@ let rec update_matching_identifier_caps_expr names_to_match capability_filter_fn
         , update_matching_identifier_caps_expr_rec expr2 )}
   | TUnOp (unop, expr) -> {expr with node =
       TUnOp (unop, update_matching_identifier_caps_expr_rec expr)}
+
+  
+      | _ -> failwith "update identifier: Consume not implemented"
+         
 
 and update_matching_identifier_caps_block_expr names_to_match capability_filter_fn
     (Block (loc, type_block_expr, exprs)) =

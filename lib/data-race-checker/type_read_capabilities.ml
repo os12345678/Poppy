@@ -44,12 +44,12 @@ let rec type_read_capabilities_expr (expr: T.expr) : T.expr =
   | T.TPrintf (format_str, args) -> {expr with node = 
     T.TPrintf (format_str, List.map type_read_capabilities_expr args)}
     (* TODO: START REVIEW  *)
-  | T.TFinishAsync (async_exprs, curr_thread_expr) -> {expr with node = 
+  | T.TFinishAsync (async_exprs, curr_thread_free_vars, curr_thread_expr) -> {expr with node = 
     T.TFinishAsync
       ( List.map
-          (fun (T.AsyncExpr (expr)) ->
-            T.AsyncExpr (type_read_capabilities_block_expr expr))
-          async_exprs
+          (fun (T.AsyncExpr (free_objs, expr)) ->
+            (T.AsyncExpr (free_objs, type_read_capabilities_block_expr expr)))
+          async_exprs, curr_thread_free_vars
       , type_read_capabilities_block_expr curr_thread_expr )}
     (* TODO: END REVIEW *)
     | T.TIf (cond_expr, then_expr, else_expr) -> {expr with node = 
@@ -68,6 +68,10 @@ let rec type_read_capabilities_expr (expr: T.expr) : T.expr =
         , type_read_capabilities_expr expr2 )}
   | T.TUnOp (unop, expr) -> {expr with node = 
       T.TUnOp (unop, type_read_capabilities_expr expr)}
+
+  
+  | _ -> failwith "type read capabilities: Consume not implemented"
+         
 
 and type_read_capabilities_block_expr (T.Block (loc, type_block_expr, exprs)) =
   let updated_exprs = List.map type_read_capabilities_expr exprs in

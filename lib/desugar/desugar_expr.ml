@@ -147,7 +147,37 @@ let rec desugar_expr (te: T.expr): Desugared_ast.dexpr =
       node = DWhile (dcond.node, dblock) }
 
   (* Async Constructs *)
-  | TFinishAsync (asyncs, block) -> 
+
+  (*   | TFinishAsync (asyncs, obj_var_and_capabilities, block) -> 
+    print_endline "Desugaring finish_async";
+
+    (* Step 2: Desugar async expressions into thread creations *)
+    let thread_creations = List.mapi asyncs ~f:(fun idx async_expr ->
+        let thread_func_name = "thread_func_" ^ Int.to_string idx in
+        (* Assume desugar_async_expr generates a function from an async expression *)
+        let thread_func = desugar_async_expr ~shared_vars:obj_var_and_capabilities async_expr in
+        DCreateThread (thread_func_name, thread_func)
+    ) in
+
+    (* Step 3: Desugar the main block expression *)
+    let dblock = desugar_block block in
+
+    (* Step 4: Generate thread join expressions *)
+    let thread_joins = List.mapi asyncs ~f:(fun idx _ ->
+        let thread_func_name = "thread_func_" ^ Int.to_string idx in
+        DJoinThread (DVar (thread_func_name))
+    ) in
+
+    (* Combine thread creations, joins, and the main block *)
+    let dblock_nodes = List.map ~f:(fun expr -> expr.node) dblock in
+    let combined_nodes = thread_creations @ thread_joins @ dblock_nodes in
+
+    { loc = te.loc; 
+      typ = TEVoid; 
+      node = DBlockExpr combined_nodes }
+ *)
+
+  | TFinishAsync (asyncs, _obj_var_and_capabilities, block) -> 
     print_endline "Desugaring finish_async";
     (* Extract all function calls from each async block *)
     let all_calls = List.concat_map ~f:(fun asyncs -> extract_calls_from_async asyncs ) asyncs in
@@ -166,6 +196,8 @@ let rec desugar_expr (te: T.expr): Desugared_ast.dexpr =
     { loc = te.loc; 
       typ = TEVoid; 
       node = DBlockExpr combined_nodes }
+
+  | _ -> failwith "Desugar: Consume not implemented"
          
 and desugar_block (tb: T.block_expr) : Desugared_ast.dblock =
   match tb with
@@ -182,7 +214,7 @@ and desugar_block (tb: T.block_expr) : Desugared_ast.dblock =
       
 and extract_calls_from_async (async: T.async_expr) : function_call list =
   match async with
-  | AsyncExpr (Block (_, _, exprs)) -> 
+  | AsyncExpr (_, (Block (_, _, exprs))) -> 
     print_endline "found async expr block";
     let results = List.filter_map ~f:(fun expr ->
       match expr.node with

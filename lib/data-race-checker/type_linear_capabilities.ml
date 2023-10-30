@@ -6,6 +6,38 @@ module E = Data_race_env
 module U = Update_identifier_capabilities
 module L = Type_alias_liveliness
 
+let type_linear_obj_method_args env obj_name obj_struct args_ids loc =
+  if E.struct_has_mode obj_struct Linear env then
+    if List.exists ~f:(E.identifier_matches_var_name obj_name) args_ids then
+      Error
+        (Error.of_string
+           (Fmt.str "%s One of linear object %s's method's arguments aliases it@."
+              (A.string_of_loc loc) (A.Var_name.to_string obj_name)))
+    else Ok () (* no aliasing in arguments *)
+  else (* not linear so we don't care *) Ok ()
+
+  let type_linear_args env args_ids loc =
+    let linear_args_ids =
+      List.filter ~f:(fun arg_id -> E.identifier_has_mode arg_id Linear env) args_ids
+    in
+    let matching_ids = function
+      | T.TVariable (var_name, _, _, _) ->
+          List.filter ~f:(E.identifier_matches_var_name var_name) args_ids
+      | T.TObjField _ as id             -> List.filter ~f:(fun arg_id -> phys_equal id arg_id) args_ids
+    in
+    (* for all linear identifiers, make sure no other identifier matches that linear
+       identifier *)
+    if
+      List.for_all
+        ~f:(fun linear_arg_id -> List.length (matching_ids linear_arg_id) = 1)
+        linear_args_ids
+    then Ok ()
+    else
+      Error
+        (Error.of_string
+           (Fmt.str "%s Linear arguments are duplicated@." (A.string_of_loc loc)))
+  
+
 let type_linear_object_references obj_name obj_class class_defns block_expr =
   let filter_linear_caps_fn _ curr_capability =
     not (E.capability_fields_have_mode curr_capability obj_class A.Linear class_defns) in

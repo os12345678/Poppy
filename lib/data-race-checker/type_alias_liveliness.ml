@@ -126,15 +126,15 @@ let rec type_alias_liveness_expr aliased_obj_name possible_aliases filter_linear
         args
       |> fun (updated_args, updated_live_aliases) ->
       (TPrintf (format_str, updated_args), updated_live_aliases)
-  | TFinishAsync (async_exprs, curr_thread_expr) ->
+  | TFinishAsync (async_exprs, free_objs, curr_thread_expr) ->
       (* note the async expressions are forked, so we treat as independent (hence map not
          fold) *)
       List.unzip
         (List.map
-           ~f:(fun (AsyncExpr (async_expr)) ->
+           ~f:(fun (AsyncExpr (free_objs, async_expr)) ->
              type_alias_liveness_block_expr_rec live_aliases async_expr
              |> fun (updated_async_expr, updated_async_live_aliases) ->
-             (AsyncExpr (updated_async_expr), updated_async_live_aliases))
+             (AsyncExpr (free_objs, updated_async_expr), updated_async_live_aliases))
            async_exprs)
       |> fun (updated_async_exprs, async_live_aliases) ->
       type_alias_liveness_block_expr_rec live_aliases curr_thread_expr
@@ -143,6 +143,7 @@ let rec type_alias_liveness_expr aliased_obj_name possible_aliases filter_linear
       |> fun updated_live_aliases ->
       ( TFinishAsync
           ( updated_async_exprs
+          , free_objs
           , updated_curr_thread_expr )
       , updated_live_aliases )
   | TIf (cond_expr, then_expr, else_expr) ->

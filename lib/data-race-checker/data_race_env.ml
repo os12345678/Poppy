@@ -24,7 +24,7 @@ let rec reduce_expr_to_obj_ids (expr: T.expr) =
   | T.TMethodApp (_, _, _, _, _) -> []
   | T.TFunctionApp ( _, _) -> []
   | T.TPrintf (_, _) -> []
-  | T.TFinishAsync (_, curr_thread_expr) ->
+  | T.TFinishAsync (_, _, curr_thread_expr) ->
       reduce_block_expr_to_obj_ids curr_thread_expr
   | T.TIf (_, then_expr, else_expr) ->
       let then_id = reduce_block_expr_to_obj_ids then_expr in
@@ -33,6 +33,7 @@ let rec reduce_expr_to_obj_ids (expr: T.expr) =
   | T.TWhile _ -> []
   | T.TBinOp _ -> [] (* Bin op returns either a TEInt or a Bool *)
   | T.TUnOp _ -> []
+  | T.TConsume id -> [id]
 
 and reduce_block_expr_to_obj_ids (Block (loc, type_expr, exprs)) =
   match exprs with
@@ -145,8 +146,6 @@ let get_class_capability_fields struct_name capability_name env =
     (fun (A.TField (_, _, _, field_capability_names)) ->
       elem_in_list capability_name field_capability_names)
     fields
-
-   
   
 let capability_fields_have_mode (A.TCapability (capability_mode, capability_name))
   class_name mode env =
@@ -159,6 +158,20 @@ let capability_fields_have_mode (A.TCapability (capability_mode, capability_name
           | A.TEStruct (struct_name) -> struct_has_mode struct_name mode env
           | _                        -> false)
         fields_in_capability
+
+let identifier_has_mode id mode env =
+  let check_capability_modes struct_name capabilities =
+    List.exists
+      (fun capability ->
+        capability_fields_have_mode capability struct_name mode env)
+      capabilities in
+  match id with
+  | T.TVariable (_, var_type, capabilities, _) -> (
+    match var_type with
+    | TEStruct var_struct -> check_capability_modes var_struct capabilities
+    | _                      -> false )
+  | T.TObjField (obj_struct, _, _, _, capabilities, _) ->
+      check_capability_modes obj_struct capabilities
 
 (* Check if the expression is reduced to an id that matches a given name_to_match *)
   let has_matching_expr_reduced_ids should_match_fields name_to_match ids =
@@ -212,10 +225,10 @@ let rec find_immediate_aliases_in_expr should_match_fields orig_obj_name curr_al
     | T.TPrintf (_, args_exprs) ->
       let node_list = Core.List.map ~f:(fun e -> e.node) args_exprs in
       Core.List.fold ~init:curr_aliases ~f:find_imm_aliases_in_expr_rec node_list
-    | T.TFinishAsync (async_exprs, curr_thread_expr) ->
+    | T.TFinishAsync (async_exprs, _, curr_thread_expr) ->
         Core.List.fold
           ~init:(find_imm_aliases_in_block_expr_rec curr_aliases curr_thread_expr)
-          ~f:(fun acc_aliases (AsyncExpr (async_expr)) ->
+          ~f:(fun acc_aliases (AsyncExpr (_, async_expr)) ->
             find_imm_aliases_in_block_expr_rec acc_aliases async_expr)
           async_exprs
     | T.TIf (cond_expr, then_expr, else_expr) ->
@@ -230,6 +243,10 @@ let rec find_immediate_aliases_in_expr should_match_fields orig_obj_name curr_al
     | T.TBinOp (_, expr1, expr2) ->
         Core.List.fold ~init:curr_aliases ~f:find_imm_aliases_in_expr_rec [expr1.node; expr2.node]
     | T.TUnOp (_, expr) -> find_imm_aliases_in_expr_rec curr_aliases expr.node
+
+
+  | _ -> failwith "Data race env: Consume not implemented"
+         
   
 
 and find_immediate_aliases_in_block_expr should_match_fields orig_obj_name curr_aliases
@@ -248,3 +265,45 @@ let find_aliases_in_block_expr ~should_match_fields name_to_match block_expr =
     if var_lists_are_equal updated_aliases curr_aliases then curr_aliases
     else get_all_obj_aliases should_match_fields updated_aliases block_expr in
   get_all_obj_aliases should_match_fields [] block_expr
+
+  (* let get_class_defn class_name class_defns =
+    let matching_class_defns =
+      List.filter ~f:(fun (TClass (name, _, _, _, _)) -> class_name = name) class_defns
+    in
+    (* This should never throw an exception since we've checked this property in earlier
+       type-checking stages of the pipeline *)
+    List.hd_exn matching_class_defns *)
+
+  (* let rec get_trait_method_defns class_name env =
+    let struct_defns = 
+    E.get_struct_defn class_name env
+    |> fun (TClass (_, maybe_superclass, _, _, method_defns)) ->
+    ( match maybe_superclass with
+    | Some superclass -> get_class_method_defns superclass class_defns
+    | None            -> [] )
+    |> fun superclass_methods ->
+    List.concat [superclass_methods; method_defns]
+    (* filter out overridden methods (i.e those with same name) *)
+    |> List.dedup_and_sort
+         ~compare:(fun (TMethod (name_1, _, _, _, _, _))
+                       (TMethod (name_2, _, _, _, _, _))
+                       -> if name_1 = name_2 then 0 else 1) *)
+  
+let get_method_params meth_name env =
+  (* gets Ast.method_defn not Typed_ast... problem? *)
+try
+  let method_defn = E.get_method_defn meth_name env in
+  match method_defn with
+  | Poppy_parser.Ast.TMethod (method_sig, _) -> Ok method_sig.params
+with
+| E.MethodNotFoundError msg -> Error (Core.Error.of_string msg)
+
+let get_function_params func_name env = 
+  try
+    let func_defn = E.get_function_defn func_name env in
+    match func_defn with
+    | Poppy_parser.Ast.TFunction (func_sig, _) -> Ok func_sig.params
+  with
+  | E.FunctionNotFoundError msg -> Error (Core.Error.of_string msg)
+                                      
+                      
