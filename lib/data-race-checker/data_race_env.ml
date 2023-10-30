@@ -3,6 +3,8 @@ module A = Poppy_parser.Ast_types
 module E = Poppy_type_checker.Type_env
 
 let rec elem_in_list x = function [] -> false | y :: ys -> x = y || elem_in_list x ys
+let intersect_lists list1 list2 = List.filter (fun x -> elem_in_list x list2) list1
+
 
 let var_lists_are_equal xs ys =
   let compare_fn x y = String.compare (A.Var_name.to_string x) (A.Var_name.to_string y) in
