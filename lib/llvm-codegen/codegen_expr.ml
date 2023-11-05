@@ -11,6 +11,8 @@ module T = Poppy_parser.Ast_types
 module St = Ir_symbol_table
 module E = Link_extern
 
+let generate_thread_id index = "thread_" ^ (string_of_int index)
+
 (* ############################ Codegen expr ################################ *)
 let rec codegen_expr (expr: D.dexpr) (sym_table: St.llvm_symbol_table) (fpm: [ `Function ] L.PassManager.t) : (St.llvm_symbol_table * llvalue) =
   match expr.node with
@@ -78,27 +80,31 @@ let rec codegen_expr (expr: D.dexpr) (sym_table: St.llvm_symbol_table) (fpm: [ `
       | _ -> raise (Codegen_error (Printf.sprintf "Variable %s not found" varname))
     end
   
-  | DCall (fname, args) -> 
-    begin
-      match L.lookup_function fname U.the_module with
-      | Some fn ->
+    | DCall (fname, args) -> 
+      print_endline "in DCall";
+      begin
+        match L.lookup_function fname U.the_module with
+        | Some fn ->
+          print_endline (string_of_llvalue fn);
+          print_endline "1";
           let arg_values_and_tables = List.map (fun arg -> codegen_expr {expr with node = arg} sym_table fpm) args in
-          let arg_values = List.map (fun (_, value) -> 
-            match L.classify_value value with
-            | L.ValueKind.ConstantDataArray ->
-                let string_ptr = U.handle_string_constant value in
-                string_ptr
-            | _ -> 
-                if L.type_of value = L.pointer_type (L.i32_type U.context) then
-                    L.build_load value "load_tmp" U.builder
-                else
-                    value
-          ) arg_values_and_tables in
+          print_endline "2";
+          let function_type = L.element_type (L.type_of fn) in
+          let expected_param_types = Array.to_list (L.param_types function_type) in
+          print_endline (string_of_lltype (type_of fn));
+          print_endline (expected_param_types |> List.map string_of_lltype |> String.concat ", ");
+          let actual_arg_values = List.map snd arg_values_and_tables in
+          Printf.printf "Expected %d parameters, got %d arguments\n"
+            (List.length expected_param_types)
+            (List.length actual_arg_values);
+          let arg_values = List.map2 U.adjust_arg_type expected_param_types actual_arg_values in 
+          print_endline "3";
           let call = L.build_call fn (Array.of_list arg_values) fname U.builder in
+          print_endline "4";
           sym_table, call
-      | None -> 
-          failwith (Printf.sprintf "Function %s not declared in the LLVM module." fname)
-    end
+        | None -> 
+            failwith (Printf.sprintf "Function %s not declared in the LLVM module." fname)
+      end
   
   | DIf (cond, then_block, else_block) ->
     let (sym_table_after_cond, cond_val) = codegen_expr { expr with node = cond } sym_table fpm in
@@ -153,36 +159,71 @@ let rec codegen_expr (expr: D.dexpr) (sym_table: St.llvm_symbol_table) (fpm: [ `
     let wrapped = List.map (fun expr_node -> U.wrap loc typ expr_node) exprs in
     codegen_block wrapped sym_table fpm
 
-    | DCreateThread (fname, args) ->
+    | DCreateThread (thread_name, args) ->
+      let arg_values_and_tables = List.map (fun arg -> 
+        codegen_expr {expr with node = arg} sym_table fpm
+    ) args in
+      
+      (* Generate LLVM IR for each argument *)
+      let arg_values = List.map snd arg_values_and_tables in
+
+      (* Get the LLVM type of each argument *)
+      let arg_types = List.map (fun arg -> L.type_of (snd arg)) arg_values_and_tables in
+      
+      (* Pack the arguments *)
+      let packed_args = U.pack_args arg_values arg_types in
+
+      (* Generate a wrapper function *)
+      let wrapper = U.generate_wrapper_function thread_name arg_types (U.llvm_type_of_typ expr.typ) in
+      
+      (* Look up the create_thread function *)
+      let create_thread_fn = L.lookup_function "create_thread" U.the_module in
+      
       begin
-          match L.lookup_function fname U.the_module with
-          | Some _ ->
-              let arg_values_and_tables = List.map (fun arg -> 
-                  codegen_expr {expr with node = arg} sym_table fpm
-              ) args in
-  
-              let arg_values = List.map snd arg_values_and_tables in
-              let arg_types = List.map (fun arg -> L.type_of (snd arg)) arg_values_and_tables in
-  
-              let packed_args = U.pack_args arg_values arg_types in
-  
-              let wrapper = U.generate_wrapper_function fname arg_types (U.llvm_type_of_typ expr.typ) in
-  
-              let create_thread_fn = L.lookup_function "create_thread" U.the_module in
-              begin
-              match create_thread_fn with
-              | Some create_thread_fn_ref ->
-                  let thread_id = L.build_call create_thread_fn_ref [| wrapper; packed_args |] "thread_id" U.builder in
-                  U.add_thread_to_table fname thread_id;
-                  sym_table, thread_id
-              | None -> 
-                  failwith "create_thread function not found in the LLVM module."
-              end
-          | None -> 
-              failwith (Printf.sprintf "Function %s not declared in the LLVM module." fname)
+        match create_thread_fn with
+        | Some create_thread_fn_ref ->
+            (* Call create_thread function with the wrapper and packed_args as arguments *)
+            let thread_id = L.build_call create_thread_fn_ref [| wrapper; packed_args |] "thread_id" U.builder in
+            
+            (* Add the thread_id to the thread table *)
+            U.add_thread_to_table thread_name thread_id;
+            
+            (* Return the updated symbol table and the thread_id *)
+            sym_table, thread_id
+        | None -> 
+            failwith "create_thread function not found in the LLVM module."
       end
   
-  
+
+  (* | DCreateThread (thread_name, args) ->
+    let arg_values_and_tables = List.map (fun arg -> 
+        codegen_expr {expr with node = arg} sym_table fpm
+    ) args in
+    print_endline "done 1";
+
+    let arg_values = List.map snd arg_values_and_tables in
+    print_endline "done 2";
+    let arg_types = List.map (fun arg -> L.type_of (snd arg)) arg_values_and_tables in
+    print_endline "done 3";
+
+    let packed_args = U.pack_args arg_values arg_types in
+    print_endline "done 4";
+
+    let wrapper = U.generate_wrapper_function thread_name arg_types (U.llvm_type_of_typ expr.typ) in 
+    print_endline "done 5";
+
+    let create_thread_fn = L.lookup_function "create_thread" U.the_module in
+    let _ = Printf.printf "create_thread_fn: %s\n" (match create_thread_fn with | Some _ -> "Some" | None -> "None") in
+    begin
+    match create_thread_fn with
+    | Some create_thread_fn_ref ->
+        let thread_id = L.build_call create_thread_fn_ref [| wrapper; packed_args |] "thread_id" U.builder in
+        U.add_thread_to_table thread_name thread_id;
+        sym_table, thread_id
+    | None -> 
+        failwith "create_thread function not found in the LLVM module."
+    end *)
+          
   | DJoinThread thread_name ->
     begin
       match thread_name with 
@@ -207,6 +248,31 @@ let rec codegen_expr (expr: D.dexpr) (sym_table: St.llvm_symbol_table) (fpm: [ `
       | _ ->
           failwith "Invalid thread name"
     end
+  
+  (* | DJoinThread thread_name ->
+    begin
+      match thread_name with 
+      | DVar(name) -> 
+        begin
+          match U.check_and_remove_thread_from_table name with
+          | Some thread_id_value ->
+              (* Get function reference for join_thread *)
+              let join_thread_fn = L.lookup_function "join_thread" U.the_module in
+              begin
+                match join_thread_fn with
+                | Some join_thread_fn_ref ->
+                    let t = L.build_call join_thread_fn_ref [| thread_id_value |] "" U.builder in
+                    (* Return a null void value as the resulting expression *)
+                    sym_table, t;
+                | None -> 
+                    failwith "join_thread function not found in the LLVM module."
+              end
+          | None -> 
+              failwith (Printf.sprintf "No active threads found for function: %s" name)
+          end
+      | _ ->
+          failwith "Invalid thread name"
+    end *)
         
 (* ############################ Codegen block ################################ *)
 and codegen_block (block: D.dblock) (sym_table: St.llvm_symbol_table) (fpm: [ `Function ] L.PassManager.t) : St.llvm_symbol_table * llvalue =
@@ -221,14 +287,23 @@ and codegen_block (block: D.dblock) (sym_table: St.llvm_symbol_table) (fpm: [ `F
 let codegen_proto (func: D.dfunction) (sym_table: St.llvm_symbol_table) : St.llvm_symbol_table * llvalue =
   let param_types = List.map (fun (typ, _) -> U.llvm_type_of_typ typ) func.params in
   let ret_type = U.llvm_type_of_typ func.ret_type in
+  print_endline ("params for function " ^ func.name ^ ": " ^ (String.concat ", " (List.map L.string_of_lltype param_types)));
   let ftype = L.function_type ret_type (Array.of_list param_types) in
 
   match L.lookup_function func.name U.the_module with
-  | Some fn -> (sym_table, fn)
+  | Some fn -> 
+    let ftype_str = L.string_of_lltype (L.type_of fn) in
+      print_endline ("Existing function type for " ^ func.name ^ ": " ^ ftype_str);
+      (sym_table, fn)
   | None -> 
+    let ftype_str = L.string_of_lltype ftype in
+      print_endline ("Generated function type for " ^ func.name ^ ": " ^ ftype_str);
     let new_fn = L.declare_function func.name ftype U.the_module in
     let new_info = St.LFuncInfo { llvm_function = Some new_fn; params = [] } in  (* Initialize params as empty for now *)
     let new_sym_table = { St.table = St.SymbolMap.add func.name new_info sym_table.table; parent = Some sym_table } in
+    let new_fn_ir_str = L.string_of_llvalue new_fn in
+      print_endline ("Generated function IR for " ^ func.name ^ ": " ^ new_fn_ir_str);
+
     (new_sym_table, new_fn)
 
 let codegen_func_body (func: D.dfunction) (fn: llvalue) (sym_table: St.llvm_symbol_table) (fpm: [ `Function ] L.PassManager.t) : St.llvm_symbol_table =
@@ -270,31 +345,52 @@ let codegen_struct_init_function dstruct llvm_struct_type =
   let ret_type = L.pointer_type llvm_struct_type in
   let func_type = L.function_type ret_type param_types in
   let func = L.define_function func_name func_type U.the_module in
+  print_endline ("Declared struct init function: " ^ func_name);
   
   let builder = L.builder_at_end U.context (L.entry_block func) in
   
-  (* Allocate memory for the struct on the stack *)
-  let alloca = L.build_malloc llvm_struct_type "" builder in
+  (* Allocate memory for the struct on the heap *)
+  let gc_malloc_opt = L.lookup_function "GC_malloc" U.the_module in
+  
+  begin match gc_malloc_opt with 
+  | Some gc_malloc ->
+    (* Get the size of the struct *)
+    let struct_size = L.size_of llvm_struct_type in
+    (* Call GC_malloc with the size of the struct as an argument *)
+    let malloc_call = L.build_call gc_malloc [| struct_size |] "malloc_tmp" builder in
+    (* Cast the returned void* to a pointer to the struct type *)
+    let casted_malloc = L.build_bitcast malloc_call (L.pointer_type llvm_struct_type) "casted_malloc" builder in
 
-  (* Populate the struct's fields *)
-  List.iteri (fun idx (_, _field_typ) ->
-      let field_ptr = L.build_struct_gep alloca idx "" builder in
-      let param_value = L.param func idx in
-      let _ = L.build_store param_value field_ptr builder in
-      ()
-  ) dstruct.fields;
+    (* Populate the struct's fields *)
+    List.iteri (fun idx (_, _field_typ) ->
+        let field_ptr = L.build_struct_gep casted_malloc idx "" builder in
+        let param_value = L.param func idx in
+        let _ = L.build_store param_value field_ptr builder in
+        ()
+    ) dstruct.fields;
 
-  (* Return the pointer to the struct *)
-  let _ = L.build_ret alloca builder in
-  func
+    (* Return the pointer to the struct *)
+    let _ = L.build_ret casted_malloc builder in
+    func
+  | None -> failwith "GC_malloc function not found in the LLVM module."
+  end
 
-let codegen_structs (structs: D.dstruct list) (sym_table: St.llvm_symbol_table) : St.llvm_symbol_table  =
+  let codegen_structs (structs: D.dstruct list) (sym_table: St.llvm_symbol_table) : St.llvm_symbol_table  =
   List.fold_left (fun current_table dstruct ->
     let struct_name = dstruct.D.name in
     let field_types = List.map snd dstruct.fields in
     let llvm_field_types = List.map (fun t -> U.llvm_type_of_typ t) field_types in
-    let llvm_struct_type = L.struct_type U.context (Array.of_list llvm_field_types) in
+    
+    (* Create a named, opaque struct type *)
+    let llvm_struct_type = L.named_struct_type U.context struct_name in
+    (* Set the struct type's body *)
+    L.struct_set_body llvm_struct_type (Array.of_list llvm_field_types) false;
+    
+    (* Create a function to initialize the struct *)    
     let _ = codegen_struct_init_function dstruct llvm_struct_type in
+    let llvm_struct_type_str = L.string_of_lltype llvm_struct_type in
+    print_endline ("Generated struct type for " ^ struct_name ^ ": " ^ llvm_struct_type_str);
+    
     let struct_info = St.LStructInfo {
       llvm_struct = Some llvm_struct_type; 
       field_map = (match St.lookup_variable current_table struct_name with
@@ -326,10 +422,12 @@ let codegen_main (main_block: D.dblock) (sym_table: St.llvm_symbol_table) (fpm: 
 (* ########################### Codegen program ############################## *)
 
 let codegen_ast (dprogram: D.dprogram) (symboltable: St.llvm_symbol_table) (fpm: [ `Function ] L.PassManager.t): llmodule =   
+  print_endline "Generating code...";
   E.declare_externals U.the_module;
 
   (* Generate code for all structs *)
   let updated_sym_table = codegen_structs dprogram.structs symboltable in
+
 
   (* Generate code for all functions *)
   let sym_table_1 = List.fold_left (fun acc_sym_table func ->

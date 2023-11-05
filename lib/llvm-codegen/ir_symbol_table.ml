@@ -5,7 +5,7 @@ exception Codegen_error of string
 
 module D = Desugar.Desugared_ast
 module A = Poppy_parser.Ast_types
-module U = Codegen_util
+(* module U = Codegen_util *)
 
 
 
@@ -51,6 +51,8 @@ type llvm_symbol_info =
   }
 
 let sym_table_stack : llvm_symbol_table Stack.t = Stack.create ()
+
+let generate_thread_id index = "thread_" ^ (string_of_int index)
 
 let enter_scope (current_sym_table: llvm_symbol_table) : llvm_symbol_table =
   let new_scope = { table = SymbolMap.empty; parent = Some current_sym_table } in
@@ -155,7 +157,7 @@ and print_symbol_info info =
       Printf.printf "\tFields:\n";
       Hashtbl.iter (fun field_name index -> Printf.printf "\t\t%s : %d\n" field_name index) field_map
       
-let process_structs (sym_table: llvm_symbol_table) (structs: dstruct list) : llvm_symbol_table =
+(* let process_structs (sym_table: llvm_symbol_table) (structs: dstruct list) : llvm_symbol_table =
   List.fold_left (fun current_table dstruct ->
     let struct_name = dstruct.name in
     (* Create a new empty field map *)
@@ -166,7 +168,20 @@ let process_structs (sym_table: llvm_symbol_table) (structs: dstruct list) : llv
 
     let struct_info = LStructInfo { llvm_struct = Some llvm_struct_typ; field_map = field_map } in
     add_symbol current_table struct_name struct_info
-  ) sym_table structs
+  ) sym_table structs *)
+
+  let process_structs (sym_table: llvm_symbol_table) (structs: dstruct list) : llvm_symbol_table =
+    List.fold_left (fun current_table dstruct ->
+      let struct_name = dstruct.name in
+      (* Create a new empty field map *)
+      (* let field_types = List.map (fun (_, t) -> U.llvm_type_of_typ t) dstruct.fields in *)
+      (* let llvm_struct_typ = Llvm.struct_type U.context (Array.of_list field_types) in *)
+      let field_map = Hashtbl.create (List.length dstruct.fields) in
+      List.iteri (fun idx (field_name, _) -> Hashtbl.add field_map field_name idx) dstruct.fields;
+  
+      let struct_info = LStructInfo { llvm_struct = None; field_map = field_map } in
+      add_symbol current_table struct_name struct_info
+    ) sym_table structs
 
   let process_functions (sym_table: llvm_symbol_table) (functions: dfunction list) : llvm_symbol_table =
     List.fold_left (fun current_table (dfunction : dfunction) ->
@@ -247,7 +262,6 @@ let rec process_expr (sym_table: llvm_symbol_table) (expr: dexpr) : llvm_symbol_
       let wrapped_expr = { loc = expr.loc; typ = expr.typ; node = e } in
       process_expr sym_table wrapped_expr
   | DCall (fname, args) -> (* TODO *)
-    print_endline("processing call");
     let updated_sym_table = List.fold_left (fun current_sym_table arg ->
         let wrapped_expr = { loc = expr.loc; typ = expr.typ; node = arg } in
         process_expr current_sym_table wrapped_expr

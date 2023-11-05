@@ -158,69 +158,32 @@ let type_block_with_defns = type_block_expr struct_defns trait_defns impl_defns 
           (string_of_loc expr.loc) (Function_name.to_string func_name) (List.map param_types ~f:string_of_type |> String.concat ~sep:", ") (List.map arg_types ~f:string_of_type |> String.concat ~sep:", "))
     end
 
-
-
-  (* | FinishAsync (async_exprs, curr_thread_expr) ->
-            (* Type check async expressions *)
-            Result.all
-              (List.map
-                  ~f:(type_async_expr type_expr type_block_with_defns env borrowed_vars)
-                  async_exprs)
-            >>= fun typed_async_exprs ->
-            (* Type check current thread expression *)
-            type_block_with_defns curr_thread_expr env
-            >>= fun (typed_curr_thread_expr, curr_thread_expr_type) ->
-            (* Collect free variables and types from both expressions *)
-            let free_vars_and_types = 
-              List.concat_map
-                ~f:(fun (Typed_ast.AsyncExpr (free_vars, _)) -> free_vars)
-                typed_async_exprs @
-              dedup_free_vars (free_obj_vars_block_expr env typed_curr_thread_expr)
-            in
-            (* Construct typed AST *)
-            let typed_ast = {
-              Typed_ast.loc = expr.loc;
-              typ = curr_thread_expr_type;
-              node = TFinishAsync
-                ( typed_async_exprs
-                , free_vars_and_types
-                , typed_curr_thread_expr
-                )
-            } in
-            Ok typed_ast
-        *)
-
-
-        | FinishAsync (async_exprs, curr_thread_expr) ->
-          (* Type check async expressions *)
-          Result.all (List.map ~f:(type_async_expr type_block_with_defns env) async_exprs)
-          >>= fun typed_async_exprs ->
-          (* Type check current thread expression *)
-          type_block_with_defns curr_thread_expr env
-          >>= fun (typed_curr_thread_expr, curr_thread_expr_type) ->
-          (* Collect free variables and types from both expressions *)
-          let free_vars_and_types =
-            List.concat_map
-              ~f:(fun (Typed_ast.AsyncExpr(free_vars, _)) -> free_vars)
-              typed_async_exprs @
-            dedup_free_vars (free_obj_vars_block_expr env typed_curr_thread_expr)
-          in
-          (* Construct typed AST *)
-          let typed_ast = {
-            Typed_ast.loc = expr.loc;
-            typ = curr_thread_expr_type;
-            node = TFinishAsync
-              ( typed_async_exprs
-              , free_vars_and_types
-              , typed_curr_thread_expr
-              )
-          } in
-          Ok typed_ast
+  | FinishAsync (async_exprs, curr_thread_expr) ->
+    (* Type check async expressions *)
+    Result.all (List.map ~f:(type_async_expr type_block_with_defns env) async_exprs)
+    >>= fun typed_async_exprs ->
+    (* Type check current thread expression *)
+    type_block_with_defns curr_thread_expr env
+    >>= fun (typed_curr_thread_expr, curr_thread_expr_type) ->
+    (* Collect free variables and types from both expressions *)
+    let free_vars_and_types =
+      List.concat_map
+        ~f:(fun (Typed_ast.AsyncExpr(free_vars, _)) -> free_vars)
+        typed_async_exprs @
+      dedup_free_vars (free_obj_vars_block_expr env typed_curr_thread_expr)
+    in
+    (* Construct typed AST *)
+    let typed_ast = {
+      Typed_ast.loc = expr.loc;
+      typ = curr_thread_expr_type;
+      node = TFinishAsync
+        ( typed_async_exprs
+        , free_vars_and_types
+        , typed_curr_thread_expr
+        )
+    } in
+    Ok typed_ast
       
-        
-
-    
-  
   | Printf (format_str, args) ->
     let%bind typed_args = type_args type_with_defns args env in
     Ok ({Typed_ast.loc = expr.loc; typ = TEVoid; node = TPrintf (format_str, typed_args)})

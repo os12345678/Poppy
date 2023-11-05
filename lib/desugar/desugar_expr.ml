@@ -23,6 +23,8 @@ module T = Poppy_type_checker.Typed_ast
 module A = Poppy_parser.Ast_types
 module E = Desugar_env
 
+let generate_thread_id index = "thread_" ^ (string_of_int index)
+
 let extract_var_name (id: T.typed_identifier) : string = 
   match id with
   | T.TVariable (name, _, _, _) -> A.Var_name.to_string name
@@ -180,17 +182,22 @@ let rec desugar_expr (te: T.expr): Desugared_ast.dexpr =
   | TFinishAsync (asyncs, _obj_var_and_capabilities, block) -> 
     print_endline "Desugaring finish_async";
     (* Extract all function calls from each async block *)
-    let all_calls = List.concat_map ~f:(fun asyncs -> extract_calls_from_async asyncs ) asyncs in
-    (* Create a thread for each function call *)
-    let thread_creations = List.map ~f:(fun call -> 
-      DCreateThread (call.fname, List.map ~f:(fun de -> de.node) call.args)
-    ) all_calls in
+    let all_desugared_exprs = List.concat_map ~f:desugar_async_exprs asyncs in
+    print_endline ("Desugared expressions: " ^ (string_of_int (List.length all_desugared_exprs)));
+    let thread_creations = List.mapi ~f:(fun index expr -> 
+      let thread_id = generate_thread_id index in
+      DCreateThread (thread_id, [expr.node])
+    ) all_desugared_exprs in
     print_endline ("Thread creates: " ^ (string_of_int (List.length thread_creations)));
+
     (* Join all threads after they've been created *)
-    let thread_joins = List.map ~f:(fun call -> DJoinThread (DVar (call.fname))) all_calls in
+    let thread_joins = List.mapi ~f:(fun index _expr -> 
+      let thread_id = generate_thread_id index in
+      DJoinThread (DVar (thread_id))
+    ) all_desugared_exprs in
     print_endline ("Thread joins: " ^ (string_of_int (List.length thread_joins)));
+
     let dblock = desugar_block block in
-    (* Combine thread creations, joins, and the main block *)
     let dblock_nodes = List.map ~f:(fun expr -> expr.node) dblock in
     let combined_nodes = thread_creations @ thread_joins @ dblock_nodes in
     { loc = te.loc; 
@@ -212,22 +219,9 @@ and desugar_block (tb: T.block_expr) : Desugared_ast.dblock =
     ) exprs in
     results
       
-and extract_calls_from_async (async: T.async_expr) : function_call list =
+and desugar_async_exprs (async: T.async_expr) : dexpr list =
   match async with
   | AsyncExpr (_, (Block (_, _, exprs))) -> 
     print_endline "found async expr block";
-    let results = List.filter_map ~f:(fun expr ->
-      match expr.node with
-      | TFunctionApp (fname, args) -> 
-        let desugared_args = List.map ~f:(fun args -> desugar_expr args ) args in
-        let fname_str = A.Function_name.to_string fname in
-        Some { fname = fname_str; args = desugared_args }
-      | TMethodApp (_var_name, sname, tname, mname, args) ->
-        let desugared_args = List.map ~f:(fun args -> desugar_expr args) args in
-        let mangled_fn_name = E.mangle_impl tname sname mname in
-        Some { fname = mangled_fn_name; args = desugared_args }
-      | _ -> 
-      print_endline "found no async expr block";
-      None
-    ) exprs in
-    results
+    List.map ~f:desugar_expr exprs
+  
