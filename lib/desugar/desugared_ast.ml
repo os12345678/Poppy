@@ -21,7 +21,7 @@ and dexpr_node =
 | DCall                of string * dexpr_node list
 | DIf                  of dexpr_node * dblock * dblock
 | DWhile               of dexpr_node * dblock
-| DCreateThread        of string (* function name *) * dexpr_node list (* argument *)
+| DCreateThread        of string * dexpr_node list (* argument *)
 | DJoinThread          of dexpr_node (* thread identifier *)
 
 and dblock = dexpr list [@@deriving sexp]

@@ -68,6 +68,7 @@ rule read_tok =
   | "bool" { TYPE_BOOL } 
   | "void" { TYPE_VOID }
   | "borrowed" { BORROWED }
+  | "consume" { CONSUME }
   | "true" { TRUE }
   | "false" { FALSE }
   | "while" { WHILE }

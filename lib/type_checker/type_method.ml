@@ -31,7 +31,7 @@ let type_method_defn env struct_defns trait_defns method_defns function_defns (A
         let%bind () = check_method_signature_matches method_signature.params method_signature.return_type method_signature in
         let env_with_this = add_this_to_block_scope env struct_name in
         let%bind updated_env = add_params_to_scope env_with_this method_signature.params in
-        let%map (typed_body, _) = Type_expr.type_block_expr struct_defns trait_defns method_defns function_defns body updated_env in
+        let%map (typed_body, _) = Type_expr.type_block_expr struct_defns trait_defns method_defns function_defns [] body updated_env in
         Typed_ast.TMethod(method_signature, typed_body)
       )) in
       match typed_methods_result with

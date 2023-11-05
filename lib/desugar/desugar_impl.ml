@@ -33,7 +33,7 @@ and desugar_method (struct_name: Typ.Struct_name.t) (trait_name: Typ.Trait_name.
     None
   ) in
   {
-    name = Desugar_env.mangle trait_name struct_name signature.name;
+    name = Desugar_env.mangle_impl trait_name struct_name signature.name;
     ret_type = signature.return_type;
     params = Desugar_env.desugar_param(this_param) :: (List.map ~f: Desugar_env.desugar_param (signature.params));
     body = Desugar_expr.desugar_block block_expr;

@@ -1,6 +1,6 @@
 (executable
  (name main)
  (libraries core core_unix.command_unix menhirLib poppy llvm llvm.executionengine llvm.linker llvm.irreader
- llvm.target poppy_codegen poppy_parser poppy_type_checker desugar ppx_expect ppx_inline_test)
+ llvm.target poppy_codegen poppy_parser poppy_type_checker desugar ppx_expect ppx_inline_test data_race_checker)
  (preprocess (pps ppx_jane))
  (modules main))
