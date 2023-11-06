@@ -45,7 +45,7 @@ let rec free_obj_vars_expr (env: env) (expr: T.expr) =
       |> fun free_vars_assigned_expr ->
       free_obj_vars_identifier identifier env @ free_vars_assigned_expr
   | TConsume id -> free_obj_vars_identifier id env
-  | TMethodApp (obj_name, obj_struct, _, _, args_exprs) ->
+  | TMethodApp (obj_name, obj_struct, _, _, _, args_exprs) ->
       (obj_name, obj_struct, get_struct_capabilities obj_struct env)
       :: union_free_vars_lists (List.map ~f:(free_obj_vars_expr env) args_exprs)
   | TFunctionApp (_, args_exprs) ->

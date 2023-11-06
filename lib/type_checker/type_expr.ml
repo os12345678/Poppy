@@ -125,13 +125,14 @@ let type_block_with_defns = type_block_expr struct_defns trait_defns impl_defns 
         let trait_and_method_signature = List.find_map ~f:find_trait_and_method_signature trait_names in
         begin match trait_and_method_signature with
         | Some (trait_name, method_signature) ->
+            let caps = get_struct_capabilities receiver_struct_name env in
             let param_types = List.map ~f:(function Param (param_type, _, _, _) -> param_type) method_signature.params in
             let%bind typed_args = type_args type_with_defns args_expr env in
             if not (equal_type_expr_list param_types (List.map typed_args ~f:(fun arg -> arg.typ))) then
                 Error (Core.Error.of_string (Fmt.str "%s Type error - Method %s expected arguments of type %s but got %s" 
                     (string_of_loc expr.loc) (Method_name.to_string method_name) (string_of_type_list param_types) (string_of_type_list (List.map typed_args ~f:(fun arg -> arg.typ)))))
             else
-                Ok ({Typed_ast.loc = expr.loc; typ = method_signature.return_type; node = TMethodApp (receiver_var, receiver_struct_name, trait_name, method_name, typed_args)})
+                Ok ({Typed_ast.loc = expr.loc; typ = method_signature.return_type; node = TMethodApp (receiver_var, receiver_struct_name, trait_name, method_name, caps, typed_args)})
         | None -> 
             Error (Core.Error.of_string (Fmt.str "%s Type error - Method %s not found in any implemented trait for struct %s" 
                 (string_of_loc expr.loc) (Method_name.to_string method_name) (Struct_name.to_string receiver_struct_name)))

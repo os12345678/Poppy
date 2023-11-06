@@ -23,7 +23,7 @@ let check_arg_borrowing env loc ((Param (param_type, _, _, maybe_borrowed) as pa
   let rec type_function_forward_borrowing_expr env expr =
     let open Result in
     match expr.node with
-    | TMethodApp (obj_name, obj_struct, _trait_name, meth_name, args) ->
+    | TMethodApp (obj_name, obj_struct, _, meth_name, _, args) ->
       let args_ids = List.concat_map ~f:reduce_expr_to_obj_ids args in
       Type_linear_capabilities.type_linear_obj_method_args env obj_name obj_struct args_ids expr.loc
       >>= fun () ->
@@ -154,7 +154,7 @@ let rec type_assign_borrowed_expr env expr =
                   (string_of_loc expr.loc)))
       | None          -> Ok None )
 
-  | T.TMethodApp ( _, _, _, meth_name, args) ->
+  | T.TMethodApp ( _, _, _, meth_name, _, args) ->
     (* Recurse on arguments *)
     Result.all (List.map ~f:(type_assign_borrowed_expr env) args)
     >>| fun _ ->

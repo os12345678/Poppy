@@ -115,7 +115,7 @@ let rec desugar_expr (te: T.expr): Desugared_ast.dexpr =
       typ = te.typ; 
       node = DCall (A.Function_name.to_string fname, List.map ~f:(fun e -> e.node) desugared_args) }
 
-  | TMethodApp (obj_name, struct_name, trait_name, method_name, args) ->
+  | TMethodApp (obj_name, struct_name, trait_name, method_name, _, args) ->
     let obj_expr = { loc = te.loc; typ = te.typ; node = DVar (A.Var_name.to_string obj_name) } in
     let desugared_args = List.map ~f:(fun args -> desugar_expr args ) args in
     let mangled_fn_name = 

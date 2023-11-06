@@ -22,8 +22,7 @@ let rec reduce_expr_to_obj_ids (expr: T.expr) =
   | T.TLet (var_type, var_name, _) ->
       [T.TVariable (var_name, Option.get var_type, [], None)]
   | T.TAssign (id, _) -> [id]
-  (* | T.TConsume (_, _) -> [] *)
-  | T.TMethodApp (_, _, _, _, _) -> []
+  | T.TMethodApp (_, _, _, _, _, _) -> []
   | T.TFunctionApp ( _, _) -> []
   | T.TPrintf (_, _) -> []
   | T.TFinishAsync (_, _, curr_thread_expr) ->
@@ -217,8 +216,8 @@ let rec find_immediate_aliases_in_expr should_match_fields orig_obj_name curr_al
           constructor_args
     | T.TAssign (_, assigned_expr) ->
         find_imm_aliases_in_expr_rec curr_aliases assigned_expr.node
-    (* | Consume _ -> curr_aliases *)
-    | T.TMethodApp (_, _, _, _, args_exprs) ->
+    | TConsume _ -> curr_aliases
+    | T.TMethodApp (_, _, _, _, _, args_exprs) ->
       let node_list = Core.List.map ~f:(fun e -> e.node) args_exprs in
       Core.List.fold ~init:curr_aliases ~f:find_imm_aliases_in_expr_rec node_list
     | T.TFunctionApp (_, args_exprs) ->
@@ -244,12 +243,7 @@ let rec find_immediate_aliases_in_expr should_match_fields orig_obj_name curr_al
         find_imm_aliases_in_block_expr_rec curr_aliases_with_cond loop_expr
     | T.TBinOp (_, expr1, expr2) ->
         Core.List.fold ~init:curr_aliases ~f:find_imm_aliases_in_expr_rec [expr1.node; expr2.node]
-    | T.TUnOp (_, expr) -> find_imm_aliases_in_expr_rec curr_aliases expr.node
-
-
-  | _ -> failwith "Data race env: Consume not implemented"
-         
-  
+    | T.TUnOp (_, expr) -> find_imm_aliases_in_expr_rec curr_aliases expr.node         
 
 and find_immediate_aliases_in_block_expr should_match_fields orig_obj_name curr_aliases
   (T.Block (_, _, exprs)) =
@@ -267,29 +261,6 @@ let find_aliases_in_block_expr ~should_match_fields name_to_match block_expr =
     if var_lists_are_equal updated_aliases curr_aliases then curr_aliases
     else get_all_obj_aliases should_match_fields updated_aliases block_expr in
   get_all_obj_aliases should_match_fields [] block_expr
-
-  (* let get_class_defn class_name class_defns =
-    let matching_class_defns =
-      List.filter ~f:(fun (TClass (name, _, _, _, _)) -> class_name = name) class_defns
-    in
-    (* This should never throw an exception since we've checked this property in earlier
-       type-checking stages of the pipeline *)
-    List.hd_exn matching_class_defns *)
-
-  (* let rec get_trait_method_defns class_name env =
-    let struct_defns = 
-    E.get_struct_defn class_name env
-    |> fun (TClass (_, maybe_superclass, _, _, method_defns)) ->
-    ( match maybe_superclass with
-    | Some superclass -> get_class_method_defns superclass class_defns
-    | None            -> [] )
-    |> fun superclass_methods ->
-    List.concat [superclass_methods; method_defns]
-    (* filter out overridden methods (i.e those with same name) *)
-    |> List.dedup_and_sort
-         ~compare:(fun (TMethod (name_1, _, _, _, _, _))
-                       (TMethod (name_2, _, _, _, _, _))
-                       -> if name_1 = name_2 then 0 else 1) *)
   
 let get_method_params meth_name env =
   (* gets Ast.method_defn not Typed_ast... problem? *)

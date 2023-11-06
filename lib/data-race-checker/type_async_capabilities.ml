@@ -83,13 +83,14 @@ let remove_thread_subord_caps_from_async_expr class_defns
   | TAssign (id, assigned_expr) -> {expr with node = 
       TAssign (id, type_async_capabilities_expr class_defns assigned_expr)}
   | TConsume _ -> expr
-  | TMethodApp (obj_name, struct_name, trait_name, method_name, args)
+  | TMethodApp (obj_name, struct_name, trait_name, method_name, obj_capabilities, args)
     -> {expr with node = 
       TMethodApp
         ( obj_name
         , struct_name
         , trait_name
         , method_name
+        , obj_capabilities
         , List.map ~f:(type_async_capabilities_expr class_defns) args )}
   | TFunctionApp (func_name, args) -> {expr with node = 
     TFunctionApp
