@@ -1,5 +1,6 @@
 open Core
 open Poppy_parser.Ast_types
+open Data_race_env
 
 module E = Poppy_type_checker.Type_env
 
@@ -17,7 +18,7 @@ let check_capability_in_struct_capabilities struct_name class_capabilities capab
               (Struct_name.to_string struct_name)))
   | capability :: _ -> Ok capability
 
-let type_param_capability_annotations env = function
+let type_param_capability_annotations struct_defns = function
   | Param (param_type, _, optional_capability_guards, _) -> (
       let open Result in
       match param_type with
@@ -25,7 +26,7 @@ let type_param_capability_annotations env = function
           let open Result in
           match optional_capability_guards with
           | Some capability_guards ->
-              E.get_struct_capabilities obj_struct env
+              get_struct_capabilities obj_struct struct_defns
               |> fun struct_capabilities ->
               Result.all
                 (List.map
@@ -36,5 +37,5 @@ let type_param_capability_annotations env = function
           | None                   -> Ok () )
       | TEInt | TEBool | TEVoid -> Ok () )
 
-let type_params_capability_annotations env params =
-  Result.all_unit (List.map ~f:(type_param_capability_annotations env) params)
+let type_params_capability_annotations struct_defns params =
+  Result.all_unit (List.map ~f:(type_param_capability_annotations struct_defns) params)

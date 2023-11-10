@@ -5,9 +5,10 @@ open Poppy_type_checker.Typed_ast
 open Data_race_env
 (* open Poppy_type_checker.Type_env *)
 
-let unwrap_option = function
+(* let unwrap_option = function
   | Some x -> x
-  | None -> failwith "Unexpected None value"
+  | None -> expr.typ *)
+
 
 let string_of_id id =
   match id with
@@ -104,9 +105,9 @@ and type_consume_expr env expr consumed_ids =
           accumulate_consumed_ids env acc expr)
         constructor_args
 
-  | TLet (var_type, var_name, bound_expr) ->
+  | TLet (_var_type, var_name, bound_expr) ->
     type_consume_expr env bound_expr consumed_ids
-    >>| remove_reassigned_id (TVariable (var_name, unwrap_option(var_type), [], None))
+    >>| remove_reassigned_id (TVariable (var_name, expr.typ, [], None))
 
   | TAssign (identifier, assigned_expr) ->
       type_consume_expr env assigned_expr consumed_ids
@@ -173,7 +174,27 @@ and type_consume_expr env expr consumed_ids =
             type_consume_block_expr env expr consumed_ids)
           all_thread_exprs)
     >>| fun thread_consumed_id_lists -> List.concat thread_consumed_id_lists
-  | _ -> raise (Failure "Type error: consume expression not supported")
+  | TIf (cond_expr, then_expr, else_expr) ->
+    type_consume_expr env cond_expr consumed_ids
+    >>= fun consumed_ids_with_cond ->
+    type_consume_block_expr env then_expr consumed_ids_with_cond
+    >>= fun consumed_ids_then ->
+    type_consume_block_expr env else_expr consumed_ids_with_cond
+    >>| fun consumed_ids_else -> consumed_ids_then @ consumed_ids_else
+  | TWhile (cond_expr, loop_expr) ->
+    (* Note we check twice to simulate going through loop multiple times *)
+    type_consume_expr env cond_expr consumed_ids
+    >>= fun consumed_ids_with_cond1 ->
+    type_consume_block_expr env loop_expr consumed_ids_with_cond1
+    >>= fun consumed_ids_loop1 ->
+    type_consume_expr env cond_expr consumed_ids_loop1
+    >>= fun consumed_ids_with_cond2 ->
+    type_consume_block_expr env loop_expr consumed_ids_with_cond2
+  | TBinOp (_, expr1, expr2) ->
+      List.fold ~init:(Ok consumed_ids)
+        ~f:(accumulate_consumed_ids env)
+        [expr1; expr2]
+  | TUnOp (_, expr) -> type_consume_expr env expr consumed_ids
 
 and type_consume_block_expr env (Block (_, _, block_exprs)) consumed_ids =
   List.fold ~init:(Ok consumed_ids) ~f:(accumulate_consumed_ids env) block_exprs

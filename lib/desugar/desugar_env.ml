@@ -27,4 +27,4 @@ let desugar_param (param: T.param) : (T.type_expr * string) =
     (type_expr, name)
 
 (* let get_struct_names (structs: TAst.struct_defn list) : T.Struct_name.t list =
-  List.map structs ~f:(fun (TAst.struct_defn (name, _, _, _)) -> name) *)
+  List.map structs ~f:(fun (TAst.TStruct (name, _, _)) -> name) *)
