@@ -1,0 +1,5 @@
+(library
+ (name unit_tests_dr_checker)
+ (inline_tests)
+ (libraries poppy_parser poppy_codegen)
+ (preprocess (pps ppx_jane)))
