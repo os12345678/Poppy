@@ -109,3 +109,35 @@ let type_subord_capabilities_block_expr class_defns obj_vars_and_capabilities bl
   if is_this_present obj_vars_and_capabilities then block_expr
   else remove_subord_capabilities_block_expr class_defns block_expr
     
+  let type_subord_capabilities_method_prototype class_defns obj_class meth_name ret_type
+  param_obj_var_capabilities =
+let error_prefix =
+  Fmt.str "Potential Data Race in %s's method %s:"
+    (Struct_name.to_string obj_class)
+    (Method_name.to_string meth_name) in
+(* if object is encapsulated - then it's fine to pass subord state in or out of objects
+   as all accesses will be via object's owner. *)
+if struct_has_mode obj_class Encapsulated class_defns then Ok ()
+else if type_has_mode ret_type Subordinate class_defns then
+  Error
+    (Error.of_string
+       (Fmt.str "%s Subordinate state returned by non-encapsulated method" error_prefix))
+else
+  let subord_args =
+    List.filter
+      ~f:(fun (_, var_class, capabilities) ->
+        List.exists
+          ~f:(fun capability ->
+            capability_fields_have_mode capability var_class Subordinate class_defns)
+          capabilities)
+      param_obj_var_capabilities in
+  if List.is_empty subord_args then Ok ()
+  else
+    let subord_arg_str =
+      String.concat ~sep:", "
+        (List.map ~f:(fun (var_name, _, _) -> Var_name.to_string var_name) subord_args)
+    in
+    Error
+      (Error.of_string
+         (Fmt.str "%s Subordinate arguments passed into non-encapsulated method: %s"
+            error_prefix subord_arg_str))

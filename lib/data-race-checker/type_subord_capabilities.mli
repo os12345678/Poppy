@@ -15,3 +15,11 @@ val type_subord_capabilities_block_expr :
   Data_race_env.E.env ->
   (Data_race_env.A.Var_name.t * 'a * 'b) list ->
   Data_race_env.T.block_expr -> Data_race_env.T.block_expr
+val type_subord_capabilities_method_prototype :
+  Data_race_env.E.env ->
+  Data_race_env.A.Struct_name.t ->
+  Data_race_env.A.Method_name.t ->
+  Data_race_env.A.type_expr ->
+  (Data_race_env.A.Var_name.t * Data_race_env.A.Struct_name.t *
+   Data_race_env.A.capability list)
+  list -> (unit, Base.Error.t) result

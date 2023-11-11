@@ -6,4 +6,5 @@
   data_race_env type_linear_capabilities update_identifier_capabilities
   type_alias_liveliness type_data_race_function type_capability_annotations
   type_borrowing type_capability_constraints type_consume type_async_capabilities
-  type_concurrent_capability_access type_subord_capabilities aggregate_capability_access))
+  type_concurrent_capability_access type_subord_capabilities aggregate_capability_access
+  type_data_race_method))
