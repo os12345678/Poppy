@@ -23,7 +23,7 @@ let poppy_file =
       | false -> error_not_file filename)
 
 let compile_program ?(should_pprint_past = false) ?(should_pprint_tast = false) 
-?(should_pprint_dast = false) ?(should_print_llvm_table = false) ?compile_out_file lexbuf =
+?(should_pprint_dast = false) ?(ignore_data_races = false) ?(should_print_llvm_table = false) ?compile_out_file lexbuf =
   let open Result in 
   (* let the_execution_engine = Llvm_executionengine.create the_module in *)
   let the_fpm = Llvm.PassManager.create_function the_module in
@@ -38,7 +38,7 @@ let compile_program ?(should_pprint_past = false) ?(should_pprint_tast = false)
   (if should_pprint_tast then
       print_endline (Sexp.to_string_hum (Typed_ast.sexp_of_program typed_ast)));
 
-  type_data_race_program env typed_ast (* Data-race checker *)
+  type_data_race_program env typed_ast ~ignore_data_races (* Data-race checker *)
   >>= fun _ ->
 
   Desugar_program.desugar_program typed_ast (* Desugared AST *)
@@ -77,11 +77,13 @@ let command =
         flag "-printdast" no_arg ~doc:" Pretty print the desugared AST of the program"
       and should_print_llvm_table = 
         flag "-printsym" no_arg ~doc:" Pretty print the llvm symbol table"
+      and ignore_data_races = 
+        flag "-ignore-data-races" no_arg ~doc:" Ignore data races"
       and filename = anon (maybe_with_default "-" ("filename" %: poppy_file)) in
       fun () ->
         In_channel.with_file filename ~f:(fun file_ic ->
             let lexbuf = Lexing.from_channel file_ic in
-            match compile_program ~should_pprint_past ~should_pprint_tast ~should_pprint_dast ~should_print_llvm_table lexbuf with
+            match compile_program ~should_pprint_past ~should_pprint_tast ~should_pprint_dast ~ ignore_data_races ~should_print_llvm_table lexbuf with
             | Ok _ -> () (* Success, do nothing *)
             | Error e -> (* Handle error here *)
               eprintf "Compilation error: %s\n" (Core.Error.to_string_hum e);
