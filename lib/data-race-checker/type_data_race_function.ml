@@ -7,7 +7,7 @@ open Type_borrowing
 open Data_race_env
 open Type_data_race_expr
 
-let type_data_races_function_defn struct_defns _trait_defns impl_defns method_defns function_defns (TFunction (func_sig, body_expr)) env =
+let type_data_races_function_defn struct_defns _trait_defns impl_defns method_defns function_defns (TFunction (func_sig, body_expr)) env ~ignore_data_races=
   let open Result in
   type_params_capability_annotations struct_defns func_sig.params
   >>= fun () ->
@@ -22,7 +22,7 @@ let type_data_races_function_defn struct_defns _trait_defns impl_defns method_de
   type_param_capability_constraints param_obj_var_capabilities body_expr
   |> fun param_constrained_body_expr ->
   type_data_races_block_expr struct_defns _trait_defns impl_defns method_defns function_defns env param_constrained_body_expr
-    param_obj_var_capabilities
+    param_obj_var_capabilities ~ignore_data_races
   >>| fun data_race_checked_body_expr ->
   TFunction
     (func_sig, data_race_checked_body_expr)

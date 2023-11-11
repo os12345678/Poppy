@@ -10,13 +10,13 @@ let flatten_method_defns impl_defns =
     acc @ methods
   )
 let type_data_race_program (env: env)
-(Prog (struct_defns, trait_defns, impl_defns, function_defns, main_expr)) : (program, Error.t) Result.t = 
+(Prog (struct_defns, trait_defns, impl_defns, function_defns, main_expr)) ~ignore_data_races = 
   let open Result in
     Result.all
     (List.map
-      ~f:(fun function_defn -> type_data_races_function_defn struct_defns trait_defns impl_defns (flatten_method_defns impl_defns) function_defns function_defn env)
+      ~f:(fun function_defn -> type_data_races_function_defn struct_defns trait_defns impl_defns (flatten_method_defns impl_defns) function_defns function_defn env ~ignore_data_races)
       function_defns)
     >>= fun data_race_checked_function_defns ->
-      type_data_races_block_expr struct_defns trait_defns impl_defns (flatten_method_defns impl_defns) function_defns env main_expr [] 
+      type_data_races_block_expr struct_defns trait_defns impl_defns (flatten_method_defns impl_defns) function_defns env main_expr [] ~ignore_data_races
       >>| fun data_race_checked_main_expr ->
         (Prog (struct_defns, trait_defns, impl_defns, data_race_checked_function_defns, data_race_checked_main_expr))

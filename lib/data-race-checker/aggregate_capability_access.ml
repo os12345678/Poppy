@@ -3,11 +3,6 @@ open Core
 open Poppy_parser.Ast_types
 open Poppy_type_checker.Typed_ast
 open Data_race_env
-(* open Poppy_parser.Ast_types *)
-
-let capability_names_from_capabilities caps =
-  List.map ~f:extract_capability_name caps
-
 
 let aggregate_capability_accesses_thread_free_var all_vars_capability_accesses
     (obj_name, obj_class, _) =

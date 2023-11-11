@@ -9,8 +9,13 @@ let extract_capability_name (cap: A.capability) =
   match cap with
   | TCapability (_, name) -> name
 
+let capability_names_from_capabilities caps =
+  Core.List.map ~f:extract_capability_name caps
+
 let rec elem_in_list x = function [] -> false | y :: ys -> x = y || elem_in_list x ys
 let intersect_lists list1 list2 = List.filter (fun x -> elem_in_list x list2) list1
+let is_subset_of xs ys = Core.List.for_all ~f:(fun x -> elem_in_list x ys) xs
+
 
 
 let var_lists_are_equal xs ys =

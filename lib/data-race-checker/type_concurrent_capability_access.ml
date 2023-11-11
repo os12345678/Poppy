@@ -81,3 +81,64 @@ let can_concurrently_access_capabilities class_name class_defns
            capability_2_name))
   (* Can't access the same linear capability in multiple threads as violates linearity *)
   && not (phys_equal capability_1_mode Linear && phys_equal capability_1_name capability_2_name)
+
+(* We check that the capabilities can be accessed concurrently *)
+let type_concurrent_capability_pair_constraints_var class_defns obj_class obj_name
+    capabilities_thread1 capabilities_thread2 loc =
+  Result.all_unit
+    (List.map
+       ~f:(fun (TCapability (_, capability_thread1_name) as capability_thread1) ->
+         Result.all_unit
+           (List.map
+              ~f:(fun (TCapability (_, capability_thread2_name) as capability_thread2) ->
+                if
+                  can_concurrently_access_capabilities obj_class class_defns
+                    capability_thread1 capability_thread2
+                then Ok ()
+                else
+                  Error
+                    (Error.of_string
+                       (Fmt.str
+                          "Potential data race: %s Can't access capabilities %s and %s of object %s concurrently@."
+                          (string_of_loc loc)
+                          (Capability_name.to_string capability_thread1_name)
+                          (Capability_name.to_string capability_thread2_name)
+                          (Var_name.to_string obj_name))))
+              capabilities_thread2))
+       capabilities_thread1)
+
+let rec type_concurrent_capabilities_constraints_var class_defns obj_name obj_class
+  all_threads_capabilities loc =
+  match all_threads_capabilities with
+  | [] -> Ok ()
+  | thread_1_capabilities :: other_threads_capabilities ->
+      let open Result in
+      Result.all_unit
+        (List.map
+          ~f:(fun thread_2_capabilities ->
+            type_concurrent_capability_pair_constraints_var class_defns obj_class
+              obj_name thread_1_capabilities thread_2_capabilities loc)
+          other_threads_capabilities)
+      >>= fun () ->
+      type_concurrent_capabilities_constraints_var class_defns obj_name obj_class
+        other_threads_capabilities loc
+
+let type_concurrent_capability_constraints_vars class_defns threads_free_vars loc =
+  let var_names_and_classes =
+    List.dedup_and_sort
+      ~compare:(fun a b -> if phys_equal a b then 0 else 1)
+      (List.map
+          ~f:(fun (var_name, class_name, _) -> (var_name, class_name))
+          threads_free_vars) in
+  Result.all_unit
+    (List.map (* check constraint for each object *)
+        ~f:(fun (obj_name, obj_class) ->
+          List.filter_map
+            ~f:(fun (var_name, class_name, capabilities) ->
+              if A.Var_name.(=) var_name obj_name && A.Struct_name.(=) class_name obj_class then Some capabilities
+              else None)
+            threads_free_vars
+          |> fun all_threads_obj_capabilities ->
+          type_concurrent_capabilities_constraints_var class_defns obj_name obj_class
+            all_threads_obj_capabilities loc)
+        var_names_and_classes)
