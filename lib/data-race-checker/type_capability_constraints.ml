@@ -114,7 +114,7 @@ let rec type_capabilities_constraints_expr (struct_defns: struct_defn list) (met
         (Method_name.to_string method_name) in
     Result.all_unit
       (List.map
-         ~f:(type_capability_constraints_function_arg env method_str expr.loc)
+         ~f:(type_capability_constraints_function_arg struct_defns method_str expr.loc)
          (List.zip_exn params args))
     >>= fun () ->
     type_obj_method_capability_constraints method_defns obj_name method_name
@@ -127,7 +127,7 @@ let rec type_capabilities_constraints_expr (struct_defns: struct_defn list) (met
     let function_str = Fmt.str "Function %s" (Function_name.to_string func_name) in
     Result.all_unit
       (List.map
-          ~f:(type_capability_constraints_function_arg env function_str expr.loc)
+          ~f:(type_capability_constraints_function_arg struct_defns function_str expr.loc)
           (List.zip_exn params args))
     >>= fun () ->
     Result.all_unit
@@ -139,7 +139,7 @@ let rec type_capabilities_constraints_expr (struct_defns: struct_defn list) (met
     let all_async_free_vars =
       List.map ~f:(fun (AsyncExpr (async_free_vars, _)) -> async_free_vars) async_exprs
     in
-    type_concurrent_capability_constraints_vars env
+    type_concurrent_capability_constraints_vars struct_defns
       (curr_thread_free_vars @ List.concat all_async_free_vars)
       expr.loc
     >>= fun () ->

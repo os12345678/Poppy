@@ -23,6 +23,7 @@ let rec type_read_capabilities_expr (expr: T.expr) : T.expr =
     T.TAssign
       (remove_read_capabilities id
       , type_read_capabilities_expr assigned_expr )}
+  | TConsume id -> {expr with node = TConsume (remove_read_capabilities id)}
   | T.TMethodApp (var_name, struct_name, trait_name, method_name, obj_capabilities, args) ->
     {expr with node = T.TMethodApp
       (var_name
@@ -66,11 +67,7 @@ let rec type_read_capabilities_expr (expr: T.expr) : T.expr =
         , type_read_capabilities_expr expr1
         , type_read_capabilities_expr expr2 )}
   | T.TUnOp (unop, expr) -> {expr with node = 
-      T.TUnOp (unop, type_read_capabilities_expr expr)}
-
-  
-  | _ -> failwith "type read capabilities: Consume not implemented"
-         
+      T.TUnOp (unop, type_read_capabilities_expr expr)}         
 
 and type_read_capabilities_block_expr (T.Block (loc, type_block_expr, exprs)) =
   let updated_exprs = List.map type_read_capabilities_expr exprs in

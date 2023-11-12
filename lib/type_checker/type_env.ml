@@ -225,6 +225,13 @@ let get_struct_defn struct_name struct_defns =
       struct_defns in
   List.hd_exn matching_struct_defns
 
+let get_struct_defn2 struct_name (struct_defns: Ast.struct_defn list) =
+  let matching_struct_defns =
+    List.filter
+      ~f:(fun (Ast.TStruct (name, _, _)) -> Ast_types.Struct_name.(=) struct_name name)
+      struct_defns in
+  List.hd_exn matching_struct_defns
+
 let get_obj_struct_defn var_name env loc = 
   lookup_var env var_name loc
   >>= function
@@ -237,21 +244,26 @@ let get_obj_struct_defn var_name env loc =
                   (Var_name.to_string var_name)
                   (string_of_type wrong_type)))
 
-let get_struct_capabilities struct_name env =
-  match env with
-  | Global (struct_map, _, _, _, _) ->
-    (match StructNameMap.find struct_map struct_name with
-    | Some (TStruct (_, capabilities, _)) -> capabilities
-    | None -> [])
-  | _ -> []
+(* TODO BROKEN *)
+let get_struct_capabilities struct_name struct_defns =
+  let matching_struct_defn = get_struct_defn struct_name struct_defns in
+  match matching_struct_defn with
+  | Typed_ast.TStruct (_, capabilities, _) -> capabilities
 
-let get_struct_fields struct_name env = 
-  match env with 
-  | Global (struct_map, _, _, _, _) ->
-    (match StructNameMap.find struct_map struct_name with 
-    | Some (TStruct (_, _, fields)) -> fields
-    | None -> [])
-  | _ -> []
+let get_struct_capabilities2 struct_name (struct_defns: Ast.struct_defn list) =
+  let matching_struct_defn = get_struct_defn2 struct_name struct_defns in
+  match matching_struct_defn with
+  | Ast.TStruct (_, capabilities, _) -> capabilities
+
+let get_struct_fields struct_name struct_defns = 
+  let matching_struct_defn = get_struct_defn struct_name struct_defns in
+  match matching_struct_defn with
+  | Typed_ast.TStruct (_, _, fields) -> fields
+
+let get_struct_fields2 struct_name (struct_defns: Ast.struct_defn list) = 
+  let matching_struct_defn = get_struct_defn2 struct_name struct_defns in
+  match matching_struct_defn with
+  | Ast.TStruct (_, _, fields) -> fields
 
   let get_method_defn method_name env =
     match env with
@@ -275,9 +287,9 @@ let get_function_defn function_name env =
   | _ ->
     raise (FunctionNotFoundError "Function lookup should be done in the global environment")
 
-  let get_method_field_capabilities struct_name env =
-    let fields = get_struct_fields struct_name env in
-    let struct_capabilities = get_struct_capabilities struct_name env in
+  let get_method_field_capabilities struct_name struct_defns =
+    let fields = get_struct_fields struct_name struct_defns in
+    let struct_capabilities = get_struct_capabilities struct_name struct_defns in
   
     List.fold_left 
       ~f:(fun acc (TField (_, _, _, field_capability_names)) ->
@@ -288,6 +300,20 @@ let get_function_defn function_name env =
       )
       ~init:[] 
       fields
+
+let get_method_field_capabilities2 struct_name (struct_defns: Ast.struct_defn list) =
+  let fields = get_struct_fields2 struct_name struct_defns in
+  let struct_capabilities = get_struct_capabilities2 struct_name struct_defns in
+
+  List.fold_left 
+    ~f:(fun acc (TField (_, _, _, field_capability_names)) ->
+      List.filter 
+        ~f:(fun (TCapability (_, capability_name)) ->
+          elem_in_list capability_name field_capability_names) 
+        struct_capabilities @ acc
+    )
+    ~init:[] 
+    fields
   
 
   

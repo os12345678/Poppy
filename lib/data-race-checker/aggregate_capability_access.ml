@@ -118,7 +118,7 @@ let rec aggregate_capability_accesses_expr (struct_defns: struct_defn list) (met
                 aggregate_capability_accesses_expr_rec arg
                 |> fun (updated_arg, arg_capability_accesses) ->
                 ( updated_arg
-                , get_arg_capabilities_used_by_fn env param arg
+                , get_arg_capabilities_used_by_fn struct_defns param arg
                   @ arg_capability_accesses ))
               (List.zip_exn method_params args))
         |> fun (updated_args, args_capability_accesses) ->
@@ -142,7 +142,7 @@ let rec aggregate_capability_accesses_expr (struct_defns: struct_defn list) (met
             aggregate_capability_accesses_expr_rec arg
             |> fun (updated_arg, arg_capability_accesses) ->
             ( updated_arg
-            , get_arg_capabilities_used_by_fn env param arg
+            , get_arg_capabilities_used_by_fn struct_defns param arg
               @ arg_capability_accesses ))
           (List.zip_exn (get_function_params func_name function_defns) args))
     |> fun (updated_args, args_capability_accesses) ->
@@ -212,7 +212,7 @@ let rec aggregate_capability_accesses_expr (struct_defns: struct_defn list) (met
     |> fun (updated_expr, expr_capability_accesses) ->
     ({expr with node = TUnOp (unop, updated_expr)}, expr_capability_accesses)
 
-and aggregate_capability_accesses_block_expr struct_defns method_defns impl_defns function_defns (env: E.env)
+and aggregate_capability_accesses_block_expr struct_defns method_defns impl_defns function_defns env
   (Block (loc, type_block_expr, exprs)) =
   List.unzip
     (List.map ~f:(aggregate_capability_accesses_expr struct_defns method_defns impl_defns function_defns env) exprs)

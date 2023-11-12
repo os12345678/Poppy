@@ -18,15 +18,19 @@ let string_of_type_list type_list =
   |> List.map ~f:string_of_type
   |> String.concat ~sep:", "
 
-  let type_identifier id borrowed_vars env loc =
+  let type_identifier id (struct_defns: struct_defn list) borrowed_vars env loc =
     match id with
     | Ast.Variable var ->
       let%bind var_type = lookup_var env var loc in
       let capabilities = 
       match var_type with 
-      | TEStruct sname -> get_struct_capabilities sname env 
+      | TEStruct sname -> get_struct_capabilities2 sname struct_defns 
       | _ -> [] in
-      let isBorrowed =
+      Printf.printf "var: %s, var_type: %s, capabilities: %s\n" 
+      (Var_name.to_string var) 
+      (string_of_type var_type) 
+      (String.concat ~sep:", " (List.map ~f:(fun caps -> string_of_cap caps) capabilities));
+          let isBorrowed =
         if elem_in_list var borrowed_vars then Some Borrowed else None in
       Ok (Typed_ast.TVariable (var, var_type, capabilities, isBorrowed), var_type)
   
@@ -38,7 +42,7 @@ let string_of_type_list type_list =
           if elem_in_list var_name borrowed_vars then Some Borrowed else None in
          begin match List.find ~f:(fun (TField (_, _, name, _)) -> Field_name.(=) name field_name) fields with
           | Some (TField (_, field_type, _, _)) -> 
-            let field_capabilities = get_method_field_capabilities sname env in
+            let field_capabilities = get_method_field_capabilities2 sname struct_defns in
               Ok (Typed_ast.TObjField (sname, var_name, field_type, field_name, field_capabilities, isBorrowed), field_type)
               | None -> Error (Core.Error.of_string (Fmt.str "%d:%d Type error - Field %s not found in struct %s" (loc.lnum) (loc.cnum) (Field_name.to_string field_name) (Struct_name.to_string sname)))
             end
@@ -78,7 +82,7 @@ let type_block_with_defns = type_block_expr struct_defns trait_defns impl_defns 
   | Ast.Boolean b -> Ok ({Typed_ast.loc = expr.loc; typ = TEBool; node = TBoolean b})
 
   | Ast.Identifier id ->
-    let%map (typed_id, id_type) = type_identifier id borrowed_vars env expr.loc in
+    let%map (typed_id, id_type) = type_identifier id struct_defns borrowed_vars env expr.loc in
     ({Typed_ast.loc = expr.loc; typ = id_type; node = TIdentifier typed_id})
 
   | Ast.Let (type_annot_maybe, var_name, let_expr)-> 
@@ -100,7 +104,7 @@ let type_block_with_defns = type_block_expr struct_defns trait_defns impl_defns 
   | Ast.Assign (id, assignable_expr) -> 
       let%bind () = check_identifier_assignable id env expr.loc in
       let%bind typed_expr = type_with_defns assignable_expr env in
-      let%bind (typed_id, id_type) = type_identifier id borrowed_vars env expr.loc in 
+      let%bind (typed_id, id_type) = type_identifier id struct_defns borrowed_vars env expr.loc in 
       if equal_type_expr id_type typed_expr.typ then
         Ok ({Typed_ast.loc = expr.loc; typ = id_type; node = TAssign (typed_id, typed_expr)})
       else
@@ -109,7 +113,7 @@ let type_block_with_defns = type_block_expr struct_defns trait_defns impl_defns 
           (string_of_loc expr.loc) (string_of_type typed_expr.typ) (string_of_type id_type))
   | Ast.Consume (id) ->
     let%bind () = check_identifier_consumable id env expr.loc in
-    let%map (typed_id, id_type) = type_identifier id borrowed_vars env expr.loc in 
+    let%map (typed_id, id_type) = type_identifier id struct_defns borrowed_vars env expr.loc in 
     ({Typed_ast.loc = expr.loc; typ = id_type; node = TConsume(typed_id)})
 
   | Ast.MethodApp(receiver_var, method_name, args_expr) ->
@@ -125,7 +129,7 @@ let type_block_with_defns = type_block_expr struct_defns trait_defns impl_defns 
         let trait_and_method_signature = List.find_map ~f:find_trait_and_method_signature trait_names in
         begin match trait_and_method_signature with
         | Some (trait_name, method_signature) ->
-            let caps = get_struct_capabilities receiver_struct_name env in
+            let caps = get_struct_capabilities2 receiver_struct_name struct_defns in
             let param_types = List.map ~f:(function Param (param_type, _, _, _) -> param_type) method_signature.params in
             let%bind typed_args = type_args type_with_defns args_expr env in
             if not (equal_type_expr_list param_types (List.map typed_args ~f:(fun arg -> arg.typ))) then
@@ -161,7 +165,7 @@ let type_block_with_defns = type_block_expr struct_defns trait_defns impl_defns 
 
   | FinishAsync (async_exprs, curr_thread_expr) ->
     (* Type check async expressions *)
-    Result.all (List.map ~f:(type_async_expr type_block_with_defns env) async_exprs)
+    Result.all (List.map ~f:(type_async_expr type_block_with_defns env struct_defns) async_exprs)
     >>= fun typed_async_exprs ->
     (* Type check current thread expression *)
     type_block_with_defns curr_thread_expr env
@@ -171,7 +175,7 @@ let type_block_with_defns = type_block_expr struct_defns trait_defns impl_defns 
       List.concat_map
         ~f:(fun (Typed_ast.AsyncExpr(free_vars, _)) -> free_vars)
         typed_async_exprs @
-      dedup_free_vars (free_obj_vars_block_expr env typed_curr_thread_expr)
+      dedup_free_vars (free_obj_vars_block_expr env struct_defns typed_curr_thread_expr)
     in
     (* Construct typed AST *)
     let typed_ast = {
@@ -276,10 +280,10 @@ let type_block_with_defns = type_block_expr struct_defns trait_defns impl_defns 
       end
 
   and type_async_expr  (type_block_with_defns: block_expr -> env -> (T.block_expr * type_expr, Core.Error.t) t) 
-  env (Ast.AsyncExpr async_block_expr) =
+  env struct_defns (Ast.AsyncExpr async_block_expr) =
     let%bind typed_block_with_defns, _ = type_block_with_defns async_block_expr env in
     let free_obj_vars_expr =
-      dedup_free_vars (free_obj_vars_block_expr env typed_block_with_defns) in
+      dedup_free_vars (free_obj_vars_block_expr env struct_defns typed_block_with_defns) in
     type_block_with_defns async_block_expr env
     |> function
     | Ok (desugared_async_block_expr, _) ->

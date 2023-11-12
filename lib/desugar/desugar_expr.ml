@@ -93,6 +93,11 @@ let rec desugar_expr (te: T.expr): Desugared_ast.dexpr =
     { loc = te.loc; 
       typ = te.typ; 
       node = DAssign (A.Var_name.to_string var_name, call_node.node) }
+  | TConsume id ->
+    let var_name = extract_var_name id in
+    { loc = te.loc; 
+      typ = te.typ; 
+      node = DVar var_name }
   
   
   (* Binary/unary Operators *)
@@ -203,8 +208,6 @@ let rec desugar_expr (te: T.expr): Desugared_ast.dexpr =
     { loc = te.loc; 
       typ = TEVoid; 
       node = DBlockExpr combined_nodes }
-
-  | _ -> failwith "Desugar: Consume not implemented"
          
 and desugar_block (tb: T.block_expr) : Desugared_ast.dblock =
   match tb with

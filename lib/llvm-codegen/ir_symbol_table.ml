@@ -205,7 +205,6 @@ and print_symbol_info info =
               failwith (Printf.sprintf "Struct %s not found in symbol table" struct_name)
           end
       | None -> 
-        print_endline ("did not find corresponding struct " ^ dfunction.name);
           let params = List.map (fun param ->
               let _param_type, _param_name = param in 
               LVarInfo {
@@ -235,8 +234,8 @@ let rec process_expr (sym_table: llvm_symbol_table) (expr: dexpr) : llvm_symbol_
     ) new_sym_table nodes in
     exit_scope final_sym_table
   | DVar name -> 
-    print_endline("processing var " ^ name);
     let var_info = LVarInfo { llvm_value = None; llvm_type = None; storage = Local; is_global = false } in
+    Printf.printf "Added variable %s to symbol table\n" name;
     add_symbol sym_table name var_info;
   | DAssign (name, e) ->
     let wrapped_expr = { loc = expr.loc; typ = expr.typ; node = e } in
