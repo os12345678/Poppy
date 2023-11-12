@@ -1,9 +1,21 @@
 module T = Poppy_type_checker.Typed_ast
 module A = Poppy_parser.Ast_types
 module E = Poppy_type_checker.Type_env
+(* open Core *)
+
+
+(* Function to extract Capability_name.t from capability *)
+let extract_capability_name (cap: A.capability) =
+  match cap with
+  | TCapability (_, name) -> name
+
+let capability_names_from_capabilities caps =
+  Core.List.map ~f:extract_capability_name caps
 
 let rec elem_in_list x = function [] -> false | y :: ys -> x = y || elem_in_list x ys
 let intersect_lists list1 list2 = List.filter (fun x -> elem_in_list x list2) list1
+let is_subset_of xs ys = Core.List.for_all ~f:(fun x -> elem_in_list x ys) xs
+
 
 
 let var_lists_are_equal xs ys =
@@ -11,7 +23,6 @@ let var_lists_are_equal xs ys =
   let deduped_xs = Core.List.dedup_and_sort ~compare:compare_fn xs in
   let deduped_ys = Core.List.dedup_and_sort ~compare:compare_fn ys in
   List.equal (fun x y -> x = y) deduped_xs deduped_ys
-
 
 let rec reduce_expr_to_obj_ids (expr: T.expr) =
   match expr.node with
@@ -22,8 +33,7 @@ let rec reduce_expr_to_obj_ids (expr: T.expr) =
   | T.TLet (var_type, var_name, _) ->
       [T.TVariable (var_name, Option.get var_type, [], None)]
   | T.TAssign (id, _) -> [id]
-  (* | T.TConsume (_, _) -> [] *)
-  | T.TMethodApp (_, _, _, _, _) -> []
+  | T.TMethodApp (_, _, _, _, _, _) -> []
   | T.TFunctionApp ( _, _) -> []
   | T.TPrintf (_, _) -> []
   | T.TFinishAsync (_, _, curr_thread_expr) ->
@@ -115,33 +125,33 @@ let param_to_obj_var_and_capabilities env
     (A.Param (type_expr, param_name, maybe_capability_guards, _)) =
   match type_expr with
   | A.TEStruct param_struct ->
-      let class_capabilities = E.get_struct_capabilities param_struct env in
+      let struct_capabilities = E.get_struct_capabilities param_struct env in
       let obj_capabilities =
         match maybe_capability_guards with
-        | None -> class_capabilities
+        | None -> struct_capabilities
         (* no constraints so can access anything *)
         | Some capability_guards ->
             Core.List.filter
               ~f:(fun (TCapability (_, cap_name)) ->
                 elem_in_list cap_name capability_guards)
-              class_capabilities in
+              struct_capabilities in
       Some (param_name, param_struct, obj_capabilities)
   | _                        ->
       (* not an object so ignore *)
       None
 
-let params_to_obj_vars_and_capabilities class_defns params =
-  Core.List.filter_map ~f:(param_to_obj_var_and_capabilities class_defns) params
+let params_to_obj_vars_and_capabilities env params =
+  Core.List.filter_map ~f:(param_to_obj_var_and_capabilities env) params
 
 let set_identifier_capabilities id new_capabilities =
   match id with
   | T.TVariable (var_type, var_name, _, maybeBorrowed) ->
       T.TVariable (var_type, var_name, new_capabilities, maybeBorrowed)
-  | T.TObjField (obj_class, obj_name, field_type, field_name, _, maybeBorrowed) ->
+  | T.TObjField (obj_struct, obj_name, field_type, field_name, _, maybeBorrowed) ->
       T.TObjField
-        (obj_class, obj_name, field_type, field_name, new_capabilities, maybeBorrowed)
+        (obj_struct, obj_name, field_type, field_name, new_capabilities, maybeBorrowed)
 
-let get_class_capability_fields struct_name capability_name env =
+let get_struct_capability_fields struct_name capability_name env =
   E.get_struct_fields struct_name env
   |> fun fields ->
   List.filter
@@ -150,9 +160,9 @@ let get_class_capability_fields struct_name capability_name env =
     fields
   
 let capability_fields_have_mode (A.TCapability (capability_mode, capability_name))
-  class_name mode env =
+  struct_name mode env =
   capability_mode_present capability_mode mode
-  || get_class_capability_fields class_name capability_name env
+  || get_struct_capability_fields struct_name capability_name env
       |> fun fields_in_capability ->
       List.exists
         (fun (A.TField (_, field_type, _, _)) ->
@@ -217,8 +227,8 @@ let rec find_immediate_aliases_in_expr should_match_fields orig_obj_name curr_al
           constructor_args
     | T.TAssign (_, assigned_expr) ->
         find_imm_aliases_in_expr_rec curr_aliases assigned_expr.node
-    (* | Consume _ -> curr_aliases *)
-    | T.TMethodApp (_, _, _, _, args_exprs) ->
+    | TConsume _ -> curr_aliases
+    | T.TMethodApp (_, _, _, _, _, args_exprs) ->
       let node_list = Core.List.map ~f:(fun e -> e.node) args_exprs in
       Core.List.fold ~init:curr_aliases ~f:find_imm_aliases_in_expr_rec node_list
     | T.TFunctionApp (_, args_exprs) ->
@@ -244,12 +254,7 @@ let rec find_immediate_aliases_in_expr should_match_fields orig_obj_name curr_al
         find_imm_aliases_in_block_expr_rec curr_aliases_with_cond loop_expr
     | T.TBinOp (_, expr1, expr2) ->
         Core.List.fold ~init:curr_aliases ~f:find_imm_aliases_in_expr_rec [expr1.node; expr2.node]
-    | T.TUnOp (_, expr) -> find_imm_aliases_in_expr_rec curr_aliases expr.node
-
-
-  | _ -> failwith "Data race env: Consume not implemented"
-         
-  
+    | T.TUnOp (_, expr) -> find_imm_aliases_in_expr_rec curr_aliases expr.node         
 
 and find_immediate_aliases_in_block_expr should_match_fields orig_obj_name curr_aliases
   (T.Block (_, _, exprs)) =
@@ -268,44 +273,62 @@ let find_aliases_in_block_expr ~should_match_fields name_to_match block_expr =
     else get_all_obj_aliases should_match_fields updated_aliases block_expr in
   get_all_obj_aliases should_match_fields [] block_expr
 
-  (* let get_class_defn class_name class_defns =
-    let matching_class_defns =
-      List.filter ~f:(fun (TClass (name, _, _, _, _)) -> class_name = name) class_defns
-    in
-    (* This should never throw an exception since we've checked this property in earlier
-       type-checking stages of the pipeline *)
-    List.hd_exn matching_class_defns *)
+let get_method_defn meth_name method_defns =
+  let matching_method_defn = 
+    Core.List.filter ~f:(fun (T.TMethod(method_sig, _)) -> meth_name = method_sig.name) method_defns
+  in
+  Core.List.hd_exn matching_method_defn
 
-  (* let rec get_trait_method_defns class_name env =
-    let struct_defns = 
-    E.get_struct_defn class_name env
-    |> fun (TClass (_, maybe_superclass, _, _, method_defns)) ->
-    ( match maybe_superclass with
-    | Some superclass -> get_class_method_defns superclass class_defns
-    | None            -> [] )
-    |> fun superclass_methods ->
-    List.concat [superclass_methods; method_defns]
-    (* filter out overridden methods (i.e those with same name) *)
-    |> List.dedup_and_sort
-         ~compare:(fun (TMethod (name_1, _, _, _, _, _))
-                       (TMethod (name_2, _, _, _, _, _))
-                       -> if name_1 = name_2 then 0 else 1) *)
+(* let get_impl_defn meth_name impl_defns =  *)
+
   
-let get_method_params meth_name env =
-  (* gets Ast.method_defn not Typed_ast... problem? *)
-try
-  let method_defn = E.get_method_defn meth_name env in
+let get_method_params meth_name method_defns =
+  let method_defn = get_method_defn meth_name method_defns in
   match method_defn with
-  | Poppy_parser.Ast.TMethod (method_sig, _) -> Ok method_sig.params
-with
-| E.MethodNotFoundError msg -> Error (Core.Error.of_string msg)
+  | TMethod (method_sig, _) -> method_sig.params
 
-let get_function_params func_name env = 
-  try
-    let func_defn = E.get_function_defn func_name env in
+  let get_struct_defn struct_name struct_defns = 
+    let matching_struct_defns = 
+      Core.List.filter ~f:(fun (T.TStruct (name, _, _)) -> struct_name = name) struct_defns
+    in
+    Core.List.hd_exn matching_struct_defns
+
+let get_function_defn func_name func_defns = 
+  let matching_func_defns = 
+    Core.List.filter ~f:(fun (T.TFunction (func_sig, _)) -> func_name = func_sig.name) func_defns
+  in
+  Core.List.hd_exn matching_func_defns
+
+let get_struct_capabilities struct_name struct_defns = 
+  get_struct_defn struct_name struct_defns
+  |> fun (T.TStruct (_, capabilities, _)) -> capabilities
+
+let get_function_params func_name func_defns = 
+    let func_defn = get_function_defn func_name func_defns in
     match func_defn with
-    | Poppy_parser.Ast.TFunction (func_sig, _) -> Ok func_sig.params
-  with
-  | E.FunctionNotFoundError msg -> Error (Core.Error.of_string msg)
-                                      
-                      
+    | TFunction (func_sig, _) -> func_sig.params     
+
+let get_method_capabilities_used meth_name impl_defns =
+  get_method_defn meth_name impl_defns
+  |> fun (T.TMethod (method_sig, _)) -> method_sig.capability
+  
+let get_impl_defn meth_name struct_name trait_name impl_defns =
+  Core.List.find_map impl_defns ~f:(fun impl_defn ->
+    match impl_defn with
+    | T.TImpl (impl_trait_name, impl_struct_name, method_defn_list) ->
+      if A.Trait_name.(=) trait_name impl_trait_name && A.Struct_name.(=) struct_name impl_struct_name then
+        Core.List.find method_defn_list ~f:(fun (TMethod (method_sig, _)) ->
+          A.Method_name.(=) meth_name method_sig.name
+        )
+      else
+        None
+  )
+
+let get_method_capabilities2 meth_name struct_name trait_name impl_defns struct_defns = 
+  match get_impl_defn meth_name struct_name trait_name impl_defns with
+  | Some _ ->
+    begin match get_struct_capabilities struct_name struct_defns with 
+    | capabilities -> capabilities
+    end
+  | None -> []
+  

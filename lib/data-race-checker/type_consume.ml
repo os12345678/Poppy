@@ -5,9 +5,10 @@ open Poppy_type_checker.Typed_ast
 open Data_race_env
 (* open Poppy_type_checker.Type_env *)
 
-let unwrap_option = function
+(* let unwrap_option = function
   | Some x -> x
-  | None -> failwith "Unexpected None value"
+  | None -> expr.typ *)
+
 
 let string_of_id id =
   match id with
@@ -104,9 +105,9 @@ and type_consume_expr env expr consumed_ids =
           accumulate_consumed_ids env acc expr)
         constructor_args
 
-  | TLet (var_type, var_name, bound_expr) ->
+  | TLet (_var_type, var_name, bound_expr) ->
     type_consume_expr env bound_expr consumed_ids
-    >>| remove_reassigned_id (TVariable (var_name, unwrap_option(var_type), [], None))
+    >>| remove_reassigned_id (TVariable (var_name, expr.typ, [], None))
 
   | TAssign (identifier, assigned_expr) ->
       type_consume_expr env assigned_expr consumed_ids
@@ -114,7 +115,7 @@ and type_consume_expr env expr consumed_ids =
   | TConsume id ->
       check_identifier_consumable env id consumed_ids
       >>| fun () -> id :: consumed_ids
-  | TMethodApp (obj_name, _, _, _, args_exprs) ->
+  | TMethodApp (obj_name, _, _, _, _, args_exprs) ->
     List.fold ~init:(Ok consumed_ids)
       ~f:(accumulate_consumed_ids env)
       args_exprs
@@ -153,10 +154,10 @@ and type_consume_expr env expr consumed_ids =
     List.fold ~init:(Ok consumed_ids)
       ~f:(accumulate_consumed_ids env)
       args_exprs
-  (* | TFinishAsync (async_exprs, curr_thread_expr) ->
+  | TFinishAsync (async_exprs, current_thread_free_vars, curr_thread_expr) ->
     let all_thread_exprs =
-      AsyncExpr curr_thread_expr :: async_exprs in
-    (* For each thread, check that it doesn't consume any shared variables used by other
+      AsyncExpr (current_thread_free_vars, curr_thread_expr) :: async_exprs in
+      (* For each thread, check that it doesn't consume any shared variables used by other
         threads *)
     Result.all
       (List.map
@@ -169,16 +170,36 @@ and type_consume_expr env expr consumed_ids =
     (* type check each thread individually and aggregate consumed ids (to return) *)
     Result.all
       (List.map
-          ~f:(fun (AsyncExpr expr) ->
+          ~f:(fun (AsyncExpr (_, expr)) ->
             type_consume_block_expr env expr consumed_ids)
           all_thread_exprs)
-    >>| fun thread_consumed_id_lists -> List.concat thread_consumed_id_lists *)
-  | _ -> raise (Failure "Type error: consume expression not supported")
+    >>| fun thread_consumed_id_lists -> List.concat thread_consumed_id_lists
+  | TIf (cond_expr, then_expr, else_expr) ->
+    type_consume_expr env cond_expr consumed_ids
+    >>= fun consumed_ids_with_cond ->
+    type_consume_block_expr env then_expr consumed_ids_with_cond
+    >>= fun consumed_ids_then ->
+    type_consume_block_expr env else_expr consumed_ids_with_cond
+    >>| fun consumed_ids_else -> consumed_ids_then @ consumed_ids_else
+  | TWhile (cond_expr, loop_expr) ->
+    (* Note we check twice to simulate going through loop multiple times *)
+    type_consume_expr env cond_expr consumed_ids
+    >>= fun consumed_ids_with_cond1 ->
+    type_consume_block_expr env loop_expr consumed_ids_with_cond1
+    >>= fun consumed_ids_loop1 ->
+    type_consume_expr env cond_expr consumed_ids_loop1
+    >>= fun consumed_ids_with_cond2 ->
+    type_consume_block_expr env loop_expr consumed_ids_with_cond2
+  | TBinOp (_, expr1, expr2) ->
+      List.fold ~init:(Ok consumed_ids)
+        ~f:(accumulate_consumed_ids env)
+        [expr1; expr2]
+  | TUnOp (_, expr) -> type_consume_expr env expr consumed_ids
 
 and type_consume_block_expr env (Block (_, _, block_exprs)) consumed_ids =
   List.fold ~init:(Ok consumed_ids) ~f:(accumulate_consumed_ids env) block_exprs
 
-(* and type_consume_async_expr class_defns (AsyncExpr async_expr) other_async_exprs
+and type_consume_async_expr env (AsyncExpr (_, async_expr)) other_async_exprs
   consumed_ids =
   (* Check that any shared variables used by other threads were not consumed by this
     threads *)
@@ -188,10 +209,10 @@ and type_consume_block_expr env (Block (_, _, block_exprs)) consumed_ids =
       ~f:(fun (AsyncExpr (free_vars_and_types, _)) ->
         List.map ~f:(fun (var_name, _, _) -> var_name) free_vars_and_types)
       other_async_exprs in
-  type_consume_block_expr class_defns async_expr consumed_ids
+  type_consume_block_expr env async_expr consumed_ids
   >>= fun thread_consumed_ids ->
   Result.all_unit
     (List.map
       ~f:(fun shared_var -> check_shared_var_not_consumed shared_var thread_consumed_ids)
-      shared_variables) *)
+      shared_variables)
 

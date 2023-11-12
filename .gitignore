@@ -1,7 +1,7 @@
 _build/*
 *.poppy
-/*.ll
-/*.c
+examples/c/*.c
+examples/ll/*.ll
 .gitignore
 out
 output

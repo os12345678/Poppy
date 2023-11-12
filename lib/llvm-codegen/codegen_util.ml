@@ -117,3 +117,17 @@ let adjust_arg_type expected_type arg_value =
   | _ ->
       (* Otherwise, leave the argument as it is *)
       arg_value
+
+let is_string_literal value =
+  match classify_value value with
+  | ConstantArray -> true
+  | _ -> false
+
+  let define_global_string str_val the_module context =
+    (* let lltype = Llvm.array_type (Llvm.i8_type context) (String.length str_val + 1) in *)
+    let str_llval = Llvm.const_stringz context str_val in
+    let global_var = Llvm.define_global "str" str_llval the_module in
+    Llvm.set_linkage Private global_var;
+    Llvm.set_global_constant true global_var;
+    Llvm.set_initializer str_llval global_var;
+    global_var

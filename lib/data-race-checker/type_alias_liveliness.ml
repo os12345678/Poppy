@@ -79,33 +79,33 @@ let rec type_alias_liveness_expr aliased_obj_name possible_aliases filter_linear
         let updated_assigned_expr = { loc = expr.loc; typ = expr.typ; node = updated_assigned_expr_node } in
       ( TAssign (updated_id, updated_assigned_expr)
       , post_assigned_expr_live_aliases )
-  (* | Consume (loc, id) ->
+  | TConsume id ->
       type_alias_liveness_identifier_rec live_aliases id
       |> fun (updated_id, updated_live_aliases) ->
-      (Consume (loc, updated_id), updated_live_aliases) *)
+      (TConsume updated_id, updated_live_aliases)
       (* TODO STRUCT NAME NOT PART OF METHODAPP SIGNATURE *)
-  (* | TMethodApp (obj_name, method_name, args)->
+  | TMethodApp (obj_name, struct_name, trait_name, method_name, obj_capabilities, args)->
       let obj_id =
-        TVariable (TEStruct method_name, obj_name, obj_capabilities, None) in
+        TVariable (obj_name, TEStruct(struct_name), obj_capabilities, None)  in
       type_alias_liveness_identifier_rec live_aliases obj_id
       |> fun (updated_id, live_aliases_before_method_call) ->
       List.fold_right
-        ~init:([], live_aliases_before_method_call)
-        ~f:(fun arg (acc_args, acc_live_aliases) ->
-          type_alias_liveness_expr_rec acc_live_aliases arg
-          |> fun (updated_arg, updated_acc_live_aliases) ->
-          (updated_arg :: acc_args, updated_acc_live_aliases))
-        args
+      ~init:([], live_aliases_before_method_call)
+      ~f:(fun arg (acc_args, acc_live_aliases) ->
+        type_alias_liveness_expr_rec acc_live_aliases arg
+        |> fun (updated_arg_node, updated_acc_live_aliases) ->
+        let updated_arg = { arg with node = updated_arg_node } in
+        (updated_arg :: acc_args, updated_acc_live_aliases))
+      args
       |> fun (updated_args, updated_live_aliases) ->
-      ( MethodApp
-          ( loc
-          , type_expr
-          , obj_name
-          , get_identifier_capabilities updated_id
-          , obj_class
+      ( TMethodApp
+          ( obj_name
+          , struct_name
+          , trait_name
           , method_name
+          , get_identifier_capabilities updated_id
           , updated_args )
-      , updated_live_aliases ) *)
+      , updated_live_aliases )
   | TFunctionApp (func_name, args) ->
       List.fold_right ~init:([], live_aliases)
         ~f:(fun arg (acc_args, acc_live_aliases) ->
@@ -178,7 +178,6 @@ let rec type_alias_liveness_expr aliased_obj_name possible_aliases filter_linear
       |> fun (updated_expr_node, updated_live_aliases) ->
         let updated_expr = { loc = expr.loc; typ = expr.typ; node = updated_expr_node } in
       (TUnOp (unop, updated_expr), updated_live_aliases)
-  | _ -> failwith "TODO: type_alias_liveness_expr"
 
 
 and type_alias_liveness_block_expr aliased_obj_name possible_aliases filter_linear_caps_fn
