@@ -38,9 +38,9 @@ let type_linear_obj_method_args env obj_name obj_struct args_ids loc =
            (Fmt.str "%s Linear arguments are duplicated@." (A.string_of_loc loc)))
   
 
-let type_linear_object_references obj_name obj_class class_defns block_expr =
+let type_linear_object_references obj_name obj_struct struct_defns block_expr =
   let filter_linear_caps_fn _ curr_capability =
-    not (E.capability_fields_have_mode curr_capability obj_class A.Linear class_defns) in
+    not (E.capability_fields_have_mode curr_capability obj_struct A.Linear struct_defns) in
   let obj_aliases =
     E.find_aliases_in_block_expr ~should_match_fields:false obj_name block_expr in
   let aliases_to_remove_linearity =

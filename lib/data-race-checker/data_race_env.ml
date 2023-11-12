@@ -125,16 +125,16 @@ let param_to_obj_var_and_capabilities env
     (A.Param (type_expr, param_name, maybe_capability_guards, _)) =
   match type_expr with
   | A.TEStruct param_struct ->
-      let class_capabilities = E.get_struct_capabilities param_struct env in
+      let struct_capabilities = E.get_struct_capabilities param_struct env in
       let obj_capabilities =
         match maybe_capability_guards with
-        | None -> class_capabilities
+        | None -> struct_capabilities
         (* no constraints so can access anything *)
         | Some capability_guards ->
             Core.List.filter
               ~f:(fun (TCapability (_, cap_name)) ->
                 elem_in_list cap_name capability_guards)
-              class_capabilities in
+              struct_capabilities in
       Some (param_name, param_struct, obj_capabilities)
   | _                        ->
       (* not an object so ignore *)
@@ -147,11 +147,11 @@ let set_identifier_capabilities id new_capabilities =
   match id with
   | T.TVariable (var_type, var_name, _, maybeBorrowed) ->
       T.TVariable (var_type, var_name, new_capabilities, maybeBorrowed)
-  | T.TObjField (obj_class, obj_name, field_type, field_name, _, maybeBorrowed) ->
+  | T.TObjField (obj_struct, obj_name, field_type, field_name, _, maybeBorrowed) ->
       T.TObjField
-        (obj_class, obj_name, field_type, field_name, new_capabilities, maybeBorrowed)
+        (obj_struct, obj_name, field_type, field_name, new_capabilities, maybeBorrowed)
 
-let get_class_capability_fields struct_name capability_name env =
+let get_struct_capability_fields struct_name capability_name env =
   E.get_struct_fields struct_name env
   |> fun fields ->
   List.filter
@@ -160,9 +160,9 @@ let get_class_capability_fields struct_name capability_name env =
     fields
   
 let capability_fields_have_mode (A.TCapability (capability_mode, capability_name))
-  class_name mode env =
+  struct_name mode env =
   capability_mode_present capability_mode mode
-  || get_class_capability_fields class_name capability_name env
+  || get_struct_capability_fields struct_name capability_name env
       |> fun fields_in_capability ->
       List.exists
         (fun (A.TField (_, field_type, _, _)) ->

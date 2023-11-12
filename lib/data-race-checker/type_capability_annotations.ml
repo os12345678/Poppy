@@ -4,11 +4,11 @@ open Data_race_env
 
 module E = Poppy_type_checker.Type_env
 
-let check_capability_in_struct_capabilities struct_name class_capabilities capability_name =
+let check_capability_in_struct_capabilities struct_name struct_capabilities capability_name =
   match
     List.filter
       ~f:(fun (TCapability (_, name)) -> Capability_name.(=) name capability_name)
-      class_capabilities
+      struct_capabilities
   with
   | []              ->
       Error

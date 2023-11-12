@@ -5,10 +5,10 @@ open Poppy_type_checker.Typed_ast
 open Data_race_env
 
 let aggregate_capability_accesses_thread_free_var all_vars_capability_accesses
-    (obj_name, obj_class, _) =
+    (obj_name, obj_struct, _) =
   List.filter_map
-    ~f:(fun (name, class_name, var_capabilities_accessed) ->
-      if phys_equal obj_name name && phys_equal class_name obj_class then Some var_capabilities_accessed
+    ~f:(fun (name, struct_name, var_capabilities_accessed) ->
+      if phys_equal obj_name name && phys_equal struct_name obj_struct then Some var_capabilities_accessed
       else None)
     all_vars_capability_accesses
   |> fun updated_capabilities_accessed ->
@@ -16,7 +16,7 @@ let aggregate_capability_accesses_thread_free_var all_vars_capability_accesses
     ~compare:(fun a b -> if phys_equal a b then 0 else 1)
     (List.concat updated_capabilities_accessed)
   |> fun deduped_updated_capabilities_accessed ->
-  (obj_name, obj_class, deduped_updated_capabilities_accessed)
+  (obj_name, obj_struct, deduped_updated_capabilities_accessed)
 
   let get_arg_capabilities_used_by_fn env param arg =
     match
