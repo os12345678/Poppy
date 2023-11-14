@@ -16,7 +16,7 @@
 let digit = ['0'-'9']
 let alpha = ['a'-'z' 'A'-'Z']
 
-let int = '-'? digit+
+let int = digit+
 let id = (alpha) (alpha|digit|'_')*
 
 let whitespace = [' ' '\t']+
@@ -55,7 +55,6 @@ rule read_tok =
   | "fn" { FUNCTION }
   | "->" { ARROW }
   | "new" { NEW }
-  (* | "consume" { CONSUME } *)
   | "finish" { FINISH }
   | "async" { ASYNC }
   | "capability" { CAPABILITY }
