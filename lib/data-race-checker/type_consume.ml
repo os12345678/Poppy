@@ -28,7 +28,7 @@ let check_identifiers_disjoint id affected_id =
   | T.TVariable (var_name, _, _, _) -> (
     match affected_id with
     | TVariable _ -> not (phys_equal id affected_id)
-    | TObjField (_, obj_name, _, _, _, _) -> not (phys_equal var_name obj_name) )
+    | TObjField (_, obj_name, _, _, _, _) -> not (Var_name.(=) var_name obj_name) )
   | TObjField _                   -> not (phys_equal id affected_id)
 
 let remove_reassigned_id reassigned_id consumed_ids =

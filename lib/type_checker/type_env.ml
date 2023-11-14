@@ -40,6 +40,17 @@ and equal_type_expr te1 te2 =
   | TEStruct name1 , TEStruct name2 -> Struct_name.(=) name1 name2
   | _ -> false
 
+and equal_mode (mode1: mode) (mode2: mode) =
+  match mode1, mode2 with
+  | Linear, Linear -> true
+  | ThreadLocal, ThreadLocal -> true
+  | Read, Read -> true
+  | Locked, Locked -> true
+  | ThreadSafe, ThreadSafe -> true
+  | Subordinate, Subordinate -> true
+  | Encapsulated, Encapsulated -> true
+  | _ -> false
+
 (* Lookup functions *)
 let rec find_global env =
   match env with
@@ -220,17 +231,21 @@ let rec elem_in_list x = function [] -> false | y :: ys -> Ast_types.Capability_
 
 let get_struct_defn struct_name struct_defns =
   let matching_struct_defns =
-    List.filter
+    List.find
       ~f:(fun (Typed_ast.TStruct (name, _, _)) -> Ast_types.Struct_name.(=) struct_name name)
       struct_defns in
-  List.hd_exn matching_struct_defns
+  match matching_struct_defns with
+  | Some struct_defn -> struct_defn
+  | None -> failwith "Struct not found"
 
 let get_struct_defn2 struct_name (struct_defns: Ast.struct_defn list) =
   let matching_struct_defns =
-    List.filter
+    List.find
       ~f:(fun (Ast.TStruct (name, _, _)) -> Ast_types.Struct_name.(=) struct_name name)
       struct_defns in
-  List.hd_exn matching_struct_defns
+  match matching_struct_defns with
+  | Some struct_defn -> struct_defn
+  | None -> failwith "Struct not found"
 
 let get_obj_struct_defn var_name env loc = 
   lookup_var env var_name loc
@@ -244,7 +259,6 @@ let get_obj_struct_defn var_name env loc =
                   (Var_name.to_string var_name)
                   (string_of_type wrong_type)))
 
-(* TODO BROKEN *)
 let get_struct_capabilities struct_name struct_defns =
   let matching_struct_defn = get_struct_defn struct_name struct_defns in
   match matching_struct_defn with
@@ -338,7 +352,7 @@ let check_no_duplicate_var_declarations_in_block exprs loc =
 
 (* Assignability *)
 let check_variable_declarable var_name loc = 
-  if phys_equal var_name (Var_name.of_string "this") then 
+  if Var_name.(=) var_name (Var_name.of_string "this") then 
     Error (Core.Error.of_string 
             (Fmt.str "%d:%d Type error - Cannot use 'this' in this context" (loc.lnum) (loc.cnum)))
   else Ok ()

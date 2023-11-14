@@ -3,12 +3,13 @@ open Core
 open Poppy_parser.Ast_types
 open Poppy_type_checker.Typed_ast
 open Data_race_env
+module T =  Poppy_type_checker.Type_env
 
 let aggregate_capability_accesses_thread_free_var all_vars_capability_accesses
     (obj_name, obj_struct, _) =
   List.filter_map
     ~f:(fun (name, struct_name, var_capabilities_accessed) ->
-      if phys_equal obj_name name && phys_equal struct_name obj_struct then Some var_capabilities_accessed
+      if Var_name.(=) obj_name name && Struct_name.(=) struct_name obj_struct then Some var_capabilities_accessed
       else None)
     all_vars_capability_accesses
   |> fun updated_capabilities_accessed ->
@@ -55,7 +56,7 @@ let choose_identifier_capabilities id =
       []
   | TObjField (obj_struct, obj_name, _, _, capabilities, _) ->
       ( match
-          List.find ~f:(fun (TCapability (mode, _)) -> not (phys_equal mode Linear)) capabilities
+          List.find ~f:(fun (TCapability (mode, _)) -> not (T.equal_mode mode Linear)) capabilities
         with
       | Some capability -> [capability]
       | None            ->

@@ -4,6 +4,14 @@ module E = Poppy_type_checker.Type_env
 (* open Core *)
 
 
+let print_struct_names struct_defns =
+  List.iter
+    (fun struct_defn ->
+      match struct_defn with
+      | T.TStruct (struct_name, _, _) ->
+          Printf.printf "Struct name: %s\n" (A.Struct_name.to_string struct_name))
+    struct_defns
+
 (* Function to extract Capability_name.t from capability *)
 let extract_capability_name (cap: A.capability) =
   match cap with
@@ -67,7 +75,8 @@ let capability_mode_present mode_present mode_required =
   | Linear | ThreadLocal | Subordinate | Read | Locked -> mode_present = mode_required
      
 
-let struct_has_mode struct_name mode env =
+let struct_has_mode (struct_name: A.Struct_name.t) (mode: A.mode) (env: T.struct_defn list) =
+  print_endline ("Checking struct " ^ A.Struct_name.to_string struct_name ^ " for mode " ^ A.string_of_mode mode);
   let rec struct_has_mode_helper struct_name mode env seen_struct_names =
     if elem_in_list struct_name seen_struct_names then
       (* Avoid infinite recursion on type definition *)

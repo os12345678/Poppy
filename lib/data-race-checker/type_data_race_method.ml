@@ -14,7 +14,8 @@ Method_name.t ->
 type_expr ->
 (Var_name.t * Struct_name.t * capability list) list -> *)
 
-let type_data_races_method_defn struct_name trait_name (env: E.env) struct_defns trait_defns impl_defns method_defns function_defns ~ignore_data_races
+let type_data_races_method_defn struct_name trait_name (env: E.env) 
+    (struct_defns: struct_defn list) trait_defns impl_defns method_defns function_defns ~ignore_data_races
     (TMethod (method_sig, body_expr)) =
   let open Result in
   let param_obj_var_capabilities =

@@ -54,7 +54,7 @@ let rec update_matching_identifier_caps_expr names_to_match capability_filter_fn
       TAssign
         ( update_var_modes_identifier_rec id
         , update_matching_identifier_caps_expr_rec assigned_expr )}
-  (* | Consume (loc, id) -> Consume (loc, update_var_modes_identifier_rec id) *)
+  | TConsume id -> {expr with node = TConsume (update_var_modes_identifier_rec id)}
   | TMethodApp (obj_struct, struct_name, trait_name, method_name, obj_capabilities, args) -> {expr with node =
       TMethodApp
         ( obj_struct
@@ -92,9 +92,6 @@ let rec update_matching_identifier_caps_expr names_to_match capability_filter_fn
         , update_matching_identifier_caps_expr_rec expr2 )}
   | TUnOp (unop, expr) -> {expr with node =
       TUnOp (unop, update_matching_identifier_caps_expr_rec expr)}
-
-  
-      | _ -> failwith "update identifier: Consume not implemented"
          
 
 and update_matching_identifier_caps_block_expr names_to_match capability_filter_fn
