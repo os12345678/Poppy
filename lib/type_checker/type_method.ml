@@ -16,6 +16,7 @@ let check_method_signature_matches param_list return_type method_signature =
 let type_method_defn env struct_defns trait_defns method_defns function_defns (Ast.TImpl (trait_name, struct_name, methods)) =
   let%bind struct_defn = lookup_struct env struct_name in
   let%bind implemented_traits = lookup_impl env struct_name in
+  print_endline ("Implemented traits: " ^ (String.concat ~sep:", " (List.map implemented_traits ~f:Trait_name.to_string)));
   if not (List.mem implemented_traits trait_name ~equal:Trait_name.(=)) then
     Error (Core.Error.of_string "Trait not implemented for struct")
   else
@@ -27,6 +28,7 @@ let type_method_defn env struct_defns trait_defns method_defns function_defns (A
         let%bind trait_defn = lookup_trait env trait_name in
         let typed_methods_result = Result.all (List.map methods ~f:(fun (Ast.TMethod (method_signature, body)) ->
         let env = add_block_scope env VarNameMap.empty in
+        print_endline (Fmt.str "Method signature: %s" (Method_name.to_string method_signature.name));
         let%bind method_signature = lookup_method_signature trait_defn method_signature.name in
         let%bind () = check_method_signature_matches method_signature.params method_signature.return_type method_signature in
         let env_with_this = add_this_to_block_scope env struct_name in

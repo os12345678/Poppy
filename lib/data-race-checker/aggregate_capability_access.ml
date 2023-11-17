@@ -83,7 +83,7 @@ let rec aggregate_capability_accesses_expr (struct_defns: struct_defn list) (met
     aggregate_capability_accesses_block_expr_rec block_expr
     |> fun (updated_block, capability_accesses) ->
     ({expr with node = TBlockExpr updated_block}, capability_accesses)
-  | TConstructor (var_name, struct_name, constructor_args) ->
+  | TConstructor (struct_name, constructor_args) ->
     List.unzip
       (List.map
           ~f:(fun (ConstructorArg (field_name, expr)) ->
@@ -93,7 +93,7 @@ let rec aggregate_capability_accesses_expr (struct_defns: struct_defn list) (met
             , arg_capability_accesses ))
           constructor_args)
     |> fun (updated_args, args_capability_accesses) ->
-    ({expr with node = TConstructor (var_name, struct_name, updated_args)}
+    ({expr with node = TConstructor (struct_name, updated_args)}
     , List.concat args_capability_accesses )
   | TLet (type_expr, var_name, bound_expr) ->
     aggregate_capability_accesses_expr_rec bound_expr

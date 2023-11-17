@@ -92,7 +92,7 @@ let rec type_capabilities_constraints_expr (struct_defns: struct_defn list) (met
   | TIdentifier id -> type_capabilities_constraints_identifier id expr.loc
   | TBlockExpr block_expr ->
     (type_capabilities_constraints_block_expr struct_defns method_defns function_defns env) block_expr
-  | TConstructor (_, _, constructor_args) ->
+  | TConstructor (_, constructor_args) ->
       Result.all_unit
         (List.map
           ~f:(fun (ConstructorArg (_, expr)) ->

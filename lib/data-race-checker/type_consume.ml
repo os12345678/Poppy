@@ -99,7 +99,7 @@ and type_consume_expr env expr consumed_ids =
       check_identifier_accessible id consumed_ids >>| fun () -> consumed_ids
   | TBlockExpr block_expr ->
       type_consume_block_expr env block_expr consumed_ids
-  | TConstructor (_, _, constructor_args) ->
+  | TConstructor (_, constructor_args) ->
       List.fold ~init:(Ok consumed_ids)
         ~f:(fun acc (ConstructorArg (_, expr)) ->
           accumulate_consumed_ids env acc expr)

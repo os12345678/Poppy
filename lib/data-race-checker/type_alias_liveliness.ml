@@ -50,7 +50,7 @@ let rec type_alias_liveness_expr aliased_obj_name possible_aliases filter_linear
       type_alias_liveness_block_expr_rec live_aliases block_expr
       |> fun (updated_block_expr, updated_live_aliases) ->
       (TBlockExpr updated_block_expr, updated_live_aliases)
-  | TConstructor (var_name, struct_name, constructor_args) ->
+  | TConstructor (struct_name, constructor_args) ->
       (* Note we fold right since we run in reverse program execution order. *)
       List.fold_right ~init:([], live_aliases)
         ~f:
@@ -62,7 +62,7 @@ let rec type_alias_liveness_expr aliased_obj_name possible_aliases filter_linear
           |> fun updated_arg -> (updated_arg :: acc_args, updated_acc_live_aliases))
         constructor_args
       |> fun (updated_args, updated_live_aliases) ->
-      (TConstructor (var_name, struct_name, updated_args), updated_live_aliases)
+      (TConstructor (struct_name, updated_args), updated_live_aliases)
   | TLet (type_expr, var_name, bound_expr) ->
       (* remove this var from the set of live aliases *)
       type_alias_liveness_expr_rec

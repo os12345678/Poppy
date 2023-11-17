@@ -78,6 +78,8 @@ let rec lookup_trait env trait_name =
   | Function (parent_env, _) | Block (parent_env, _) -> lookup_trait parent_env trait_name
 
 let rec lookup_method env method_name =
+  Printf.printf "lookup_method\n";
+
   match env with
   | Global (_, _, method_map, _, _) -> 
     begin
@@ -118,6 +120,8 @@ let rec lookup_var env var_name loc =
     end
 
 let lookup_method_signature trait_defn method_name = 
+  Printf.printf "lookup_method_signature\n";
+
   match trait_defn with
   | Ast.TTrait (_, method_signatures) ->
     begin
@@ -127,6 +131,8 @@ let lookup_method_signature trait_defn method_name =
     end   
 
 let lookup_method_in_impl env struct_name method_name =
+  Printf.printf "lookup_method_in_impl\n";
+
   let glob_env = find_global env in
   match glob_env with
   | Global (_, _, method_map, _, _) ->
@@ -280,6 +286,7 @@ let get_struct_fields2 struct_name (struct_defns: Ast.struct_defn list) =
   | Ast.TStruct (_, _, fields) -> fields
 
   let get_method_defn method_name env =
+    Printf.printf "get_method_defn\n";
     match env with
     | Global (_, _, method_map, _, _) ->
       (match MethodNameMap.find method_map method_name with
@@ -398,3 +405,10 @@ let check_identifier_consumable id env loc =
                       (string_of_loc loc)))
             else Ok ()
           | None -> Error (Core.Error.of_string "Field not found")))
+
+let get_field_types fields =
+  List.map ~f:(fun field -> 
+    match field with
+    | TField (_, type_of_field, _, _) -> type_of_field
+  ) fields
+          

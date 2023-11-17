@@ -51,27 +51,24 @@ let string_of_type_list type_list =
 let type_args type_expr_fn args env =
   Result.all (List.map ~f:(fun expr -> type_expr_fn expr env) args)
 
-let type_constructor_args struct_defn struct_name constructor_args 
+let type_constructor_args struct_defns struct_name constructor_args 
 (type_expr_fn: Ast.expr -> env -> (Typed_ast.expr, Base.Error.t) Result.t) loc env =
-match struct_defn with
-| Ast.TStruct (_, _, fields) ->
-  let rec check_args args field_defs =
-    match args, field_defs with
-    | [], [] -> Ok []
-    | (Ast.ConstructorArg(field_name, expr))::arg_t, (TField (_, type_of_field, name, _))::field_t when Field_name.(=) field_name name ->
-      let%bind typed_expr = type_expr_fn expr env in
-      if equal_type_expr typed_expr.typ type_of_field then 
-        let%bind remaining = check_args arg_t field_t in
-        Ok (Typed_ast.ConstructorArg(field_name, typed_expr)::remaining)
+  let open Result in
+  let fields = Type_env.get_struct_fields2 struct_name struct_defns in
+  Result.all (List.map ~f:(fun (Ast.ConstructorArg (field_name, expr)) ->
+    match List.find ~f:(fun (TField (_, _, name, _)) -> Field_name.(=) name field_name) fields with
+    | None -> Error (Core.Error.of_string (Fmt.str "%s Type error - Field %s not found in struct %s" 
+        (string_of_loc loc) (Field_name.to_string field_name) (Struct_name.to_string struct_name)))
+    | Some (TField (_, field_type, _, _)) ->
+      type_expr_fn expr env >>= fun typed_expr ->
+      if equal_type_expr field_type typed_expr.typ then
+        Ok (Typed_ast.ConstructorArg (field_name, typed_expr))
       else
-        Or_error.error_string 
-        (Fmt.str "%s Type error - Constructor argument type %s does not match the expected type %s for field %s" 
-          (string_of_loc loc) (string_of_type typed_expr.typ) (string_of_type type_of_field) (Field_name.to_string field_name))
-    | _, _ -> Or_error.error_string (Fmt.str "%s Type error - # of constructor arguments do not match with # of struct fields for %s. Expected %s but got %s" 
-          (string_of_loc loc) (Struct_name.to_string struct_name) (List.length fields |> string_of_int) (List.length constructor_args |> string_of_int))
-  in
-  check_args constructor_args fields
-
+        Error (Core.Error.of_string (Fmt.str "%s Type error - Type mismatch for field %s in struct %s, expected %s, got %s" 
+          (string_of_loc loc) (Field_name.to_string field_name) (Struct_name.to_string struct_name) 
+          (string_of_type field_type) (string_of_type typed_expr.typ)))
+  ) constructor_args)
+  
 let rec type_expr (struct_defns: Ast.struct_defn list) (trait_defns: Ast.trait_defn list) (impl_defns: Ast.impl_defn list)
 (function_defns: Ast.function_defn list) (borrowed_vars: Var_name.t list) (expr: Ast.expr) env : (Typed_ast.expr, Base.Error.t) Result.t =
 let type_with_defns = type_expr struct_defns trait_defns impl_defns function_defns borrowed_vars in
@@ -96,11 +93,12 @@ let type_block_with_defns = type_block_expr struct_defns trait_defns impl_defns 
     in
     Ok ({Typed_ast.loc = expr.loc; typ = var_type; node = TLet (type_annot_maybe, var_name, typed_expr)})
 
-  | Ast.Constructor(var_name, struct_name, constructor_args) ->
-    let%bind struct_defn = lookup_struct env struct_name in
-    let%bind typed_constructor_args = type_constructor_args struct_defn struct_name constructor_args type_with_defns expr.loc env in
-      Ok ({Typed_ast.loc = expr.loc; typ = TEStruct (struct_name); node = TConstructor (var_name, struct_name, typed_constructor_args)})
-    
+  | Ast.Constructor (struct_name, constructor_args) ->
+    type_constructor_args struct_defns struct_name constructor_args 
+      type_with_defns expr.loc env
+    >>| fun typed_constructor_args ->
+      ({Typed_ast.loc = expr.loc; typ = TEStruct (struct_name); node = TConstructor (struct_name, typed_constructor_args)})
+      
   | Ast.Assign (id, assignable_expr) -> 
       let%bind () = check_identifier_assignable id env expr.loc in
       let%bind typed_expr = type_with_defns assignable_expr env in
@@ -306,7 +304,7 @@ match exprs with
     let updated_env =
         match typed_expr1.node with
         | TLet (_, var_name, _) -> (add_var_to_block_scope env var_name typed_expr1.typ)
-        | TConstructor (var_name, _, _) -> (add_var_to_block_scope env var_name typed_expr1.typ)
+        (* | TConstructor (var_name, _, _) -> (add_var_to_block_scope env var_name typed_expr1.typ) *)
         | _ -> env in
     type_block_with_defns (Ast.Block (loc, expr2 :: exprs)) updated_env
 >>| fun (typed_block, block_type) -> 

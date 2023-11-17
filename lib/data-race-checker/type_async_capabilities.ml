@@ -69,7 +69,7 @@ let remove_thread_subord_caps_from_async_expr struct_defns
   | TInt _ | TBoolean _ | TIdentifier _ -> expr
   | TBlockExpr block_expr -> {expr with node = 
       TBlockExpr (type_async_capabilities_block_expr struct_defns block_expr)}
-  | TConstructor (var_name, struct_name, constructor_args) -> 
+  | TConstructor (struct_name, constructor_args) -> 
       let updated_constructor_args =
         List.map
           ~f:(fun (ConstructorArg (field_name, expr)) ->
@@ -77,7 +77,7 @@ let remove_thread_subord_caps_from_async_expr struct_defns
               (field_name, type_async_capabilities_expr struct_defns expr))
           constructor_args in
           {expr with node = 
-      TConstructor (var_name, struct_name, updated_constructor_args)}
+      TConstructor (struct_name, updated_constructor_args)}
   | TLet (type_expr, var_name, bound_expr) -> {expr with node = 
       TLet (type_expr, var_name, type_async_capabilities_expr struct_defns bound_expr)}
   | TAssign (id, assigned_expr) -> {expr with node = 

@@ -36,13 +36,13 @@ let rec type_read_capabilities_expr (expr: T.expr) : T.expr =
     {expr with node = 
       T.TFunctionApp
         (func_name, List.map type_read_capabilities_expr args)}
-  | TConstructor (var_name, struct_name, constructor_args) ->
+  | TConstructor (struct_name, constructor_args) ->
     let updated_args = 
       List.map 
         (fun (T.ConstructorArg (field_name, expr)) ->
           T.ConstructorArg (field_name, type_read_capabilities_expr expr))
         constructor_args in
-    {expr with node = T.TConstructor (var_name, struct_name, updated_args)}
+    {expr with node = T.TConstructor (struct_name, updated_args)}
   | T.TPrintf (format_str, args) -> {expr with node = 
     T.TPrintf (format_str, List.map type_read_capabilities_expr args)}
   | T.TFinishAsync (async_exprs, curr_thread_free_vars, curr_thread_expr) -> {expr with node = 

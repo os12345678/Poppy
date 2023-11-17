@@ -34,7 +34,7 @@ let rec free_obj_vars_expr (env: env) (struct_defns: A.struct_defn list) (expr: 
   | TBoolean _ -> []
   | TIdentifier id -> free_obj_vars_identifier id struct_defns
   | TBlockExpr block_expr -> free_obj_vars_block_expr env struct_defns block_expr
-  | TConstructor (_, _, constructor_args) ->
+  | TConstructor (_, constructor_args) ->
     union_free_vars_lists
     (List.map
        ~f:(fun (ConstructorArg (_, expr)) -> free_obj_vars_expr env struct_defns expr)

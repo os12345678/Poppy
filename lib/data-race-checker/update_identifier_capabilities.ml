@@ -37,14 +37,14 @@ let rec update_matching_identifier_caps_expr names_to_match capability_filter_fn
   | TIdentifier id -> {expr with node = TIdentifier (update_var_modes_identifier_rec id)}
   | TBlockExpr block_expr -> {expr with node =
       TBlockExpr (update_matching_identifier_caps_block_expr_rec block_expr)}
-  | TConstructor (var_name, struct_name, constructor_args) -> {expr with node =
+  | TConstructor (struct_name, constructor_args) -> {expr with node =
       let updated_args =
         Core.List.map
           ~f:(fun (ConstructorArg (field_name, expr)) ->
             ConstructorArg
               (field_name, update_matching_identifier_caps_expr_rec expr))
           constructor_args in
-      TConstructor (var_name, struct_name, updated_args)}
+      TConstructor (struct_name, updated_args)}
   | TLet (type_expr, names_to_match, bound_expr) -> {expr with node =
       TLet
         ( type_expr

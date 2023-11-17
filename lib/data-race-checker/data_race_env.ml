@@ -37,7 +37,7 @@ let rec reduce_expr_to_obj_ids (expr: T.expr) =
   | T.TInt _ | T.TBoolean _ -> []
   | T.TIdentifier (id) -> [id]
   | T.TBlockExpr (block_expr) -> reduce_block_expr_to_obj_ids block_expr
-  | T.TConstructor (_, _, _) -> []
+  | T.TConstructor (_, _) -> []
   | T.TLet (var_type, var_name, _) ->
       [T.TVariable (var_name, Option.get var_type, [], None)]
   | T.TAssign (id, _) -> [id]
@@ -229,7 +229,7 @@ let rec find_immediate_aliases_in_expr should_match_fields orig_obj_name curr_al
     | T.TInt _ | T.TBoolean _ | T.TIdentifier _ -> curr_aliases
     | T.TBlockExpr (block_expr) ->
         find_imm_aliases_in_block_expr_rec curr_aliases block_expr
-    | T.TConstructor (_, _, constructor_args) ->
+    | T.TConstructor (_, constructor_args) ->
         Core.List.fold ~init:curr_aliases
           ~f:(fun acc_aliases (T.ConstructorArg (_, expr)) ->
             find_imm_aliases_in_expr_rec acc_aliases expr.node)
