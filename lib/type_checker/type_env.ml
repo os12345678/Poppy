@@ -78,8 +78,6 @@ let rec lookup_trait env trait_name =
   | Function (parent_env, _) | Block (parent_env, _) -> lookup_trait parent_env trait_name
 
 let rec lookup_method env method_name =
-  Printf.printf "lookup_method\n";
-
   match env with
   | Global (_, _, method_map, _, _) -> 
     begin
@@ -142,7 +140,27 @@ let lookup_method_in_impl env struct_name method_name =
     | None -> Error (Core.Error.of_string (Fmt.str "Method %s not found in impl for struct %s" (Method_name.to_string method_name) (Struct_name.to_string struct_name)))
     end
   | _ -> Error (Core.Error.of_string "Method lookup in impl should be done in the global environment")
+(* 
+let lookup_method_in_trait trait_name method_name env =
+  let%bind trait_defn = lookup_trait env trait_name in
+  let%bind method_defn = lookup_method env method_name in
 
+   *)
+
+let lookup_method_in_struct_trait struct_name method_name env =
+let%bind trait_names = lookup_impl env struct_name in
+let rec find_method_in_traits traits =
+  match traits with
+  | [] -> Error (Core.Error.of_string "Method not found in any implemented traits")
+  | trait_name :: remaining_traits ->
+    let%bind trait_defn = lookup_trait env trait_name in
+    match lookup_method_signature trait_defn method_name with
+    | Ok method_signature -> Printf.printf ("FOUND"); Ok (trait_name, method_signature)
+    | Error _ -> Printf.printf("FAILED"); find_method_in_traits remaining_traits
+in
+find_method_in_traits trait_names  
+  
+  
 let get_method_map method_defns =
   List.fold method_defns ~init:MethodNameMap.empty ~f:(fun map method_defn ->
     match method_defn with
@@ -411,4 +429,11 @@ let get_field_types fields =
     match field with
     | TField (_, type_of_field, _, _) -> type_of_field
   ) fields
+
+let type_to_string typ = 
+  match typ with
+  | TEInt -> "int"
+  | TEBool -> "bool"
+  | TEVoid -> "void"
+  | TEStruct struct_name -> Struct_name.to_string struct_name
           

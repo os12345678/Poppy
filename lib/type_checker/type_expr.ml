@@ -135,14 +135,24 @@ let type_block_with_defns = type_block_expr struct_defns trait_defns impl_defns 
                     (string_of_loc expr.loc) (Method_name.to_string method_name) (string_of_type_list param_types) (string_of_type_list (List.map typed_args ~f:(fun arg -> arg.typ)))))
             else
                 Ok ({Typed_ast.loc = expr.loc; typ = method_signature.return_type; node = TMethodApp (receiver_var, receiver_struct_name, trait_name, method_name, caps, typed_args)})
-        | None -> 
-            Error (Core.Error.of_string (Fmt.str "%s Type error - Method %s not found in any implemented trait for struct %s" 
-                (string_of_loc expr.loc) (Method_name.to_string method_name) (Struct_name.to_string receiver_struct_name)))
-        end
-    | _ -> 
-        Error (Core.Error.of_string (Fmt.str "%s Type error - Method %s can only be called on objects of type struct, but receiver is of type %s" 
-            (string_of_loc expr.loc) (Method_name.to_string method_name) (string_of_type receiver_type)))
-    end
+        | None -> (* when accessing methods via an object whos struct is a different type to the current implemeted struct *)
+          match lookup_method_in_struct_trait receiver_struct_name method_name env with 
+          | Ok (trait_name, method_signature) ->
+              let caps = get_struct_capabilities2 receiver_struct_name struct_defns in
+              let param_types = List.map ~f:(function Param (param_type, _, _, _) -> param_type) method_signature.params in
+              let%bind typed_args = type_args type_with_defns args_expr env in
+              if not (equal_type_expr_list param_types (List.map typed_args ~f:(fun arg -> arg.typ))) then
+                  Error (Core.Error.of_string (Fmt.str "%s Type error - Method %s expected arguments of type %s but got %s" 
+                      (string_of_loc expr.loc) (Method_name.to_string method_name) (string_of_type_list param_types) (string_of_type_list (List.map typed_args ~f:(fun arg -> arg.typ)))))
+              else
+                  Ok ({Typed_ast.loc = expr.loc; typ = method_signature.return_type; node = TMethodApp (receiver_var, receiver_struct_name, trait_name, method_name, caps, typed_args)})
+          | _ -> Error (Core.Error.of_string (Fmt.str "%s Type error - Method %s not found in any implemented trait for struct %s" 
+                  (string_of_loc expr.loc) (Method_name.to_string method_name) (Struct_name.to_string receiver_struct_name)))
+      end
+  | _ -> 
+      Error (Core.Error.of_string (Fmt.str "%s Type error - Method %s can only be called on objects of type struct, but receiver is of type %s" 
+          (string_of_loc expr.loc) (Method_name.to_string method_name) (string_of_type receiver_type)))
+  end
   
   
 
@@ -196,7 +206,7 @@ let type_block_with_defns = type_block_expr struct_defns trait_defns impl_defns 
     let%bind (typed_then_block_expr, typed_then_type) = type_block_with_defns then_expr env in
     let%bind (typed_else_block_expr, typed_else_type) = type_block_with_defns else_expr env in
     if equal_type_expr typed_cond.typ TEBool then
-      if phys_equal typed_then_type typed_else_type then
+      if equal_type_expr typed_then_type typed_else_type then
         Ok ({Typed_ast.loc = expr.loc; typ = typed_cond.typ; node = TIf (typed_cond, typed_then_block_expr, typed_else_block_expr)})
       else
         Or_error.error_string 
