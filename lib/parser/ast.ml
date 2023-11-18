@@ -19,7 +19,7 @@ and expr_node =
 | Let                 of type_expr option * Var_name.t * expr
 | Assign              of identifier * expr  
 | Consume             of identifier
-| Constructor         of Var_name.t * Struct_name.t * constructor_arg list
+| Constructor         of Struct_name.t * constructor_arg list
 | MethodApp           of Var_name.t * Method_name.t * expr list
 | FunctionApp         of Function_name.t * expr list 
 | If                  of expr * block_expr * block_expr
