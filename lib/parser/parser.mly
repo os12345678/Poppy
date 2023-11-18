@@ -238,7 +238,7 @@ expr:
     | e1=expr; op=bin_op; e2=expr {{ loc=loc_of_position $startpos; node=BinOp(op, e1, e2) }}
     | op=un_op; e=expr {{ loc=loc_of_position $startpos; node=UnOp(op,e) }}
     | CONSUME; id=identifier {{ loc=loc_of_position $startpos; node=Consume(id) }}
-    | NEW; struct_name=ID; LBRACE constructor_args=separated_list(COMMA, constructor_args) RBRACE {{ loc=loc_of_position $startpos; node=Constructor(Struct_name.of_string struct_name, constructor_args) }}
+    | NEW; struct_name=ID; LPAREN constructor_args=separated_list(COMMA, constructor_args) RPAREN {{ loc=loc_of_position $startpos; node=Constructor(Struct_name.of_string struct_name, constructor_args) }}
     | LET; var_name=ID; type_annot=option(let_type_annot);  EQUAL; bound_expr=expr {{ loc=loc_of_position $startpos; node=Let(type_annot, Var_name.of_string var_name, bound_expr) }} 
     | id=identifier; COLONEQ; assigned_expr=expr {{ loc=loc_of_position $startpos; node=Assign(id, assigned_expr) }}
     | obj=ID; DOT; method_name=ID; method_args=args {{ loc=loc_of_position $startpos; node=MethodApp(Var_name.of_string obj, Method_name.of_string method_name, method_args) }}
