@@ -5,7 +5,6 @@
 
 %token  <int> INT
 %token  <string> ID
-// %token  <string> MUTEX_ID
 %token  LPAREN
 %token  RPAREN 
 %token  LBRACE 
@@ -15,7 +14,6 @@
 %token  COMMA 
 %token  DOT 
 %token  COLON 
-// %token  DOUBLECOLON
 %token ARROW
 %token  SEMICOLON 
 %token  EQUAL 
@@ -36,12 +34,6 @@
 %token  IMPL
 %token  NEW
 %token  FUNCTION 
-// %token  MUTEX
-// // %token  MUTEX_ID
-// %token  LOCK
-// %token  UNLOCK
-// %token  CREATE_THREAD
-// %token  CONSUME
 %token  FINISH 
 %token  ASYNC 
 %token  CAPABILITY 
@@ -172,7 +164,7 @@ param:
     {Param(param_type, Var_name.of_string param_name, capability_guards, maybeBorrowed)}
 
 impl_defn: 
-    | IMPL trait_name=ID; FOR; struct_name=ID; method_defns=list(method_defn); {TImpl(Trait_name.of_string trait_name, Struct_name.of_string struct_name, method_defns)}
+    | IMPL trait_name=ID; FOR; struct_name=ID; LBRACE; method_defns=list(method_defn); RBRACE; {TImpl(Trait_name.of_string trait_name, Struct_name.of_string struct_name, method_defns)}
 
 method_signature:
     |  method_name=ID;
@@ -188,9 +180,8 @@ method_signature:
       } }
 
 method_defn: 
-    | LBRACE 
-    method_signatures = method_signature;
-    body=block_expr; RBRACE;
+    | method_signatures = method_signature;
+    body=block_expr;
     {TMethod(method_signatures, body)}
 
 function_signature:
@@ -239,15 +230,15 @@ constructor_args:
     | field_name=ID; COLON; assigned_expr=expr {ConstructorArg(Field_name.of_string field_name, assigned_expr)}
 
 expr:
+    | LPAREN e=expr RPAREN {e}
     | i=INT {{ loc=loc_of_position $startpos; node=Int(i) }}
     | TRUE {{ loc=loc_of_position $startpos; node=Boolean(true) }}
     | FALSE {{ loc=loc_of_position $startpos; node=Boolean(false) }}
-    | LPAREN e=expr RPAREN {e}
     | id=identifier {{ loc=loc_of_position $startpos; node=Identifier(id) }}
-    | op=un_op; e=expr {{ loc=loc_of_position $startpos; node=UnOp(op,e) }}
     | e1=expr; op=bin_op; e2=expr {{ loc=loc_of_position $startpos; node=BinOp(op, e1, e2) }}
+    | op=un_op; e=expr {{ loc=loc_of_position $startpos; node=UnOp(op,e) }}
     | CONSUME; id=identifier {{ loc=loc_of_position $startpos; node=Consume(id) }}
-    | NEW; var_name=ID; EQUAL; struct_name=ID; LBRACE constructor_args=separated_list(COMMA, constructor_args) RBRACE {{ loc=loc_of_position $startpos; node=Constructor(Var_name.of_string var_name, Struct_name.of_string struct_name, constructor_args) }}
+    | NEW; struct_name=ID; LPAREN constructor_args=separated_list(COMMA, constructor_args) RPAREN {{ loc=loc_of_position $startpos; node=Constructor(Struct_name.of_string struct_name, constructor_args) }}
     | LET; var_name=ID; type_annot=option(let_type_annot);  EQUAL; bound_expr=expr {{ loc=loc_of_position $startpos; node=Let(type_annot, Var_name.of_string var_name, bound_expr) }} 
     | id=identifier; COLONEQ; assigned_expr=expr {{ loc=loc_of_position $startpos; node=Assign(id, assigned_expr) }}
     | obj=ID; DOT; method_name=ID; method_args=args {{ loc=loc_of_position $startpos; node=MethodApp(Var_name.of_string obj, Method_name.of_string method_name, method_args) }}

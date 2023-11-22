@@ -3,6 +3,7 @@ open Core
 open Poppy_parser.Ast_types
 (* open Poppy_type_checker.Typed_ast *)
 open Data_race_env
+module T = Poppy_type_checker.Type_env
 
 (* There is another capability in the struct that can both access subordinate state in one
    capability and also subordinate state in another capability - thus acting as a channel
@@ -73,6 +74,7 @@ let capabilities_have_no_subord_shared_state struct_name env capability_1_name
 let can_concurrently_access_capabilities struct_name struct_defns
     (TCapability (capability_1_mode, capability_1_name) as capability1)
     (TCapability (_, capability_2_name) as capability2) =
+
   capabilities_have_safe_shared_state struct_name struct_defns capability1 capability2
   && capabilities_have_no_subord_shared_state struct_name struct_defns capability_1_name
        capability_2_name
@@ -80,7 +82,7 @@ let can_concurrently_access_capabilities struct_name struct_defns
         (capabilities_have_subord_channel struct_name struct_defns capability_1_name
            capability_2_name))
   (* Can't access the same linear capability in multiple threads as violates linearity *)
-  && not (phys_equal capability_1_mode Linear && phys_equal capability_1_name capability_2_name)
+  && not (T.equal_mode capability_1_mode Linear && Capability_name.(=) capability_1_name capability_2_name)
 
 (* We check that the capabilities can be accessed concurrently *)
 let type_concurrent_capability_pair_constraints_var struct_defns obj_struct obj_name

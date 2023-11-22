@@ -3,12 +3,13 @@ open Core
 open Poppy_parser.Ast_types
 open Poppy_type_checker.Typed_ast
 open Data_race_env
+module T =  Poppy_type_checker.Type_env
 
 let aggregate_capability_accesses_thread_free_var all_vars_capability_accesses
     (obj_name, obj_struct, _) =
   List.filter_map
     ~f:(fun (name, struct_name, var_capabilities_accessed) ->
-      if phys_equal obj_name name && phys_equal struct_name obj_struct then Some var_capabilities_accessed
+      if Var_name.(=) obj_name name && Struct_name.(=) struct_name obj_struct then Some var_capabilities_accessed
       else None)
     all_vars_capability_accesses
   |> fun updated_capabilities_accessed ->
@@ -55,7 +56,7 @@ let choose_identifier_capabilities id =
       []
   | TObjField (obj_struct, obj_name, _, _, capabilities, _) ->
       ( match
-          List.find ~f:(fun (TCapability (mode, _)) -> not (phys_equal mode Linear)) capabilities
+          List.find ~f:(fun (TCapability (mode, _)) -> not (T.equal_mode mode Linear)) capabilities
         with
       | Some capability -> [capability]
       | None            ->
@@ -82,7 +83,7 @@ let rec aggregate_capability_accesses_expr (struct_defns: struct_defn list) (met
     aggregate_capability_accesses_block_expr_rec block_expr
     |> fun (updated_block, capability_accesses) ->
     ({expr with node = TBlockExpr updated_block}, capability_accesses)
-  | TConstructor (var_name, struct_name, constructor_args) ->
+  | TConstructor (struct_name, constructor_args) ->
     List.unzip
       (List.map
           ~f:(fun (ConstructorArg (field_name, expr)) ->
@@ -92,7 +93,7 @@ let rec aggregate_capability_accesses_expr (struct_defns: struct_defn list) (met
             , arg_capability_accesses ))
           constructor_args)
     |> fun (updated_args, args_capability_accesses) ->
-    ({expr with node = TConstructor (var_name, struct_name, updated_args)}
+    ({expr with node = TConstructor (struct_name, updated_args)}
     , List.concat args_capability_accesses )
   | TLet (type_expr, var_name, bound_expr) ->
     aggregate_capability_accesses_expr_rec bound_expr
@@ -118,7 +119,7 @@ let rec aggregate_capability_accesses_expr (struct_defns: struct_defn list) (met
                 aggregate_capability_accesses_expr_rec arg
                 |> fun (updated_arg, arg_capability_accesses) ->
                 ( updated_arg
-                , get_arg_capabilities_used_by_fn env param arg
+                , get_arg_capabilities_used_by_fn struct_defns param arg
                   @ arg_capability_accesses ))
               (List.zip_exn method_params args))
         |> fun (updated_args, args_capability_accesses) ->
@@ -142,7 +143,7 @@ let rec aggregate_capability_accesses_expr (struct_defns: struct_defn list) (met
             aggregate_capability_accesses_expr_rec arg
             |> fun (updated_arg, arg_capability_accesses) ->
             ( updated_arg
-            , get_arg_capabilities_used_by_fn env param arg
+            , get_arg_capabilities_used_by_fn struct_defns param arg
               @ arg_capability_accesses ))
           (List.zip_exn (get_function_params func_name function_defns) args))
     |> fun (updated_args, args_capability_accesses) ->
@@ -212,7 +213,7 @@ let rec aggregate_capability_accesses_expr (struct_defns: struct_defn list) (met
     |> fun (updated_expr, expr_capability_accesses) ->
     ({expr with node = TUnOp (unop, updated_expr)}, expr_capability_accesses)
 
-and aggregate_capability_accesses_block_expr struct_defns method_defns impl_defns function_defns (env: E.env)
+and aggregate_capability_accesses_block_expr struct_defns method_defns impl_defns function_defns env
   (Block (loc, type_block_expr, exprs)) =
   List.unzip
     (List.map ~f:(aggregate_capability_accesses_expr struct_defns method_defns impl_defns function_defns env) exprs)

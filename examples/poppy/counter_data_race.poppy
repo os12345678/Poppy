@@ -1,0 +1,35 @@
+struct Counter{
+    capability read Bar, linear Baz;
+    var int count : Bar, Baz;
+}
+
+trait Count{
+    increment : Count () -> void
+    getCount : Count () -> int
+}
+
+impl Count for Counter {
+    increment : Count () -> void {
+        this.count := this.count + 1
+    }
+    getCount : Count () -> int {
+        this.count
+    }
+}
+
+void main(){
+    new counter = Counter{count:0};
+    finish{
+        async{
+            for(let i:int = 0; i<1000; i := i+1){
+                counter.increment()
+            }
+        }
+        async{
+            for(let i:int = 0; i<1000; i := i+1){
+                counter.increment()
+            }
+        }
+    }
+}
+

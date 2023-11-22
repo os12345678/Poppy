@@ -12,7 +12,7 @@ let the_module = create_module context "Poppy JIT"
 let builder = builder context
 
 (* let the_execution_engine = Llvm_executionengine.create the_module in
-let the_fpm = PassManager.create_function the_module *)
+(* let the_fpm = PassManager.create_function the_module *) *)
 
 let active_threads_table : (string, llvalue list) Hashtbl.t = Hashtbl.create 50
 

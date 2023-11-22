@@ -4,6 +4,14 @@ module E = Poppy_type_checker.Type_env
 (* open Core *)
 
 
+let print_struct_names struct_defns =
+  List.iter
+    (fun struct_defn ->
+      match struct_defn with
+      | T.TStruct (struct_name, _, _) ->
+          Printf.printf "Struct name: %s\n" (A.Struct_name.to_string struct_name))
+    struct_defns
+
 (* Function to extract Capability_name.t from capability *)
 let extract_capability_name (cap: A.capability) =
   match cap with
@@ -29,7 +37,7 @@ let rec reduce_expr_to_obj_ids (expr: T.expr) =
   | T.TInt _ | T.TBoolean _ -> []
   | T.TIdentifier (id) -> [id]
   | T.TBlockExpr (block_expr) -> reduce_block_expr_to_obj_ids block_expr
-  | T.TConstructor (_, _, _) -> []
+  | T.TConstructor (_, _) -> []
   | T.TLet (var_type, var_name, _) ->
       [T.TVariable (var_name, Option.get var_type, [], None)]
   | T.TAssign (id, _) -> [id]
@@ -67,7 +75,8 @@ let capability_mode_present mode_present mode_required =
   | Linear | ThreadLocal | Subordinate | Read | Locked -> mode_present = mode_required
      
 
-let struct_has_mode struct_name mode env =
+let struct_has_mode (struct_name: A.Struct_name.t) (mode: A.mode) (env: T.struct_defn list) =
+  print_endline ("Checking struct " ^ A.Struct_name.to_string struct_name ^ " for mode " ^ A.string_of_mode mode);
   let rec struct_has_mode_helper struct_name mode env seen_struct_names =
     if elem_in_list struct_name seen_struct_names then
       (* Avoid infinite recursion on type definition *)
@@ -220,7 +229,7 @@ let rec find_immediate_aliases_in_expr should_match_fields orig_obj_name curr_al
     | T.TInt _ | T.TBoolean _ | T.TIdentifier _ -> curr_aliases
     | T.TBlockExpr (block_expr) ->
         find_imm_aliases_in_block_expr_rec curr_aliases block_expr
-    | T.TConstructor (_, _, constructor_args) ->
+    | T.TConstructor (_, constructor_args) ->
         Core.List.fold ~init:curr_aliases
           ~f:(fun acc_aliases (T.ConstructorArg (_, expr)) ->
             find_imm_aliases_in_expr_rec acc_aliases expr.node)

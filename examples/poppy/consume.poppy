@@ -1,0 +1,13 @@
+struct Foo {
+    capability linear Bar, read Baz;
+    const int f : Bar, Baz;
+    const int g : Bar ;
+    const int h : Bar;
+}
+
+void main(){
+    new x = Foo{f:4, g:5, h:6};
+    let z = x;
+    z.f; // z's liveness ends here
+    let y = consume x // Consume linear variable
+}

@@ -56,7 +56,7 @@ let check_arg_borrowing env loc ((Param (param_type, _, _, maybe_borrowed) as pa
     | T.TIdentifier _ -> Ok ()
     | T.TBlockExpr block_expr ->
         (type_function_forward_borrowing_block_expr method_defns function_defns env) block_expr
-    | T.TConstructor (_, _, constructor_args) ->
+    | T.TConstructor (_, constructor_args) ->
         Result.all_unit
           (List.map
               ~f:(fun (ConstructorArg (_, expr)) ->
@@ -168,7 +168,7 @@ let rec type_assign_borrowed_expr method_defns function_defns env expr =
   | T.TIdentifier id -> Ok (id_maybe_borrowed id)
   | T.TBlockExpr block_expr ->
       (type_assign_borrowed_block_expr method_defns function_defns env) block_expr
-  | T.TConstructor (_, _, constructor_args) ->
+  | T.TConstructor (_, constructor_args) ->
       Result.all
         (List.map
             ~f:(fun (ConstructorArg (_, expr)) ->

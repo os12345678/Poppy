@@ -40,6 +40,17 @@ and equal_type_expr te1 te2 =
   | TEStruct name1 , TEStruct name2 -> Struct_name.(=) name1 name2
   | _ -> false
 
+and equal_mode (mode1: mode) (mode2: mode) =
+  match mode1, mode2 with
+  | Linear, Linear -> true
+  | ThreadLocal, ThreadLocal -> true
+  | Read, Read -> true
+  | Locked, Locked -> true
+  | ThreadSafe, ThreadSafe -> true
+  | Subordinate, Subordinate -> true
+  | Encapsulated, Encapsulated -> true
+  | _ -> false
+
 (* Lookup functions *)
 let rec find_global env =
   match env with
@@ -107,6 +118,8 @@ let rec lookup_var env var_name loc =
     end
 
 let lookup_method_signature trait_defn method_name = 
+  Printf.printf "lookup_method_signature\n";
+
   match trait_defn with
   | Ast.TTrait (_, method_signatures) ->
     begin
@@ -116,6 +129,8 @@ let lookup_method_signature trait_defn method_name =
     end   
 
 let lookup_method_in_impl env struct_name method_name =
+  Printf.printf "lookup_method_in_impl\n";
+
   let glob_env = find_global env in
   match glob_env with
   | Global (_, _, method_map, _, _) ->
@@ -125,7 +140,27 @@ let lookup_method_in_impl env struct_name method_name =
     | None -> Error (Core.Error.of_string (Fmt.str "Method %s not found in impl for struct %s" (Method_name.to_string method_name) (Struct_name.to_string struct_name)))
     end
   | _ -> Error (Core.Error.of_string "Method lookup in impl should be done in the global environment")
+(* 
+let lookup_method_in_trait trait_name method_name env =
+  let%bind trait_defn = lookup_trait env trait_name in
+  let%bind method_defn = lookup_method env method_name in
 
+   *)
+
+let lookup_method_in_struct_trait struct_name method_name env =
+let%bind trait_names = lookup_impl env struct_name in
+let rec find_method_in_traits traits =
+  match traits with
+  | [] -> Error (Core.Error.of_string "Method not found in any implemented traits")
+  | trait_name :: remaining_traits ->
+    let%bind trait_defn = lookup_trait env trait_name in
+    match lookup_method_signature trait_defn method_name with
+    | Ok method_signature -> Printf.printf ("FOUND"); Ok (trait_name, method_signature)
+    | Error _ -> Printf.printf("FAILED"); find_method_in_traits remaining_traits
+in
+find_method_in_traits trait_names  
+  
+  
 let get_method_map method_defns =
   List.fold method_defns ~init:MethodNameMap.empty ~f:(fun map method_defn ->
     match method_defn with
@@ -220,10 +255,21 @@ let rec elem_in_list x = function [] -> false | y :: ys -> Ast_types.Capability_
 
 let get_struct_defn struct_name struct_defns =
   let matching_struct_defns =
-    List.filter
+    List.find
       ~f:(fun (Typed_ast.TStruct (name, _, _)) -> Ast_types.Struct_name.(=) struct_name name)
       struct_defns in
-  List.hd_exn matching_struct_defns
+  match matching_struct_defns with
+  | Some struct_defn -> struct_defn
+  | None -> failwith "Struct not found"
+
+let get_struct_defn2 struct_name (struct_defns: Ast.struct_defn list) =
+  let matching_struct_defns =
+    List.find
+      ~f:(fun (Ast.TStruct (name, _, _)) -> Ast_types.Struct_name.(=) struct_name name)
+      struct_defns in
+  match matching_struct_defns with
+  | Some struct_defn -> struct_defn
+  | None -> failwith "Struct not found"
 
 let get_obj_struct_defn var_name env loc = 
   lookup_var env var_name loc
@@ -237,23 +283,28 @@ let get_obj_struct_defn var_name env loc =
                   (Var_name.to_string var_name)
                   (string_of_type wrong_type)))
 
-let get_struct_capabilities struct_name env =
-  match env with
-  | Global (struct_map, _, _, _, _) ->
-    (match StructNameMap.find struct_map struct_name with
-    | Some (TStruct (_, capabilities, _)) -> capabilities
-    | None -> [])
-  | _ -> []
+let get_struct_capabilities struct_name struct_defns =
+  let matching_struct_defn = get_struct_defn struct_name struct_defns in
+  match matching_struct_defn with
+  | Typed_ast.TStruct (_, capabilities, _) -> capabilities
 
-let get_struct_fields struct_name env = 
-  match env with 
-  | Global (struct_map, _, _, _, _) ->
-    (match StructNameMap.find struct_map struct_name with 
-    | Some (TStruct (_, _, fields)) -> fields
-    | None -> [])
-  | _ -> []
+let get_struct_capabilities2 struct_name (struct_defns: Ast.struct_defn list) =
+  let matching_struct_defn = get_struct_defn2 struct_name struct_defns in
+  match matching_struct_defn with
+  | Ast.TStruct (_, capabilities, _) -> capabilities
+
+let get_struct_fields struct_name struct_defns = 
+  let matching_struct_defn = get_struct_defn struct_name struct_defns in
+  match matching_struct_defn with
+  | Typed_ast.TStruct (_, _, fields) -> fields
+
+let get_struct_fields2 struct_name (struct_defns: Ast.struct_defn list) = 
+  let matching_struct_defn = get_struct_defn2 struct_name struct_defns in
+  match matching_struct_defn with
+  | Ast.TStruct (_, _, fields) -> fields
 
   let get_method_defn method_name env =
+    Printf.printf "get_method_defn\n";
     match env with
     | Global (_, _, method_map, _, _) ->
       (match MethodNameMap.find method_map method_name with
@@ -275,9 +326,9 @@ let get_function_defn function_name env =
   | _ ->
     raise (FunctionNotFoundError "Function lookup should be done in the global environment")
 
-  let get_method_field_capabilities struct_name env =
-    let fields = get_struct_fields struct_name env in
-    let struct_capabilities = get_struct_capabilities struct_name env in
+  let get_method_field_capabilities struct_name struct_defns =
+    let fields = get_struct_fields struct_name struct_defns in
+    let struct_capabilities = get_struct_capabilities struct_name struct_defns in
   
     List.fold_left 
       ~f:(fun acc (TField (_, _, _, field_capability_names)) ->
@@ -288,6 +339,20 @@ let get_function_defn function_name env =
       )
       ~init:[] 
       fields
+
+let get_method_field_capabilities2 struct_name (struct_defns: Ast.struct_defn list) =
+  let fields = get_struct_fields2 struct_name struct_defns in
+  let struct_capabilities = get_struct_capabilities2 struct_name struct_defns in
+
+  List.fold_left 
+    ~f:(fun acc (TField (_, _, _, field_capability_names)) ->
+      List.filter 
+        ~f:(fun (TCapability (_, capability_name)) ->
+          elem_in_list capability_name field_capability_names) 
+        struct_capabilities @ acc
+    )
+    ~init:[] 
+    fields
   
 
   
@@ -312,7 +377,7 @@ let check_no_duplicate_var_declarations_in_block exprs loc =
 
 (* Assignability *)
 let check_variable_declarable var_name loc = 
-  if phys_equal var_name (Var_name.of_string "this") then 
+  if Var_name.(=) var_name (Var_name.of_string "this") then 
     Error (Core.Error.of_string 
             (Fmt.str "%d:%d Type error - Cannot use 'this' in this context" (loc.lnum) (loc.cnum)))
   else Ok ()
@@ -358,3 +423,17 @@ let check_identifier_consumable id env loc =
                       (string_of_loc loc)))
             else Ok ()
           | None -> Error (Core.Error.of_string "Field not found")))
+
+let get_field_types fields =
+  List.map ~f:(fun field -> 
+    match field with
+    | TField (_, type_of_field, _, _) -> type_of_field
+  ) fields
+
+let type_to_string typ = 
+  match typ with
+  | TEInt -> "int"
+  | TEBool -> "bool"
+  | TEVoid -> "void"
+  | TEStruct struct_name -> Struct_name.to_string struct_name
+          

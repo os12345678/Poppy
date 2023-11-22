@@ -23,6 +23,7 @@ let rec type_read_capabilities_expr (expr: T.expr) : T.expr =
     T.TAssign
       (remove_read_capabilities id
       , type_read_capabilities_expr assigned_expr )}
+  | TConsume id -> {expr with node = TConsume (remove_read_capabilities id)}
   | T.TMethodApp (var_name, struct_name, trait_name, method_name, obj_capabilities, args) ->
     {expr with node = T.TMethodApp
       (var_name
@@ -35,13 +36,13 @@ let rec type_read_capabilities_expr (expr: T.expr) : T.expr =
     {expr with node = 
       T.TFunctionApp
         (func_name, List.map type_read_capabilities_expr args)}
-  | TConstructor (var_name, struct_name, constructor_args) ->
+  | TConstructor (struct_name, constructor_args) ->
     let updated_args = 
       List.map 
         (fun (T.ConstructorArg (field_name, expr)) ->
           T.ConstructorArg (field_name, type_read_capabilities_expr expr))
         constructor_args in
-    {expr with node = T.TConstructor (var_name, struct_name, updated_args)}
+    {expr with node = T.TConstructor (struct_name, updated_args)}
   | T.TPrintf (format_str, args) -> {expr with node = 
     T.TPrintf (format_str, List.map type_read_capabilities_expr args)}
   | T.TFinishAsync (async_exprs, curr_thread_free_vars, curr_thread_expr) -> {expr with node = 
@@ -66,11 +67,7 @@ let rec type_read_capabilities_expr (expr: T.expr) : T.expr =
         , type_read_capabilities_expr expr1
         , type_read_capabilities_expr expr2 )}
   | T.TUnOp (unop, expr) -> {expr with node = 
-      T.TUnOp (unop, type_read_capabilities_expr expr)}
-
-  
-  | _ -> failwith "type read capabilities: Consume not implemented"
-         
+      T.TUnOp (unop, type_read_capabilities_expr expr)}         
 
 and type_read_capabilities_block_expr (T.Block (loc, type_block_expr, exprs)) =
   let updated_exprs = List.map type_read_capabilities_expr exprs in

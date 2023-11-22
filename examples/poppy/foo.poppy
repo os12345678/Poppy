@@ -1,0 +1,36 @@
+struct Foo {
+    capability read Bar, linear Baz;
+    const int f : Bar;
+    var int g : Baz;
+}
+
+trait Baz { 
+    setg : Baz (int x, int y) -> int
+}
+
+impl Baz for Foo {
+    setg : Baz (int x, int y) -> int { 
+        this.g := x * y
+    }
+}
+
+fn Buzz(int x) -> int {
+    x % 2
+}
+
+void main() {
+    new x = Foo{f:100, g:0};
+    new y = Foo{f:0, g:0};
+    let z:int = Buzz(10);
+    //y.setg(5,6);
+    let w = x.f
+    /*finish{
+        async{
+            print("Value of x.f: %d", x.f)
+        }
+        async{
+            y.setg(10,11);
+            print("Value of y.g: %d", y.g)
+        }
+    }*/
+}

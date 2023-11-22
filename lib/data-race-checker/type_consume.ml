@@ -28,7 +28,7 @@ let check_identifiers_disjoint id affected_id =
   | T.TVariable (var_name, _, _, _) -> (
     match affected_id with
     | TVariable _ -> not (phys_equal id affected_id)
-    | TObjField (_, obj_name, _, _, _, _) -> not (phys_equal var_name obj_name) )
+    | TObjField (_, obj_name, _, _, _, _) -> not (Var_name.(=) var_name obj_name) )
   | TObjField _                   -> not (phys_equal id affected_id)
 
 let remove_reassigned_id reassigned_id consumed_ids =
@@ -99,7 +99,7 @@ and type_consume_expr env expr consumed_ids =
       check_identifier_accessible id consumed_ids >>| fun () -> consumed_ids
   | TBlockExpr block_expr ->
       type_consume_block_expr env block_expr consumed_ids
-  | TConstructor (_, _, constructor_args) ->
+  | TConstructor (_, constructor_args) ->
       List.fold ~init:(Ok consumed_ids)
         ~f:(fun acc (ConstructorArg (_, expr)) ->
           accumulate_consumed_ids env acc expr)

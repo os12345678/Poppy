@@ -36,14 +36,14 @@ let rec remove_subord_capabilities_expr env expr =
   | TIdentifier id -> {expr with node = TIdentifier (remove_subord_capabilities_id env id)}
   | TBlockExpr block_expr -> {expr with node = 
     TBlockExpr (remove_subord_capabilities_block_expr env block_expr)}
-  | TConstructor (var_name, struct_name, constructor_args) ->
+  | TConstructor (struct_name, constructor_args) ->
       let updated_args =
         List.map
           ~f:(fun (ConstructorArg (field_name, expr)) ->
             ConstructorArg
               (field_name, remove_subord_capabilities_expr env expr))
           constructor_args in
-      {expr with node = TConstructor (var_name, struct_name, updated_args)}
+      {expr with node = TConstructor (struct_name, updated_args)}
   | TLet (type_expr, var_name, bound_expr) ->
     {expr with node = TLet
       (type_expr, var_name, remove_subord_capabilities_expr env bound_expr)}

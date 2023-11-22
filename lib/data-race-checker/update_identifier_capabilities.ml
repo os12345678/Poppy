@@ -37,14 +37,14 @@ let rec update_matching_identifier_caps_expr names_to_match capability_filter_fn
   | TIdentifier id -> {expr with node = TIdentifier (update_var_modes_identifier_rec id)}
   | TBlockExpr block_expr -> {expr with node =
       TBlockExpr (update_matching_identifier_caps_block_expr_rec block_expr)}
-  | TConstructor (var_name, struct_name, constructor_args) -> {expr with node =
+  | TConstructor (struct_name, constructor_args) -> {expr with node =
       let updated_args =
         Core.List.map
           ~f:(fun (ConstructorArg (field_name, expr)) ->
             ConstructorArg
               (field_name, update_matching_identifier_caps_expr_rec expr))
           constructor_args in
-      TConstructor (var_name, struct_name, updated_args)}
+      TConstructor (struct_name, updated_args)}
   | TLet (type_expr, names_to_match, bound_expr) -> {expr with node =
       TLet
         ( type_expr
@@ -54,7 +54,7 @@ let rec update_matching_identifier_caps_expr names_to_match capability_filter_fn
       TAssign
         ( update_var_modes_identifier_rec id
         , update_matching_identifier_caps_expr_rec assigned_expr )}
-  (* | Consume (loc, id) -> Consume (loc, update_var_modes_identifier_rec id) *)
+  | TConsume id -> {expr with node = TConsume (update_var_modes_identifier_rec id)}
   | TMethodApp (obj_struct, struct_name, trait_name, method_name, obj_capabilities, args) -> {expr with node =
       TMethodApp
         ( obj_struct
@@ -92,9 +92,6 @@ let rec update_matching_identifier_caps_expr names_to_match capability_filter_fn
         , update_matching_identifier_caps_expr_rec expr2 )}
   | TUnOp (unop, expr) -> {expr with node =
       TUnOp (unop, update_matching_identifier_caps_expr_rec expr)}
-
-  
-      | _ -> failwith "update identifier: Consume not implemented"
          
 
 and update_matching_identifier_caps_block_expr names_to_match capability_filter_fn

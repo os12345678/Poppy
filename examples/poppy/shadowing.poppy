@@ -1,0 +1,26 @@
+struct Foo {
+    capability read Bar;
+    const int f : Bar;
+}
+
+void main() {
+    let x:int = 6;
+    if (true) {
+        new x = Foo{f:5};
+        let y:int = -5;
+        finish {
+            async {
+                x;
+                y
+            }
+            async {
+                x;
+                y
+            }
+            x
+        };
+        x.f
+    } else {
+        5
+    }
+}
