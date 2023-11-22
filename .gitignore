@@ -1,5 +1,4 @@
 _build/*
-*.poppy
 examples/c/*.c
 examples/ll/*.ll
 examples/java/*.java

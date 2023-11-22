@@ -1,0 +1,122 @@
+// Struct definitions
+struct ListNode {
+    capability local Node, local NextElem, locked IsNull;
+    var int value : Node;
+    var ListNode nextElem : NextElem;
+    var bool isNull : IsNull;
+}
+
+struct SinglyLinkedList {
+    capability local Length, local Head, read ErrorCode;
+    var int mLength : Length;
+    var ListNode mHead : Head;
+    var int errorCode : ErrorCode;
+}
+
+// Trait definitions
+trait ListNodeOperations {
+    getValue: Head (ListNode node) -> int
+    setNext: Head (ListNode node, ListNode nextElem) -> void
+    isNonNull: Head (ListNode node) -> bool
+}
+
+trait SinglyLinkedListOperations {
+    isEmpty: Length (SinglyLinkedList list) -> bool
+    head: Head (SinglyLinkedList list) -> int
+    prepend: Head, Length (SinglyLinkedList list, int x) -> void
+    tail: Head, Length, ErrorCode (SinglyLinkedList list) -> SinglyLinkedList
+    setTail: Head, Length, ErrorCode (SinglyLinkedList list, SinglyLinkedList newTail) -> void
+    getLength: Length (SinglyLinkedList list) -> int
+    append: Head, Length (SinglyLinkedList list, int x) -> void
+    createListNode : Head (int value) -> ListNode
+}
+
+// Implementations for ListNode
+impl ListNodeOperations for ListNode {
+    getValue: Head (ListNode node) -> int {
+        node.value
+    }
+    setNext: Head (ListNode node, ListNode nextElem) -> void {
+        node.nextElem := nextElem
+    }
+    isNonNull: Head (ListNode node) -> bool {
+        !node.isNull
+    }
+}
+
+// Implementations for SinglyLinkedList
+impl SinglyLinkedListOperations for SinglyLinkedList {
+    createListNode : Head (int value) -> ListNode {
+        new ListNode(value: value, isNull:false)
+    }
+    isEmpty: Length (SinglyLinkedList list) -> bool {
+        list.mLength == 0
+    }
+    head: Head (SinglyLinkedList list) -> int {
+        list.mHead
+    }
+    prepend: Head, Length (SinglyLinkedList list, int x) -> void {
+        let newHead = new ListNode(value: x, isNull: false);
+        list.mHead := newHead;
+        list.mLength := list.mLength+1
+    }
+    tail: Head, Length, ErrorCode (SinglyLinkedList list) -> SinglyLinkedList {
+        if (this.isEmpty(list)) {
+            new SinglyLinkedList(mLength: 0, mHead: this.mHead, errorCode: this.errorCode) // this will have isNull=true
+        } else {
+            let tail = new SinglyLinkedList(mLength: this.mLength - 1, mHead: this.mHead, errorCode: this.errorCode);
+            let currentElem = this.mHead;
+
+            // Modify this loop to call isNonNull on a ListNode object
+            while (this.isNonNull(currentElem)) { // Assuming currentElem is a ListNode
+                tail.append(tail, currentElem.getValue(currentElem.nextElem)); // getValue should be called on a ListNode
+                currentElem := currentElem.nextElem
+            };
+            tail
+        }
+    }
+    /*setTail: Head, Length, ErrorCode (SinglyLinkedList list, SinglyLinkedList newTail) -> void {
+        if(this.isEmpty(list)){
+            // no head, so cannot set new tail
+        }
+        else {
+            this.mLength := 1;
+            let currentElem =  this.createListNode(newTail.head(list));
+            this.setNodeNextElem(this.mHead, currentElem);
+            this.mLength := this.mLength + 1;
+            while(this.listIsNonNull(newTail.tail())){
+                newTail := newTail.tail();
+                let nextElem = this.createListNode(newTail.head());
+                currentElem.nextElem := nextElem;
+                this.mLength := this.mLength + 1;
+                currentElem := nextElem
+            }
+        }
+    }*/
+    getLength: Length (SinglyLinkedList list) -> int {
+        this.mLength
+    }
+
+    append: Head, Length (SinglyLinkedList list, int x) -> void { //add element to end of list
+        let newEnd = new ListNode(value: x, isNull: false, nextElem: new ListNode(isNull: true) );
+              this.mLength := this.mLength + 1;
+        if(this.isEmpty(list)){ //empty list => no head
+            this.mHead := newEnd
+        }
+        else {
+            let currentElem = this.mHead;
+            while (this.isNonNull(currentElem.nextElem)){
+                currentElem := currentElem.nextElem
+            };
+            currentElem.nextElem := newEnd
+        }
+    }
+}
+
+// Main function definition
+void main() {
+    let tail = new ListNode(isNull: true);
+    let head = new ListNode(value: 42, isNull: false, nextElem: tail);
+    let list = new SinglyLinkedList(mLength: 1, mHead: head, errorCode: -1);
+    print("This linked list program compiles, head: %d!", head.value)
+}

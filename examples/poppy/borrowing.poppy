@@ -1,0 +1,11 @@
+struct Foo {
+    capability linear Bar;
+    var int f : Bar;
+}
+
+fn test2(Foo x, Foo y) -> void {}
+
+void main() {
+    new x = Foo{f:0};
+    test2(x,x) // not allowed!
+}

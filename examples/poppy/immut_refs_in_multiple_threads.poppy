@@ -1,0 +1,23 @@
+struct Foo {
+    capability read Bar, linear Baz;
+    const int f : Bar, Baz;
+}
+
+fn test() -> int {
+    5
+}
+
+void main() {
+    let x = new Foo(f:5);
+    let y = 5;
+    finish{
+        async{
+            x;
+            test();
+            y
+        }
+        x;
+        y
+    };
+    x.f
+}

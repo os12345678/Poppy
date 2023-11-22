@@ -205,18 +205,20 @@ let type_block_with_defns = type_block_expr struct_defns trait_defns impl_defns 
     let%bind typed_cond = type_with_defns cond env in
     let%bind (typed_then_block_expr, typed_then_type) = type_block_with_defns then_expr env in
     let%bind (typed_else_block_expr, typed_else_type) = type_block_with_defns else_expr env in
-    if equal_type_expr typed_cond.typ TEBool then
-      if equal_type_expr typed_then_type typed_else_type then
-        Ok ({Typed_ast.loc = expr.loc; typ = typed_cond.typ; node = TIf (typed_cond, typed_then_block_expr, typed_else_block_expr)})
-      else
-        Or_error.error_string 
+      if not (equal_type_expr typed_then_type typed_else_type) then
+        Or_error.error_string
         (Fmt.str "%s Type error - If statement branches have different types: %s and %s" 
           (string_of_loc expr.loc) (string_of_type typed_then_type) (string_of_type typed_else_type))
-    else
-      Or_error.error_string 
-      (Fmt.str "%s Type error - If statement condition is not a boolean: %s" 
-        (string_of_loc expr.loc) (string_of_type typed_cond.typ))
-  
+      else
+        begin match typed_cond.typ with 
+        | TEBool -> 
+          Ok ({Typed_ast.loc = expr.loc; typ = typed_then_type; node = TIf (typed_cond, typed_then_block_expr, typed_else_block_expr)})
+        | _ ->
+          Or_error.error_string 
+          (Fmt.str "%s Type error - If statement condition is not a boolean: %s" 
+            (string_of_loc expr.loc) (string_of_type typed_cond.typ))
+        end
+
   | Ast.While (cond_expr, block_expr) ->
     let%bind typed_cond_expr = type_with_defns cond_expr env in
     let%bind (typed_block_expr, _) = type_block_with_defns block_expr env in
