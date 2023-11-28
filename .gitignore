@@ -1,7 +1,6 @@
 _build/*
 examples/c/*.c
 examples/ll/*.ll
-examples/java/*.java
 examples/java/*.class
 .gitignore
 out
@@ -9,3 +8,4 @@ output
 .vscode
 .DS_Store
 build
+examples/rust/BinarySearchTree
