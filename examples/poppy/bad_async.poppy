@@ -1,0 +1,15 @@
+struct Foo {
+    capability local Bar;
+    var int f : Bar;
+}
+
+void main(){
+    let x = new Foo();
+        finish {
+            async{
+                x.f := 1
+            }
+        let y = x;
+        y.f
+    }
+}

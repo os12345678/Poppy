@@ -1,0 +1,24 @@
+struct Foo {
+    capability linear Bar;
+    var int f : Bar;
+}
+
+trait Baz {
+    id : Bar (int x) -> int
+}
+
+impl Baz for Foo {
+    id : Bar (int x) -> int {
+        x
+    }
+}
+ 
+void main(){
+let x = new Foo(); 
+    finish{
+        async{
+            x.f // error - as accessing linear capability in multiple locals
+        }
+    x.f 
+    }
+}

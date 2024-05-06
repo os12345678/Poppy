@@ -1,0 +1,9 @@
+struct Foo {
+    capability read Bar;
+    var int f : Bar;
+}
+
+void main(){
+    let x = new Foo();
+    x.f := 1
+}

@@ -1,0 +1,12 @@
+struct Foo  {
+    capability linear Bar, read Baz;
+    var int f : Bar;
+    const int g : Bar, Baz;
+    const int h : Baz;
+}
+
+fn f (Foo{Bar,Baz} y) -> int {
+    y.f + y.g
+}
+    
+void main(){5}
