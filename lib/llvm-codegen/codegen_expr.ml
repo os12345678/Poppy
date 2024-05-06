@@ -47,19 +47,18 @@ let rec codegen_expr (expr: D.dexpr) (sym_table: St.llvm_symbol_table) (fpm: [ `
     end
 
   | DVar var_name ->
-    let (updated_sym_table, _rhs_value) = 
-        codegen_expr (U.wrap expr.loc expr.typ (DVar(var_name))) sym_table fpm in
     begin
-        match St.lookup_variable updated_sym_table var_name with
-        | Some (St.LVarInfo {llvm_value = Some value; llvm_type = Some typ; _}) when L.classify_type typ = L.TypeKind.Pointer ->
-            let loaded_value = L.build_load value var_name U.builder in
-            sym_table, loaded_value
-        | Some (St.LVarInfo {llvm_value = Some value; _}) ->
-            sym_table, value
-        | Some (St.LVarInfo {llvm_value = None; _}) -> (* y.setg(5) - y is found but has no llvalue in var info ...*)
-            sym_table, failwith (Printf.sprintf "Variable %s not initialized" var_name)
-        | _ -> failwith (Printf.sprintf "Variable %s not found or not declared in the symbol table." var_name)
+    match St.lookup_variable sym_table var_name with
+    | Some (St.LVarInfo {llvm_value = Some value; llvm_type = Some typ; _}) when L.classify_type typ = L.TypeKind.Pointer ->
+        let loaded_value = L.build_load value var_name U.builder in
+        sym_table, loaded_value
+    | Some (St.LVarInfo {llvm_value = Some value; _}) ->
+        sym_table, value
+    | Some (St.LVarInfo {llvm_value = None; _}) -> (* y.setg(5) - y is found but has no llvalue in var info ...*)
+        sym_table, failwith (Printf.sprintf "Variable %s not initialized" var_name)
+    | _ -> failwith (Printf.sprintf "Variable %s not found or not declared in the symbol table." var_name)
     end
+
 
   | DAssign (varname, rhs_expr_node) ->
     let (updated_sym_table, rhs_value) = 
