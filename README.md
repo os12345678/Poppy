@@ -43,7 +43,5 @@ Once these are installed, the Makefile has all basic commands.
 To compile a program, run the following command: 
 `dune exec bin/main.exe examples/poppy/<.poppy program>`
 
-
-
-
-
+Mentioned previously, currently, the output is LLVM IR. To compile this to an executable, run the following command:
+`clang -o <output file> <output file>.ll`
