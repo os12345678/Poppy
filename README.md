@@ -1,5 +1,5 @@
 # Poppy
-A proof-of-concept compiler for a type system I am creating as part of my Honours project. For a description of the theory, [check out my thesis here]([https://link-url-here.org](https://github.com/os12345678/Poppy/blob/main/Honours_Thesis_Oliver_Salman_13881750.pdf))
+A proof-of-concept compiler for a type system I am creating as part of my Honours project. For a description of the theory, [check out my thesis here](https://github.com/os12345678/Poppy/blob/main/Honours_Thesis_Oliver_Salman_13881750.pdf)
 
 ### Goal
 - To create a novel, expressive type system that has higher degrees of concurrency support than Rust
