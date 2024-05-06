@@ -6,11 +6,10 @@ A proof-of-concept compiler for a type system I am creating as part of my Honour
 - Design a static type system, implementing the core subset of the Kappa type system.
 
 ### TODO
-[x] LLVM IR codegen
-[] Finish linking LLVM backend
-[] Introduce generics/polymorphism
-[] Algebraic data types
-[] Refine language syntax/structure
+- Finish linking LLVM backend
+- Introduce generics/polymorphism
+- Algebraic data types
+- Refine language syntax/structure
 
 
 ### How to use
