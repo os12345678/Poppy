@@ -4,14 +4,11 @@ open Poppy_type_checker
 open Desugar
 open Poppy_codegen
 open Poppy_codegen.Codegen_expr
-open Poppy_codegen.Codegen_util 
+open Poppy_codegen.Codegen_util
 open Data_race_checker.Type_data_race_program
 
-let is_poppy_file filename = 
+let is_poppy_file filename =
   String.split_on_chars ~on:['.'] filename |>  List.last_exn |> String.equal "poppy"
-
-(* let get_output_file filename = 
-  String.substr_replace_all filename ~pattern:".poppy" ~with_:".ir" *)
 
 let poppy_file =
   let error_not_file filename =
@@ -22,10 +19,40 @@ let poppy_file =
       | true  -> filename
       | false -> error_not_file filename)
 
-let compile_program ?(should_pprint_past = false) ?(should_pprint_tast = false) 
-?(should_pprint_dast = false) ?(ignore_data_races = false) ?(should_print_llvm_table = false) ?compile_out_file lexbuf =
-  let open Result in 
-  (* let the_execution_engine = Llvm_executionengine.create the_module in *)
+(* Resolve the path to core_lib/bindings.c relative to the source file being compiled *)
+let find_bindings_path () =
+  let candidates = [
+    "core_lib/bindings.c";
+    "../core_lib/bindings.c";
+    Stdlib.Filename.concat (Stdlib.Filename.dirname Stdlib.Sys.executable_name) "../core_lib/bindings.c";
+  ] in
+  List.find candidates ~f:(fun p -> Stdlib.Sys.file_exists p)
+
+(* Link generated LLVM IR with core_lib/bindings.c and compile to executable using clang *)
+let link_and_compile llvm_module output_binary =
+  let ir_program = Llvm.string_of_llmodule llvm_module in
+  let ir_tmp_file = output_binary ^ ".ll" in
+  Out_channel.with_file ir_tmp_file ~f:(fun oc ->
+    Out_channel.output_string oc ir_program);
+  let bindings_path = match find_bindings_path () with
+    | Some path -> path
+    | None -> failwith "Could not find core_lib/bindings.c. Ensure you are running from the project root."
+  in
+  let cmd = Printf.sprintf "clang -o %s %s %s -lpthread 2>&1"
+    (Stdlib.Filename.quote output_binary)
+    (Stdlib.Filename.quote ir_tmp_file)
+    (Stdlib.Filename.quote bindings_path) in
+  let exit_code = Stdlib.Sys.command cmd in
+  (* Clean up the temporary IR file *)
+  (try Stdlib.Sys.remove ir_tmp_file with _ -> ());
+  if exit_code = 0 then Ok ()
+  else Error (Core.Error.of_string
+    (Printf.sprintf "Linking failed (exit code %d). Ensure clang and lpthread are available.\nCommand: %s" exit_code cmd))
+
+let compile_program ?(should_pprint_past = false) ?(should_pprint_tast = false)
+?(should_pprint_dast = false) ?(ignore_data_races = false) ?(should_print_llvm_table = false)
+?compile_out_file ?output_executable lexbuf =
+  let open Result in
   let the_fpm = Llvm.PassManager.create_function the_module in
 
   Lex_and_parse.parse_program lexbuf (* AST *)
@@ -47,24 +74,30 @@ let compile_program ?(should_pprint_past = false) ?(should_pprint_tast = false)
       print_endline (Sexp.to_string_hum (Desugared_ast.sexp_of_dprogram dprogram)));
 
   Ok(Ir_symbol_table.build_symbol_table dprogram) (* Build LLVM Symbol Table *)
-  >>= fun llvmsymboltable -> 
+  >>= fun llvmsymboltable ->
     (if should_print_llvm_table then
       Ir_symbol_table.print_symbol_table llvmsymboltable);
 
-  Ok(codegen_ast dprogram llvmsymboltable the_fpm) (* Generage LLVM IR *)
+  Ok(codegen_ast dprogram llvmsymboltable the_fpm) (* Generate LLVM IR *)
   >>= fun llvm_module ->
 
-  match compile_out_file with 
-  | Some filename -> 
-    Out_channel.with_file filename ~f:(fun file_oc ->
-      let ir_program = Llvm.string_of_llmodule llvm_module in
-      Out_channel.output_string file_oc ir_program;
-      Ok ())
+  (* If -o is specified, link with backend and produce an executable *)
+  match output_executable with
+  | Some output_binary ->
+    link_and_compile llvm_module output_binary
   | None ->
-    let ir_program = Llvm.string_of_llmodule llvm_module in
-    print_endline ir_program;
-    Ok ()
-      
+    (* Otherwise, output LLVM IR (to file or stdout) *)
+    (match compile_out_file with
+    | Some filename ->
+      Out_channel.with_file filename ~f:(fun file_oc ->
+        let ir_program = Llvm.string_of_llmodule llvm_module in
+        Out_channel.output_string file_oc ir_program;
+        Ok ())
+    | None ->
+      let ir_program = Llvm.string_of_llmodule llvm_module in
+      print_endline ir_program;
+      Ok ())
+
 let command =
   Command.basic ~summary:"Run Poppy programs"
     ~readme:(fun () -> "More detailed information")
@@ -73,22 +106,24 @@ let command =
         flag "-printpast" no_arg ~doc:" Pretty print the parsed AST of the program"
       and should_pprint_tast =
         flag "-printtast" no_arg ~doc:" Pretty print the typed AST of the program"
-      and should_pprint_dast = 
+      and should_pprint_dast =
         flag "-printdast" no_arg ~doc:" Pretty print the desugared AST of the program"
-      and should_print_llvm_table = 
+      and should_print_llvm_table =
         flag "-printsym" no_arg ~doc:" Pretty print the llvm symbol table"
-      and ignore_data_races = 
+      and ignore_data_races =
         flag "-ignore-data-races" no_arg ~doc:" Ignore data races"
+      and output_executable =
+        flag "-o" (optional string) ~doc:"FILE Compile and link to produce an executable binary"
       and filename = anon (maybe_with_default "-" ("filename" %: poppy_file)) in
       fun () ->
         In_channel.with_file filename ~f:(fun file_ic ->
             let lexbuf = Lexing.from_channel file_ic in
-            match compile_program ~should_pprint_past ~should_pprint_tast ~should_pprint_dast ~ ignore_data_races ~should_print_llvm_table lexbuf with
+            match compile_program ~should_pprint_past ~should_pprint_tast ~should_pprint_dast ~ignore_data_races ~should_print_llvm_table ?output_executable lexbuf with
             | Ok _ -> () (* Success, do nothing *)
             | Error e -> (* Handle error here *)
               eprintf "Compilation error: %s\n" (Core.Error.to_string_hum e);
               exit 1
         )
-    ) 
+    )
 
 let () = Command_unix.run ~version:"1.0" ~build_info:"RWO" command

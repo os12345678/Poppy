@@ -166,43 +166,57 @@ let rec codegen_expr (expr: D.dexpr) (sym_table: St.llvm_symbol_table) (fpm: [ `
       (* Generate a wrapper function *)
       let wrapper = U.generate_wrapper_function thread_name arg_types (U.llvm_type_of_typ expr.typ) in
       
-      (* Look up the create_thread function *)
-      let create_thread_fn = L.lookup_function "create_thread" U.the_module in
-      
+      (* Look up the thread_create function *)
+      let thread_create_fn = L.lookup_function "thread_create" U.the_module in
+
       begin
-        match create_thread_fn with
-        | Some create_thread_fn_ref ->
-            (* Call create_thread function with the wrapper and packed_args as arguments *)
-            let thread_id = L.build_call create_thread_fn_ref [| wrapper; packed_args |] "thread_id" U.builder in
-            
+        match thread_create_fn with
+        | Some thread_create_fn_ref ->
+            (* Allocate space for a pthread_t on the stack (pthread_t is represented as i8*) *)
+            let pthread_t_type = L.pointer_type (L.i8_type U.context) in
+            let thread_ptr = L.build_alloca pthread_t_type "thread_ptr" U.builder in
+
+            (* Cast wrapper function to the expected function pointer type: i8*(i8*)* *)
+            let fn_ptr_type = L.pointer_type (
+              L.function_type (L.pointer_type (L.i8_type U.context)) [| L.pointer_type (L.i8_type U.context) |]
+            ) in
+            let wrapper_cast = L.build_bitcast wrapper fn_ptr_type "wrapper_cast" U.builder in
+
+            (* Call thread_create(pthread_t*, fn_ptr, void* args) with 3 arguments *)
+            let _ret = L.build_call thread_create_fn_ref [| thread_ptr; wrapper_cast; packed_args |] "" U.builder in
+
+            (* Load the actual thread handle from the alloca *)
+            let thread_id = L.build_load thread_ptr "thread_id" U.builder in
+
             (* Add the thread_id to the thread table *)
             U.add_thread_to_table thread_name thread_id;
-            
+
             (* Return the updated symbol table and the thread_id *)
             sym_table, thread_id
-        | None -> 
-            failwith "create_thread function not found in the LLVM module."
+        | None ->
+            failwith "thread_create function not found in the LLVM module."
       end
           
   | DJoinThread thread_name ->
     begin
-      match thread_name with 
-      | DVar(name) -> 
+      match thread_name with
+      | DVar(name) ->
         begin
           match U.check_and_remove_thread_from_table name with
           | Some thread_id_value ->
-              (* Get function reference for join_thread *)
-              let join_thread_fn = L.lookup_function "join_thread" U.the_module in
+              (* Get function reference for thread_join *)
+              let thread_join_fn = L.lookup_function "thread_join" U.the_module in
               begin
-                match join_thread_fn with
-                | Some join_thread_fn_ref ->
-                    let t = L.build_call join_thread_fn_ref [| thread_id_value |] "" U.builder in
-                    (* Return a null void value as the resulting expression *)
+                match thread_join_fn with
+                | Some thread_join_fn_ref ->
+                    (* Pass thread handle and null for the value_ptr (we don't need the return value) *)
+                    let null_ptr = L.const_null (L.pointer_type (L.pointer_type (L.i8_type U.context))) in
+                    let t = L.build_call thread_join_fn_ref [| thread_id_value; null_ptr |] "" U.builder in
                     sym_table, t;
-                | None -> 
-                    failwith "join_thread function not found in the LLVM module."
+                | None ->
+                    failwith "thread_join function not found in the LLVM module."
               end
-          | None -> 
+          | None ->
               failwith (Printf.sprintf "No active threads found for function: %s" name)
           end
       | _ ->
@@ -329,16 +343,17 @@ let codegen_struct_init_function dstruct llvm_struct_type =
 let codegen_main (main_block: D.dblock) (sym_table: St.llvm_symbol_table) (fpm: [ `Function ] L.PassManager.t) : unit =
   let main_function = match L.lookup_function "main" U.the_module with
     | Some fn -> fn
-    | None -> 
-      let ftype = L.function_type (L.void_type U.context) [||] in
+    | None ->
+      (* Use i32 return type for main (standard C ABI convention) *)
+      let ftype = L.function_type (L.i32_type U.context) [||] in
       L.declare_function "main" ftype U.the_module in
   let bb = L.append_block U.context "entry" main_function in
   L.position_at_end bb U.builder;
 
   let _ = codegen_block main_block sym_table fpm in
-  
+
   if L.block_terminator (L.insertion_block U.builder) = None then
-    ignore (L.build_ret_void U.builder);
+    ignore (L.build_ret (L.const_int (L.i32_type U.context) 0) U.builder);
 
   Llvm_analysis.assert_valid_function main_function
 

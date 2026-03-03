@@ -16,20 +16,29 @@ let declare_externals the_module =
 
   (* Declare pthread-related functions *)
   let pthread_t_type = L.pointer_type (L.i8_type context) in
-  let pthread_create_type = 
-    L.function_type (L.i32_type context) [| L.pointer_type pthread_t_type; L.pointer_type (L.i8_type context); L.pointer_type (L.i8_type context); L.pointer_type (L.i8_type context) |] in
-  let _ = L.declare_function "thread_create" pthread_create_type the_module in
 
-  let pthread_join_type = 
+  (* thread_create(pthread_t *thread, void *(*start_routine)(void *), void *arg) -> i32
+     3 params matching the C wrapper in core_lib/bindings.c *)
+  let fn_ptr_type = L.pointer_type (
+    L.function_type (L.pointer_type (L.i8_type context)) [| L.pointer_type (L.i8_type context) |]
+  ) in
+  let thread_create_type =
+    L.function_type (L.i32_type context) [| L.pointer_type pthread_t_type; fn_ptr_type; L.pointer_type (L.i8_type context) |] in
+  let _ = L.declare_function "thread_create" thread_create_type the_module in
+
+  (* thread_join(pthread_t thread, void **value_ptr) -> i32 *)
+  let thread_join_type =
     L.function_type (L.i32_type context) [| pthread_t_type; L.pointer_type (L.pointer_type (L.i8_type context)) |] in
-  let _ = L.declare_function "thread_join" pthread_join_type the_module in
+  let _ = L.declare_function "thread_join" thread_join_type the_module in
 
-  let pthread_equal_type = 
+  (* pthread_equal(pthread_t t1, pthread_t t2) -> i32 *)
+  let pthread_equal_type =
     L.function_type (L.i32_type context) [| pthread_t_type; pthread_t_type |] in
   let _ = L.declare_function "pthread_equal" pthread_equal_type the_module in
 
-  let pthread_self_type = 
-    L.function_type pthread_t_type [||] in  (* Empty array for no arguments *)
+  (* pthread_self() -> pthread_t *)
+  let pthread_self_type =
+    L.function_type pthread_t_type [||] in
   let _ = L.declare_function "pthread_self" pthread_self_type the_module in
 
   ()
