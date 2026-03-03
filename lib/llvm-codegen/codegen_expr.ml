@@ -1,6 +1,4 @@
 open Llvm
-(* open Codegen_util *)
-(* open Desugar.Desugared_ast *)
 
 exception Codegen_error of string
 
@@ -22,8 +20,8 @@ let rec codegen_expr (expr: D.dexpr) (sym_table: St.llvm_symbol_table) (fpm: [ `
   | DBinOp (op, lhs, rhs) ->
     let (_, lhs_val) = codegen_expr {expr with node = lhs} sym_table fpm in
     let (_, rhs_val) = codegen_expr {expr with node = rhs} sym_table fpm in
-    begin 
-      match op with 
+    begin
+      match op with
       | T.BinOpPlus -> (sym_table, L.build_add lhs_val rhs_val "addtmp" U.builder)
       | T.BinOpMinus -> (sym_table, L.build_sub lhs_val rhs_val "subtmp" U.builder)
       | T.BinOpMult -> (sym_table, L.build_mul lhs_val rhs_val "multmp" U.builder)
@@ -54,23 +52,23 @@ let rec codegen_expr (expr: D.dexpr) (sym_table: St.llvm_symbol_table) (fpm: [ `
         sym_table, loaded_value
     | Some (St.LVarInfo {llvm_value = Some value; _}) ->
         sym_table, value
-    | Some (St.LVarInfo {llvm_value = None; _}) -> (* y.setg(5) - y is found but has no llvalue in var info ...*)
+    | Some (St.LVarInfo {llvm_value = None; _}) ->
         sym_table, failwith (Printf.sprintf "Variable %s not initialized" var_name)
     | _ -> failwith (Printf.sprintf "Variable %s not found or not declared in the symbol table." var_name)
     end
 
 
   | DAssign (varname, rhs_expr_node) ->
-    let (updated_sym_table, rhs_value) = 
+    let (updated_sym_table, rhs_value) =
         codegen_expr (U.wrap expr.loc expr.typ rhs_expr_node) sym_table fpm in
-    begin 
+    begin
       match St.lookup_variable updated_sym_table varname with
       | Some _ ->
-        let llvm_type = L.type_of rhs_value in  (* Use the type of rhs_value *)
+        let llvm_type = L.type_of rhs_value in
         let llvm_var = L.build_alloca llvm_type varname U.builder in
         ignore (L.build_store rhs_value llvm_var U.builder);
-        let updated_info = St.LVarInfo { 
-            llvm_value = Some llvm_var; 
+        let updated_info = St.LVarInfo {
+            llvm_value = Some llvm_var;
             llvm_type = Some llvm_type;
             storage = Local;
             is_global = false;
@@ -80,8 +78,8 @@ let rec codegen_expr (expr: D.dexpr) (sym_table: St.llvm_symbol_table) (fpm: [ `
 
       | _ -> raise (Codegen_error (Printf.sprintf "Variable %s not found" varname))
     end
-  
-    | DCall (fname, args) -> 
+
+    | DCall (fname, args) ->
       begin
         match L.lookup_function fname U.the_module with
         | Some fn ->
@@ -89,16 +87,16 @@ let rec codegen_expr (expr: D.dexpr) (sym_table: St.llvm_symbol_table) (fpm: [ `
           let function_type = L.element_type (L.type_of fn) in
           let expected_param_types = Array.to_list (L.param_types function_type) in
           let actual_arg_values = List.map snd arg_values_and_tables in
-          let arg_values = List.map2 U.adjust_arg_type expected_param_types actual_arg_values in 
+          let arg_values = List.map2 U.adjust_arg_type expected_param_types actual_arg_values in
           let call = L.build_call fn (Array.of_list arg_values) fname U.builder in
           sym_table, call
-        | None -> 
+        | None ->
             failwith (Printf.sprintf "Function %s not declared in the LLVM module." fname)
       end
-  
+
   | DIf (cond, then_block, else_block) ->
     let (sym_table_after_cond, cond_val) = codegen_expr { expr with node = cond } sym_table fpm in
-    
+
     let start_bb = L.insertion_block U.builder in
     let the_function = L.block_parent start_bb in
     let then_bb = L.append_block U.context "then" the_function in
@@ -137,7 +135,7 @@ let rec codegen_expr (expr: D.dexpr) (sym_table: St.llvm_symbol_table) (fpm: [ `
     L.position_at_end loop_body U.builder;
     let _ = codegen_block block sym_table_after_cond fpm in
     if L.block_terminator (L.insertion_block U.builder) = None then
-      ignore (L.build_br loop_header U.builder);  (* Jump back to loop header. *)
+      ignore (L.build_br loop_header U.builder);
 
     L.position_at_end loop_exit U.builder;
 
@@ -150,71 +148,80 @@ let rec codegen_expr (expr: D.dexpr) (sym_table: St.llvm_symbol_table) (fpm: [ `
     codegen_block wrapped sym_table fpm
 
     | DCreateThread (thread_name, args) ->
-      let arg_values_and_tables = List.map (fun arg -> 
+      let arg_values_and_tables = List.map (fun arg ->
         codegen_expr {expr with node = arg} sym_table fpm
     ) args in
-      
+
       (* Generate LLVM IR for each argument *)
       let arg_values = List.map snd arg_values_and_tables in
 
       (* Get the LLVM type of each argument *)
       let arg_types = List.map (fun arg -> L.type_of (snd arg)) arg_values_and_tables in
-      
+
       (* Pack the arguments *)
       let packed_args = U.pack_args arg_values arg_types in
 
       (* Generate a wrapper function *)
       let wrapper = U.generate_wrapper_function thread_name arg_types (U.llvm_type_of_typ expr.typ) in
-      
-      (* Look up the create_thread function *)
-      let create_thread_fn = L.lookup_function "create_thread" U.the_module in
-      
+
+      (* Look up the thread_create function (fixed: was "create_thread") *)
+      let thread_create_fn = L.lookup_function "thread_create" U.the_module in
+
       begin
-        match create_thread_fn with
-        | Some create_thread_fn_ref ->
-            (* Call create_thread function with the wrapper and packed_args as arguments *)
-            let thread_id = L.build_call create_thread_fn_ref [| wrapper; packed_args |] "thread_id" U.builder in
-            
+        match thread_create_fn with
+        | Some thread_create_fn_ref ->
+            (* Allocate space for the pthread_t handle on the stack *)
+            let pthread_t_type = L.pointer_type (L.i8_type U.context) in
+            let thread_handle_ptr = L.build_alloca pthread_t_type "thread_handle" U.builder in
+
+            (* Call thread_create(&thread_handle, wrapper, packed_args) with 3 args *)
+            let _ = L.build_call thread_create_fn_ref
+              [| thread_handle_ptr; wrapper; packed_args |] "" U.builder in
+
+            (* Load the thread handle from the allocated pointer *)
+            let thread_id = L.build_load thread_handle_ptr "thread_id" U.builder in
+
             (* Add the thread_id to the thread table *)
             U.add_thread_to_table thread_name thread_id;
-            
+
             (* Return the updated symbol table and the thread_id *)
             sym_table, thread_id
-        | None -> 
-            failwith "create_thread function not found in the LLVM module."
+        | None ->
+            failwith "thread_create function not found in the LLVM module."
       end
-          
+
   | DJoinThread thread_name ->
     begin
-      match thread_name with 
-      | DVar(name) -> 
+      match thread_name with
+      | DVar(name) ->
         begin
           match U.check_and_remove_thread_from_table name with
           | Some thread_id_value ->
-              (* Get function reference for join_thread *)
-              let join_thread_fn = L.lookup_function "join_thread" U.the_module in
+              (* Look up thread_join function (fixed: was "join_thread") *)
+              let thread_join_fn = L.lookup_function "thread_join" U.the_module in
               begin
-                match join_thread_fn with
-                | Some join_thread_fn_ref ->
-                    let t = L.build_call join_thread_fn_ref [| thread_id_value |] "" U.builder in
-                    (* Return a null void value as the resulting expression *)
-                    sym_table, t;
-                | None -> 
-                    failwith "join_thread function not found in the LLVM module."
+                match thread_join_fn with
+                | Some thread_join_fn_ref ->
+                    (* Pass null for value_ptr since we don't need the thread's return value *)
+                    let null_ptr = L.const_null (L.pointer_type (L.pointer_type (L.i8_type U.context))) in
+                    let t = L.build_call thread_join_fn_ref [| thread_id_value; null_ptr |] "" U.builder in
+                    sym_table, t
+                | None ->
+                    failwith "thread_join function not found in the LLVM module."
               end
-          | None -> 
+          | None ->
               failwith (Printf.sprintf "No active threads found for function: %s" name)
           end
       | _ ->
           failwith "Invalid thread name"
     end
-        
+
 (* ############################ Codegen block ################################ *)
 and codegen_block (block: D.dblock) (sym_table: St.llvm_symbol_table) (fpm: [ `Function ] L.PassManager.t) : St.llvm_symbol_table * llvalue =
   match block with
-  | [] -> (sym_table, L.const_int (L.i32_type U.context) 0) (* Default return for an empty block. Adjust as needed. *)
+  | [] -> (sym_table, L.const_int (L.i32_type U.context) 0)
   | [last_expr] -> codegen_expr last_expr sym_table fpm
-  | expr :: rest -> 
+  | expr :: rest ->
       let updated_sym_table, _ = codegen_expr expr sym_table fpm in
       codegen_block rest updated_sym_table fpm
 
@@ -225,11 +232,11 @@ let codegen_proto (func: D.dfunction) (sym_table: St.llvm_symbol_table) : St.llv
   let ftype = L.function_type ret_type (Array.of_list param_types) in
 
   match L.lookup_function func.name U.the_module with
-  | Some fn -> 
+  | Some fn ->
       (sym_table, fn)
-  | None -> 
+  | None ->
     let new_fn = L.declare_function func.name ftype U.the_module in
-    let new_info = St.LFuncInfo { llvm_function = Some new_fn; params = [] } in  (* Initialize params as empty for now *)
+    let new_info = St.LFuncInfo { llvm_function = Some new_fn; params = [] } in
     let new_sym_table = { St.table = St.SymbolMap.add func.name new_info sym_table.table; parent = Some sym_table } in
     (new_sym_table, new_fn)
 
@@ -239,30 +246,25 @@ let codegen_func_body (func: D.dfunction) (fn: llvalue) (sym_table: St.llvm_symb
 
   let param_name_to_index = List.mapi (fun i (_ptype, pname) -> (pname, i)) func.params in
 
-  let updated_sym_table = 
+  let updated_sym_table =
     List.fold_left (fun acc_sym_table (_ptype, name) ->
-      let param_index = List.assoc name param_name_to_index in 
+      let param_index = List.assoc name param_name_to_index in
       let param_val = L.param fn param_index in
       let new_var_info = St.LVarInfo { llvm_value = Some param_val; llvm_type = None; storage = Local; is_global = false } in
       { St.table = St.SymbolMap.add name new_var_info acc_sym_table.St.table; parent = acc_sym_table.St.parent }
     ) sym_table func.params in
-    
-  let last_expr_result = 
-    match List.rev func.body with
-    | last_expr :: _ -> 
-        let (_updated_sym_table, value) = codegen_expr last_expr updated_sym_table fpm in
-        Some value
-    | [] -> None
-  in
-  
-  begin match last_expr_result with
-    | Some value -> ignore (L.build_ret value U.builder)
-    | None -> ignore (L.build_ret_void U.builder) (* Only valid if function is supposed to return void *)
-  end;
-    
-  Llvm_analysis.assert_valid_function fn;
 
-  (* let _ = PassManager.run_function fn U.the_fpm in *)
+  (* Generate code for ALL expressions in the function body, not just the last one *)
+  let (_final_sym_table, last_value) = codegen_block func.body updated_sym_table fpm in
+
+  (* Add return instruction if the block doesn't already have a terminator *)
+  if L.block_terminator (L.insertion_block U.builder) = None then begin
+    match func.ret_type with
+    | T.TEVoid -> ignore (L.build_ret_void U.builder)
+    | _ -> ignore (L.build_ret last_value U.builder)
+  end;
+
+  Llvm_analysis.assert_valid_function fn;
   updated_sym_table
 
 (* ############################ Codegen struct ############################## *)
@@ -272,13 +274,13 @@ let codegen_struct_init_function dstruct llvm_struct_type =
   let ret_type = L.pointer_type llvm_struct_type in
   let func_type = L.function_type ret_type param_types in
   let func = L.define_function func_name func_type U.the_module in
-  
+
   let builder = L.builder_at_end U.context (L.entry_block func) in
-  
+
   (* Allocate memory for the struct on the heap *)
   let gc_malloc_opt = L.lookup_function "GC_malloc" U.the_module in
-  
-  begin match gc_malloc_opt with 
+
+  begin match gc_malloc_opt with
   | Some gc_malloc ->
     (* Get the size of the struct *)
     let struct_size = L.size_of llvm_struct_type in
@@ -306,16 +308,16 @@ let codegen_struct_init_function dstruct llvm_struct_type =
     let struct_name = dstruct.D.name in
     let field_types = List.map snd dstruct.fields in
     let llvm_field_types = List.map (fun t -> U.llvm_type_of_typ t) field_types in
-    
+
     (* Create a named, opaque struct type *)
     let llvm_struct_type = L.named_struct_type U.context struct_name in
     (* Set the struct type's body *)
     L.struct_set_body llvm_struct_type (Array.of_list llvm_field_types) false;
-    
-    (* Create a function to initialize the struct *)    
-    let _ = codegen_struct_init_function dstruct llvm_struct_type in    
+
+    (* Create a function to initialize the struct *)
+    let _ = codegen_struct_init_function dstruct llvm_struct_type in
     let struct_info = St.LStructInfo {
-      llvm_struct = Some llvm_struct_type; 
+      llvm_struct = Some llvm_struct_type;
       field_map = (match St.lookup_variable current_table struct_name with
                    | Some (St.LStructInfo info) -> info.field_map
                    | _ -> failwith "Struct information not found in symbol table.")
@@ -327,24 +329,26 @@ let codegen_struct_init_function dstruct llvm_struct_type =
 
 (* ############################# Codegen main ############################### *)
 let codegen_main (main_block: D.dblock) (sym_table: St.llvm_symbol_table) (fpm: [ `Function ] L.PassManager.t) : unit =
+  (* main should return i32 (not void) per C calling convention *)
   let main_function = match L.lookup_function "main" U.the_module with
     | Some fn -> fn
-    | None -> 
-      let ftype = L.function_type (L.void_type U.context) [||] in
+    | None ->
+      let ftype = L.function_type (L.i32_type U.context) [||] in
       L.declare_function "main" ftype U.the_module in
   let bb = L.append_block U.context "entry" main_function in
   L.position_at_end bb U.builder;
 
   let _ = codegen_block main_block sym_table fpm in
-  
+
+  (* Return 0 (success) from main *)
   if L.block_terminator (L.insertion_block U.builder) = None then
-    ignore (L.build_ret_void U.builder);
+    ignore (L.build_ret (L.const_int (L.i32_type U.context) 0) U.builder);
 
   Llvm_analysis.assert_valid_function main_function
 
 (* ########################### Codegen program ############################## *)
 
-let codegen_ast (dprogram: D.dprogram) (symboltable: St.llvm_symbol_table) (fpm: [ `Function ] L.PassManager.t): llmodule =   
+let codegen_ast (dprogram: D.dprogram) (symboltable: St.llvm_symbol_table) (fpm: [ `Function ] L.PassManager.t): llmodule =
   E.declare_externals U.the_module;
 
   (* Generate code for all structs *)

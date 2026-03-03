@@ -1,4 +1,12 @@
 (rule
   (targets libbindings.so)
   (deps bindings.c)
-  (action (run gcc -shared -fPIC %{deps} -o %{targets})))
+  (action (run gcc -shared -fPIC %{deps} -o %{targets} -lpthread)))
+
+; Generate LLVM IR from C bindings for the current platform.
+; This produces bindings.ll which can be linked into the Poppy-generated module
+; using the -link flag: poppy -link core_lib/bindings.ll program.poppy
+(rule
+  (targets bindings.ll)
+  (deps bindings.c)
+  (action (run clang -S -emit-llvm %{deps} -o %{targets})))
